@@ -267,14 +267,15 @@ class _ModuleCard extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 30,
-              height: 30,
+              width: 34,
+              height: 34,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.22),
+                color: color,
                 borderRadius: BorderRadius.circular(AppRadius.chip),
+                boxShadow: [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 8, offset: const Offset(0, 3))],
               ),
-              child: Icon(icon, size: 16, color: color),
+              child: Icon(icon, size: 18, color: Colors.white),
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(

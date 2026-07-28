@@ -4,6 +4,7 @@ import '../models/work_order.dart';
 import '../providers/map_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/work_order_list_provider.dart';
+import '../widgets/app_logo.dart';
 import 'dashboard_screen.dart';
 import 'home/home_screen.dart';
 import 'map/map_screen.dart';
@@ -53,7 +54,14 @@ class _MainShellState extends State<MainShell> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_titles[_index]),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppLogo(height: 22, padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
+            const SizedBox(width: 10),
+            Flexible(child: Text(_titles[_index], overflow: TextOverflow.ellipsis)),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: themeProvider.isDark ? 'Aydınlık moda geç' : 'Karanlık moda geç',

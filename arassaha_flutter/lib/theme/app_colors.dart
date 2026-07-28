@@ -11,23 +11,29 @@ class AppColors {
   AppColors._();
 
   // --- Açık tema ---
-  static const lightPrimary = Color(0xFF1B3A5C);
-  static const lightAccent = Color(0xFFF2994A);
-  static const lightSuccess = Color(0xFF2E8B57);
-  static const lightWarning = Color(0xFFE0A106);
-  static const lightDanger = Color(0xFFD64545);
+  // v2 (canlı palet): mobile-design skill'inin "sahada, güneş altında okunabilirlik"
+  // önceliğine göre doygunluk artırıldı — pastel/donuk tonlar yerine yüksek
+  // kontrastlı, solid renkler (bkz. mobile-color-system.md "Outdoor Visibility").
+  static const lightPrimary = Color(0xFF0D5FA8);
+  static const lightAccent = Color(0xFFFF6A1A);
+  static const lightSuccess = Color(0xFF16A34A);
+  static const lightWarning = Color(0xFFF2A900);
+  static const lightDanger = Color(0xFFE0263F);
   static const lightBackground = Color(0xFFF6F7F9);
   static const lightSurface = Color(0xFFFFFFFF);
   static const lightTextPrimary = Color(0xFF1A1D23);
   static const lightTextSecondary = Color(0xFF6B7280);
 
   // --- Koyu tema ---
-  static const darkPrimary = Color(0xFF4A7FB5);
-  static const darkAccent = Color(0xFFF2994A);
-  static const darkSuccess = Color(0xFF3EAE74);
-  static const darkWarning = Color(0xFFE0B33C);
-  static const darkDanger = Color(0xFFE06565);
-  static const darkBackground = Color(0xFF14161A);
+  // Skill kuralı: koyu zeminde AYNI doygunlukta renk kullanmak "gözü yakar"
+  // (bkz. mobile-color-system.md "Color Inversion Rules") — bu yüzden koyu
+  // tondaki karşılıklar birebir aynı değil, hafif açılmış/yumuşatılmış.
+  static const darkPrimary = Color(0xFF5B9BE0);
+  static const darkAccent = Color(0xFFFF9152);
+  static const darkSuccess = Color(0xFF3ECC7A);
+  static const darkWarning = Color(0xFFFBBF24);
+  static const darkDanger = Color(0xFFF16B7A);
+  static const darkBackground = Color(0xFF121316);
   static const darkSurface = Color(0xFF1E2126);
   static const darkTextPrimary = Color(0xFFE8EAED);
   static const darkTextSecondary = Color(0xFF9AA0A8);

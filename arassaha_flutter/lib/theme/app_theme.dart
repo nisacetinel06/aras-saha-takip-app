@@ -166,9 +166,12 @@ class AppTheme {
           textStyle: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15),
         ),
       ),
+      // FAB, uygulamanın "accent" (enerji/vurgu) rengini kullanır — bu, M3'ün
+      // primary/secondary/tertiary rollerinin dışında, sadece bu tek amaç için
+      // ayrılmış canlı bir tondur (bkz. app_colors.dart AppColors.accent).
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: scheme.tertiary,
-        foregroundColor: scheme.onTertiary,
+        backgroundColor: scheme.brightness == Brightness.dark ? AppColors.darkAccent : AppColors.lightAccent,
+        foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       inputDecorationTheme: InputDecorationTheme(

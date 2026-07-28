@@ -64,10 +64,10 @@ class AppCard extends StatelessWidget {
     // kendi borderRadius'una bırakılıyor.
     return Container(
       decoration: BoxDecoration(
-        color: backgroundTint?.withValues(alpha: isDark ? 0.16 : 0.08) ?? scheme.surfaceContainerLowest,
+        color: backgroundTint?.withValues(alpha: isDark ? 0.28 : 0.22) ?? scheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(
-          color: backgroundTint?.withValues(alpha: isDark ? 0.4 : 0.25) ??
+          color: backgroundTint?.withValues(alpha: isDark ? 0.55 : 0.45) ??
               scheme.outlineVariant.withValues(alpha: isDark ? 0.5 : 0.3),
         ),
         boxShadow: isDark
