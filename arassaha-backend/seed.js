@@ -68,6 +68,18 @@ function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// Fisher-Yates: locations dizisini karıştırır. statusPlan ile aynı uzunlukta
+// (15) olduğu için her konum tam olarak bir kez kullanılır — bu sayede harita
+// ekranında pinler 7 ile de dağılır, tek bir noktada üst üste binmez.
+function shuffle(arr) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 function equipmentRef() {
   const year = 2020 + Math.floor(Math.random() * 5);
   const num = String(Math.floor(Math.random() * 9999)).padStart(4, '0');
@@ -112,9 +124,10 @@ function insertMany(rows) {
 }
 
 const firstCozulduIndex = statusPlan.indexOf('cozuldu');
+const shuffledLocations = shuffle(locations);
 
 const rows = statusPlan.map((status, index) => {
-  const location = pick(locations);
+  const location = shuffledLocations[index];
   const title = pick(titles);
 
   let createdAt;

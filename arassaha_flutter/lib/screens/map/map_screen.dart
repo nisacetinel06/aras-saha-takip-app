@@ -1,0 +1,287 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
+import '../../models/work_order.dart';
+import '../../models/work_order_map_pin.dart';
+import '../../providers/map_provider.dart';
+import '../../widgets/status_badge.dart';
+import '../work_order_detail_screen.dart';
+
+/// Harita sekmesi içeriği: iş emirlerinin gerçek lat/lng konumlarını
+/// OpenStreetMap üzerinde gösterir. Her pin backend'deki gerçek bir kayda
+/// karşılık gelir — sahte/örnek pin yoktur (bkz. ARCHITECTURE.md Temel Kalite
+/// İlkesi). MainShell'in ortak app bar'ı/alt navigasyonu altında gösterilir;
+/// kendi Scaffold/AppBar'ı yoktur (WorkOrderListScreen ile aynı desen).
+///
+/// Not (dark mode): OpenStreetMap tile'ları her zaman açık renkli gelir —
+/// bu, harita tile katmanı için bir sınırlamadır ve bu prototipte değiştirilmedi.
+/// İstenirse dark modda tile katmanının üzerine hafif koyu bir ColorFiltered/
+/// Container overlay eklenerek karartma efekti verilebilir; filtre çubuğu,
+/// bilgi balonu ve butonlar zaten colorScheme üzerinden dark/light uyumludur.
+class MapScreen extends StatefulWidget {
+  /// Dashboard'daki özet kartlarından belirli bir statü ile açılmak istendiğinde
+  /// verilir (örn. "Açık Arızalar" kartı -> WorkOrderStatus.acik).
+  final WorkOrderStatus? initialStatusFilter;
+
+  const MapScreen({super.key, this.initialStatusFilter});
+
+  @override
+  State<MapScreen> createState() => _MapScreenState();
+}
+
+class _MapScreenState extends State<MapScreen> {
+  final MapController _mapController = MapController();
+
+  static const LatLng _regionCenter = LatLng(39.90, 41.27);
+  static const double _regionZoom = 7.3;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<MapProvider>().fetchMapData(
+            statusFilter: widget.initialStatusFilter?.toJson(),
+          );
+    });
+  }
+
+  void _recenter() {
+    _mapController.move(_regionCenter, _regionZoom);
+  }
+
+  void _showPinSheet(WorkOrderMapPin pin) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(color: scheme.outlineVariant, borderRadius: BorderRadius.circular(4)),
+                  ),
+                ),
+                Text(pin.title, style: Theme.of(sheetContext).textTheme.headlineSmall),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    StatusBadge(status: pin.status),
+                    const SizedBox(width: 8),
+                    PriorityBadge(priority: pin.priority),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(sheetContext).pop();
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => WorkOrderDetailScreen(workOrderId: pin.id)),
+                      );
+                    },
+                    icon: const Icon(Icons.arrow_forward),
+                    label: const Text('Detaya Git'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Marker _buildMarker(WorkOrderMapPin pin) {
+    final isUrgent = pin.priority == WorkOrderPriority.acil;
+    final size = isUrgent ? 46.0 : 36.0;
+    return Marker(
+      point: LatLng(pin.lat, pin.lng),
+      width: size,
+      height: size,
+      child: GestureDetector(
+        onTap: () => _showPinSheet(pin),
+        child: Stack(
+          alignment: const Alignment(0, -0.35),
+          children: [
+            Icon(Icons.location_on, color: statusColor(context, pin.status), size: size),
+            // Acil öncelikli işler için pin üzerinde küçük bir ünlem ikonu —
+            // haritaya bakınca hangi arızaların en kritik olduğu anında ayırt edilir.
+            if (isUrgent)
+              Icon(Icons.priority_high, color: Colors.white, size: size * 0.34),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<MapProvider>();
+
+    return Column(
+      children: [
+        _MapFilterBar(provider: provider),
+        Expanded(
+          child: Stack(
+            children: [
+              FlutterMap(
+                mapController: _mapController,
+                options: const MapOptions(initialCenter: _regionCenter, initialZoom: _regionZoom),
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.arasedas.arassaha_flutter',
+                  ),
+                  MarkerLayer(markers: provider.mapMarkers.map(_buildMarker).toList()),
+                ],
+              ),
+              if (provider.isLoading)
+                const Positioned(top: 10, left: 0, right: 0, child: _LoadingChip()),
+              if (provider.errorMessage != null)
+                Positioned(
+                  top: 10,
+                  left: 12,
+                  right: 12,
+                  child: _ErrorBanner(
+                    message: provider.errorMessage!,
+                    onRetry: () => provider.fetchMapData(),
+                  ),
+                ),
+              Positioned(
+                bottom: 16,
+                right: 16,
+                child: FloatingActionButton.small(
+                  heroTag: 'map_recenter_fab',
+                  tooltip: 'Erzurum merkezine dön',
+                  onPressed: _recenter,
+                  child: const Icon(Icons.center_focus_strong),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Dashboard ve Görevler sekmesindeki filtre çubuğuyla aynı görsel stili
+/// (ChoiceChip satırı) kullanır — modüller arası tutarlılık için.
+class _MapFilterBar extends StatelessWidget {
+  final MapProvider provider;
+  const _MapFilterBar({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    final filters = <String, WorkOrderStatus?>{
+      'Tümü': null,
+      'Açık': WorkOrderStatus.acik,
+      'Yolda': WorkOrderStatus.yolda,
+      'Sahada': WorkOrderStatus.sahada,
+      'Çözüldü': WorkOrderStatus.cozuldu,
+    };
+
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: filters.entries.map((entry) {
+          final isSelected = provider.statusFilter == entry.value;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            child: ChoiceChip(
+              label: Text(entry.key),
+              selected: isSelected,
+              showCheckmark: false,
+              labelStyle: TextStyle(color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant),
+              // Veri seti küçük (≈15 kayıt) olduğu için backend'e tekrar istek
+              // atmak yerine mevcut liste istemci tarafında filtrelenir.
+              onSelected: (_) => provider.setStatusFilter(entry.value),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _LoadingChip extends StatelessWidget {
+  const _LoadingChip();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: scheme.primary),
+            ),
+            const SizedBox(width: 10),
+            Text('Konum verileri yükleniyor...', style: TextStyle(fontSize: 12, color: scheme.onSurface)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _ErrorBanner({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 6, offset: const Offset(0, 2))],
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: scheme.onErrorContainer, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Konum verileri yüklenemedi',
+              style: TextStyle(color: scheme.onErrorContainer, fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+          ),
+          TextButton(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(foregroundColor: scheme.onErrorContainer),
+            child: const Text('Tekrar Dene'),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -82,6 +82,33 @@ router.get('/', (req, res) => {
   }
 });
 
+// GET /api/workorders/map?status=acik
+// Harita ekranı için hafif alan seti döner: id, title, status, priority, lat, lng.
+// (Bu route, ":id" route'undan ÖNCE tanımlanmalı; aksi halde Express "map" değerini
+// bir id parametresi sanıp o route'a düşer.)
+// lat/lng değeri olmayan kayıtlar haritada gösterilemeyeceği için sonuca dahil edilmez.
+router.get('/map', (req, res) => {
+  try {
+    const { status } = req.query;
+
+    if (status && !VALID_STATUSES.includes(status)) {
+      return res.status(400).json({
+        error: `Geçersiz status değeri. Geçerli değerler: ${VALID_STATUSES.join(', ')}`,
+      });
+    }
+
+    const baseQuery = 'SELECT id, title, status, priority, lat, lng FROM work_orders WHERE lat IS NOT NULL AND lng IS NOT NULL';
+    const rows = status
+      ? db.prepare(`${baseQuery} AND status = ? ORDER BY id`).all(status)
+      : db.prepare(`${baseQuery} ORDER BY id`).all();
+
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Harita verileri alınırken bir hata oluştu.' });
+  }
+});
+
 // GET /api/workorders/:id
 // Tek bir iş emrinin detayını, atanan kişi ve ilişkili fotoğraflarıyla birlikte döner.
 // Bu endpoint hangi kullanıcı/cihazdan çağrılırsa çağrılsın aynı kalıcı veriyi döner

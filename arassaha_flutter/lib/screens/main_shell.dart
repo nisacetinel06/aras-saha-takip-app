@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/work_order.dart';
-import 'map_screen.dart';
+import 'map/map_screen.dart';
 import 'placeholder_screen.dart';
 import 'work_order_list_screen.dart';
 
@@ -8,17 +8,23 @@ import 'work_order_list_screen.dart';
 /// geçiş sağlayan ortak kabuk. Ortak app bar + bottom nav burada tanımlıdır;
 /// sekme içerikleri kendi Scaffold/AppBar'ını taşımaz.
 class MainShell extends StatefulWidget {
-  /// Dashboard'dan belirli bir statü filtresiyle açılmak istendiğinde verilir.
+  /// Dashboard'dan belirli bir statü filtresiyle Görevler sekmesine açılmak
+  /// istendiğinde verilir.
   final WorkOrderStatus? initialStatusFilter;
 
-  const MainShell({super.key, this.initialStatusFilter});
+  /// Dashboard'dan doğrudan Harita sekmesine, belirli bir statü filtresi
+  /// önceden uygulanmış şekilde açılmak istendiğinde verilir (örn. "Açık
+  /// Arızalar" kartındaki harita ikonu -> Harita sekmesi + 'acik' filtresi).
+  final WorkOrderStatus? initialMapStatusFilter;
+
+  const MainShell({super.key, this.initialStatusFilter, this.initialMapStatusFilter});
 
   @override
   State<MainShell> createState() => _MainShellState();
 }
 
 class _MainShellState extends State<MainShell> {
-  int _index = 0;
+  late int _index = widget.initialMapStatusFilter != null ? 1 : 0;
 
   static const _titles = ['ArasSaha', 'Harita', 'Duyurular', 'Ayarlar'];
 
@@ -26,7 +32,7 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final tabs = <Widget>[
       WorkOrderListScreen(initialStatusFilter: widget.initialStatusFilter),
-      const MapScreen(),
+      MapScreen(initialStatusFilter: widget.initialMapStatusFilter),
       const PlaceholderScreen(
         icon: Icons.notifications_outlined,
         message: 'Bildirimler modülü yakında eklenecek.',

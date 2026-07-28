@@ -8,7 +8,7 @@ const usersRouter = require('./routes/users');
 const dashboardRouter = require('./routes/dashboard');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });

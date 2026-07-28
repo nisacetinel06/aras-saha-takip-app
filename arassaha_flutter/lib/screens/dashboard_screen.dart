@@ -39,6 +39,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  void _openMap(WorkOrderStatus status) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => MainShell(initialMapStatusFilter: status)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
@@ -77,22 +83,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       body: Consumer<DashboardProvider>(
         builder: (context, provider, _) {
-          if (provider.isLoading && provider.summary == null) {
-            return const _DashboardSkeleton();
-          }
-
           if (provider.errorMessage != null && provider.summary == null) {
             return _ErrorState(message: provider.errorMessage!, onRetry: provider.fetchSummary);
           }
 
-          final summary = provider.summary!;
+          final summary = provider.summary;
+          if (summary == null) {
+            return const _DashboardSkeleton();
+          }
           return RefreshIndicator(
             onRefresh: provider.fetchSummary,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
               children: [
-                _SummaryCardsRow(summary: summary, onCardTap: _openList),
+                _SummaryCardsRow(summary: summary, onCardTap: _openList, onMapTap: _openMap),
                 const SizedBox(height: 20),
                 _QuickActionsRow(onComingSoon: _showComingSoon),
                 const SizedBox(height: 24),
@@ -129,8 +134,9 @@ class _SectionHeader extends StatelessWidget {
 class _SummaryCardsRow extends StatelessWidget {
   final DashboardSummary summary;
   final void Function(WorkOrderStatus status) onCardTap;
+  final void Function(WorkOrderStatus status) onMapTap;
 
-  const _SummaryCardsRow({required this.summary, required this.onCardTap});
+  const _SummaryCardsRow({required this.summary, required this.onCardTap, required this.onMapTap});
 
   @override
   Widget build(BuildContext context) {
@@ -144,6 +150,7 @@ class _SummaryCardsRow extends StatelessWidget {
             value: '${summary.openCount}',
             label: 'Açık Arızalar',
             onTap: () => onCardTap(WorkOrderStatus.acik),
+            onMapTap: () => onMapTap(WorkOrderStatus.acik),
           ),
         ),
         const SizedBox(width: 12),
@@ -154,6 +161,7 @@ class _SummaryCardsRow extends StatelessWidget {
             value: '${summary.resolvedTodayCount}',
             label: 'Bugün Çözülen',
             onTap: () => onCardTap(WorkOrderStatus.cozuldu),
+            onMapTap: () => onMapTap(WorkOrderStatus.cozuldu),
           ),
         ),
         const SizedBox(width: 12),
@@ -164,6 +172,7 @@ class _SummaryCardsRow extends StatelessWidget {
             value: '${summary.avgResolutionHours.toStringAsFixed(1)} sa',
             label: 'Ort. Çözüm Süresi',
             onTap: () => onCardTap(WorkOrderStatus.cozuldu),
+            onMapTap: () => onMapTap(WorkOrderStatus.cozuldu),
           ),
         ),
       ],
@@ -177,6 +186,7 @@ class _SummaryCard extends StatelessWidget {
   final String value;
   final String label;
   final VoidCallback onTap;
+  final VoidCallback onMapTap;
 
   const _SummaryCard({
     required this.icon,
@@ -184,6 +194,7 @@ class _SummaryCard extends StatelessWidget {
     required this.value,
     required this.label,
     required this.onTap,
+    required this.onMapTap,
   });
 
   @override
@@ -192,19 +203,40 @@ class _SummaryCard extends StatelessWidget {
     return BentoCard(
       onTap: onTap,
       padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
-      child: Column(
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          Icon(icon, color: iconColor, size: 26),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+          Column(
+            children: [
+              Icon(icon, color: iconColor, size: 26),
+              const SizedBox(height: 10),
+              Text(
+                value,
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+          // Modüller arası bağlantı: bu ikon, ilgili statü filtresi önceden
+          // uygulanmış şekilde doğrudan Harita sekmesine götürür.
+          Positioned(
+            top: -8,
+            right: -6,
+            child: IconButton(
+              icon: const Icon(Icons.map_outlined),
+              iconSize: 16,
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+              color: colorScheme.onSurfaceVariant,
+              tooltip: 'Haritada Gör',
+              onPressed: onMapTap,
+            ),
           ),
         ],
       ),

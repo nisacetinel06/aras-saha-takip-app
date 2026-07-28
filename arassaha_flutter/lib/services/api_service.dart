@@ -5,6 +5,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import '../models/dashboard_summary.dart';
 import '../models/work_order.dart';
+import '../models/work_order_map_pin.dart';
 
 /// Backend ile ilgili tüm hataları sarmalayan özel exception sınıfı.
 class ApiException implements Exception {
@@ -16,15 +17,12 @@ class ApiException implements Exception {
 }
 
 class ApiService {
-  // Test ortamına göre bu satırı değiştir:
+  // Backend Railway'de canlı: https://arassaha-backend-production.up.railway.app
+  // Lokal test için gerekirse aşağıdakilerle değiştir:
   // - Android emulator:      http://10.0.2.2:3000/api
-  //   (emulator'ın kendi bilgisayarını gördüğü özel adres)
-  // - Gerçek cihaz + USB kablo: http://localhost:3000/api
-  //   (önce bilgisayarda "adb reverse tcp:3000 tcp:3000" çalıştırılmalı;
-  //   bu, tabletin localhost isteğini bilgisayarın 3000 portuna yönlendirir)
+  // - Gerçek cihaz + USB kablo: http://localhost:3000/api (+ adb reverse tcp:3000 tcp:3000)
   // - Gerçek cihaz + aynı WiFi ağı: http://<bilgisayarın-yerel-IP'si>:3000/api
-  //   (örn. http://192.168.1.23:3000/api, ipconfig ile bulunur)
-  static const String host = 'http://localhost:3000';
+  static const String host = 'https://arassaha-backend-production.up.railway.app';
   static const String baseUrl = '$host/api';
 
   /// `work_order_photos.photo_path` backend'den `/uploads/...` şeklinde göreli
@@ -44,6 +42,27 @@ class ApiService {
 
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => WorkOrder.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// Harita ekranı (Modül 3) için hafif iş emri verisi getirir.
+  Future<List<WorkOrderMapPin>> getMapData({String? statusFilter}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/workorders/map').replace(
+        queryParameters: statusFilter != null ? {'status': statusFilter} : null,
+      );
+      final response = await http.get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Harita verileri alınamadı.'));
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => WorkOrderMapPin.fromJson(json)).toList();
     } on ApiException {
       rethrow;
     } catch (e) {
