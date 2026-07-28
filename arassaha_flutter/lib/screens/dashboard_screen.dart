@@ -4,15 +4,22 @@ import 'package:provider/provider.dart';
 import '../models/dashboard_summary.dart';
 import '../models/work_order.dart';
 import '../providers/dashboard_provider.dart';
-import '../providers/theme_provider.dart';
-import '../widgets/bento_card.dart';
+import '../theme/app_spacing.dart';
+import '../widgets/app_button.dart';
+import '../widgets/app_card.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/work_order_card.dart' show formatRelativeTime;
-import 'main_shell.dart';
 import 'work_order_detail_screen.dart';
 
+/// Dashboard sekmesi: Modül 2'nin detaylı analiz görünümü (grafikler, son
+/// aktiviteler). MainShell'in ortak app bar'ı altında gösterilir; kendi
+/// Scaffold/AppBar'ı yoktur (WorkOrderListScreen ile aynı desen).
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  /// Özet kartlardan İş Emirleri/Harita sekmesine, ilgili statü filtresiyle
+  /// geçmek için MainShell'e iletilir.
+  final void Function(int tabIndex, {WorkOrderStatus? statusFilter}) onNavigate;
+
+  const DashboardScreen({super.key, required this.onNavigate});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -27,93 +34,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  void _showComingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Bu özellik yakında eklenecek.')),
-    );
-  }
+  void _openList(WorkOrderStatus status) => widget.onNavigate(1, statusFilter: status);
 
-  void _openList(WorkOrderStatus status) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => MainShell(initialStatusFilter: status)),
-    );
-  }
-
-  void _openMap(WorkOrderStatus status) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => MainShell(initialMapStatusFilter: status)),
-    );
-  }
+  void _openMap(WorkOrderStatus status) => widget.onNavigate(2, statusFilter: status);
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = context.watch<ThemeProvider>();
-    final scheme = Theme.of(context).colorScheme;
+    return Consumer<DashboardProvider>(
+      builder: (context, provider, _) {
+        if (provider.errorMessage != null && provider.summary == null) {
+          return _ErrorState(message: provider.errorMessage!, onRetry: provider.fetchSummary);
+        }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('ArasSaha'),
-            Text(
-              'Saha Operasyon Paneli',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.normal,
-                color: scheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Bildirimler',
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => _showComingSoon('Bildirimler'),
+        final summary = provider.summary;
+        if (summary == null) {
+          return const _DashboardSkeleton();
+        }
+        return RefreshIndicator(
+          onRefresh: provider.fetchSummary,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(AppSpacing.md),
+            children: [
+              _SummaryCardsRow(summary: summary, onCardTap: _openList, onMapTap: _openMap),
+              const SizedBox(height: AppSpacing.lg),
+              const _SectionHeader('Durum Dağılımı'),
+              _StatusPieChart(summary: summary),
+              const SizedBox(height: AppSpacing.lg),
+              const _SectionHeader('Öncelik Dağılımı'),
+              _PriorityBarChart(summary: summary),
+              const SizedBox(height: AppSpacing.lg),
+              const _SectionHeader('Son Aktiviteler'),
+              _RecentActivityList(items: summary.recentActivity),
+            ],
           ),
-          IconButton(
-            tooltip: themeProvider.isDark ? 'Aydınlık moda geç' : 'Karanlık moda geç',
-            icon: Icon(themeProvider.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
-            onPressed: themeProvider.toggle,
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: Consumer<DashboardProvider>(
-        builder: (context, provider, _) {
-          if (provider.errorMessage != null && provider.summary == null) {
-            return _ErrorState(message: provider.errorMessage!, onRetry: provider.fetchSummary);
-          }
-
-          final summary = provider.summary;
-          if (summary == null) {
-            return const _DashboardSkeleton();
-          }
-          return RefreshIndicator(
-            onRefresh: provider.fetchSummary,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              children: [
-                _SummaryCardsRow(summary: summary, onCardTap: _openList, onMapTap: _openMap),
-                const SizedBox(height: 20),
-                _QuickActionsRow(onComingSoon: _showComingSoon),
-                const SizedBox(height: 24),
-                const _SectionHeader('Durum Dağılımı'),
-                _StatusPieChart(summary: summary),
-                const SizedBox(height: 24),
-                const _SectionHeader('Öncelik Dağılımı'),
-                _PriorityBarChart(summary: summary),
-                const SizedBox(height: 24),
-                const _SectionHeader('Son Aktiviteler'),
-                _RecentActivityList(items: summary.recentActivity),
-              ],
-            ),
-          );
-        },
-      ),
+        );
+      },
     );
   }
 }
@@ -200,7 +156,7 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return BentoCard(
+    return AppCard(
       onTap: onTap,
       padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
       child: Stack(
@@ -244,34 +200,6 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
-class _QuickActionsRow extends StatelessWidget {
-  final void Function(String feature) onComingSoon;
-  const _QuickActionsRow({required this.onComingSoon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: () => onComingSoon('Yeni Arıza Gir'),
-            icon: const Icon(Icons.add),
-            label: const Text('Yeni Arıza Gir'),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () => onComingSoon('İSG Bildirimi'),
-            icon: const Icon(Icons.shield_outlined),
-            label: const Text('İSG Bildirimi'),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _StatusPieChart extends StatelessWidget {
   final DashboardSummary summary;
   const _StatusPieChart({required this.summary});
@@ -285,7 +213,7 @@ class _StatusPieChart extends StatelessWidget {
       return const _EmptyChartCard(message: 'Gösterilecek veri yok.');
     }
 
-    return BentoCard(
+    return AppCard(
       child: Row(
         children: [
           SizedBox(
@@ -357,7 +285,7 @@ class _PriorityBarChart extends StatelessWidget {
 
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
-    return BentoCard(
+    return AppCard(
       padding: const EdgeInsets.fromLTRB(8, 20, 16, 8),
       child: SizedBox(
         height: 160,
@@ -396,7 +324,7 @@ class _PriorityBarChart extends StatelessWidget {
                 barRods: [
                   BarChartRodData(
                     toY: count.toDouble(),
-                    color: priorityChartColor(context, priority),
+                    color: priorityColor(context, priority),
                     width: 28,
                     borderRadius: BorderRadius.circular(6),
                   ),
@@ -420,7 +348,7 @@ class _RecentActivityList extends StatelessWidget {
       return const _EmptyChartCard(message: 'Henüz bir aktivite yok.');
     }
 
-    return BentoCard(
+    return AppCard(
       padding: EdgeInsets.zero,
       child: Column(
         children: [
@@ -449,7 +377,7 @@ class _EmptyChartCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BentoCard(
+    return AppCard(
       padding: const EdgeInsets.all(24),
       child: Center(
         child: Text(
@@ -479,7 +407,7 @@ class _ErrorState extends StatelessWidget {
             const SizedBox(height: 12),
             Text('Veriler yüklenemedi: $message', textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            ElevatedButton(onPressed: onRetry, child: const Text('Tekrar Dene')),
+            AppButton(label: 'Tekrar Dene', onPressed: onRetry),
           ],
         ),
       ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/work_order.dart';
-import 'bento_card.dart';
+import 'app_card.dart';
 import 'status_badge.dart';
 
 /// "2 saat önce" gibi basit bir göreceli zaman metni üretir.
@@ -28,8 +28,9 @@ class WorkOrderCard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: BentoCard(
+      child: AppCard(
         onTap: onTap,
+        statusStripeColor: statusColor(context, workOrder.status),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

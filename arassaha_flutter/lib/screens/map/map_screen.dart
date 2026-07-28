@@ -5,6 +5,9 @@ import 'package:provider/provider.dart';
 import '../../models/work_order.dart';
 import '../../models/work_order_map_pin.dart';
 import '../../providers/map_provider.dart';
+import '../../theme/app_spacing.dart';
+import '../../widgets/app_card.dart';
+import '../../widgets/app_button.dart';
 import '../../widgets/status_badge.dart';
 import '../work_order_detail_screen.dart';
 
@@ -12,7 +15,10 @@ import '../work_order_detail_screen.dart';
 /// OpenStreetMap üzerinde gösterir. Her pin backend'deki gerçek bir kayda
 /// karşılık gelir — sahte/örnek pin yoktur (bkz. ARCHITECTURE.md Temel Kalite
 /// İlkesi). MainShell'in ortak app bar'ı/alt navigasyonu altında gösterilir;
-/// kendi Scaffold/AppBar'ı yoktur (WorkOrderListScreen ile aynı desen).
+/// kendi Scaffold/AppBar'ı yoktur (WorkOrderListScreen ile aynı desen). Ana
+/// Sayfa'daki modül kartlarından ya da Dashboard'daki özet kartlardan belirli
+/// bir statü filtresiyle açılmak istendiğinde, MainShell bu ekran mount
+/// olmadan önce `MapProvider.fetchMapData(statusFilter: ...)` çağırır.
 ///
 /// Not (dark mode): OpenStreetMap tile'ları her zaman açık renkli gelir —
 /// bu, harita tile katmanı için bir sınırlamadır ve bu prototipte değiştirilmedi.
@@ -20,11 +26,7 @@ import '../work_order_detail_screen.dart';
 /// Container overlay eklenerek karartma efekti verilebilir; filtre çubuğu,
 /// bilgi balonu ve butonlar zaten colorScheme üzerinden dark/light uyumludur.
 class MapScreen extends StatefulWidget {
-  /// Dashboard'daki özet kartlarından belirli bir statü ile açılmak istendiğinde
-  /// verilir (örn. "Açık Arızalar" kartı -> WorkOrderStatus.acik).
-  final WorkOrderStatus? initialStatusFilter;
-
-  const MapScreen({super.key, this.initialStatusFilter});
+  const MapScreen({super.key});
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -40,9 +42,7 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<MapProvider>().fetchMapData(
-            statusFilter: widget.initialStatusFilter?.toJson(),
-          );
+      context.read<MapProvider>().fetchMapData();
     });
   }
 
@@ -58,40 +58,49 @@ class _MapScreenState extends State<MapScreen> {
         final scheme = Theme.of(sheetContext).colorScheme;
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm + 4, AppSpacing.md, AppSpacing.md),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Center(
                   child: Container(
                     width: 40,
                     height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
+                    margin: const EdgeInsets.only(bottom: AppSpacing.md),
                     decoration: BoxDecoration(color: scheme.outlineVariant, borderRadius: BorderRadius.circular(4)),
                   ),
                 ),
-                Text(pin.title, style: Theme.of(sheetContext).textTheme.headlineSmall),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    StatusBadge(status: pin.status),
-                    const SizedBox(width: 8),
-                    PriorityBadge(priority: pin.priority),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.of(sheetContext).pop();
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => WorkOrderDetailScreen(workOrderId: pin.id)),
-                      );
-                    },
-                    icon: const Icon(Icons.arrow_forward),
-                    label: const Text('Detaya Git'),
+                // İmza öğesi: durum şeridi — kart/liste/dashboard ile aynı görsel dil.
+                AppCard(
+                  statusStripeColor: statusColor(sheetContext, pin.status),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(pin.title, style: Theme.of(sheetContext).textTheme.headlineSmall),
+                      const SizedBox(height: AppSpacing.sm + 2),
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        children: [
+                          StatusBadge(status: pin.status),
+                          PriorityBadge(priority: pin.priority),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      SizedBox(
+                        width: double.infinity,
+                        child: AppButton(
+                          label: 'Detaya Git',
+                          icon: Icons.arrow_forward,
+                          onPressed: () {
+                            Navigator.of(sheetContext).pop();
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => WorkOrderDetailScreen(workOrderId: pin.id)),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

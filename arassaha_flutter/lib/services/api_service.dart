@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import '../models/dashboard_summary.dart';
+import '../models/managed_device.dart';
 import '../models/work_order.dart';
 import '../models/work_order_map_pin.dart';
 
@@ -189,6 +190,123 @@ class ApiService {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
+
+  // --- Cihaz Yönetimi — bkz. DESIGN_SYSTEM.md ---
+  // lock/unlock/wipe: backend'in kendi veritabanındaki durumu değiştirir,
+  // gerçek bir cihaza UZAKTAN komut göndermez (bunun için Google Android
+  // Management API gibi bir MDM altyapısı gerekir).
+  // forceSyncDevice: tersi yönde çalışır — bu cihazın GERÇEK telemetrisini
+  // (DeviceTelemetryService) backend'e gönderip kalıcı olarak kaydettirir.
+
+  Future<List<ManagedDevice>> getDevices() async {
+    try {
+      final uri = Uri.parse('$baseUrl/devices');
+      final response = await http.get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Cihazlar alınamadı.'));
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => ManagedDevice.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  Future<ManagedDevice> getDeviceDetail(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/devices/$id');
+      final response = await http.get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Cihaz detayı alınamadı.'));
+      }
+
+      return ManagedDevice.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  Future<List<DeviceActionLog>> getDeviceLogs(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/devices/$id/logs');
+      final response = await http.get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'İşlem geçmişi alınamadı.'));
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => DeviceActionLog.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  Future<ManagedDevice> _performDeviceAction(
+    int id,
+    String actionSlug,
+    String fallbackError, {
+    Map<String, dynamic>? body,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/devices/$id/actions/$actionSlug');
+      final response = await http.post(
+        uri,
+        headers: body != null ? {'Content-Type': 'application/json'} : null,
+        body: body != null ? jsonEncode(body) : null,
+      );
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, fallbackError));
+      }
+
+      return ManagedDevice.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// Cihazı veritabanında kilitli olarak işaretler. (Gerçek bir cihaza uzaktan
+  /// komut gitmez — bkz. DESIGN_SYSTEM.md "Cihaz Yönetimi Modülü" notu.)
+  Future<ManagedDevice> lockDevice(int id) => _performDeviceAction(id, 'lock', 'Cihaz kilitlenemedi.');
+
+  /// Cihazın kilidini veritabanında kaldırır.
+  Future<ManagedDevice> unlockDevice(int id) => _performDeviceAction(id, 'unlock', 'Kilit kaldırılamadı.');
+
+  /// Cihazı veritabanında "kayıt dışı" (hesap silinmiş) yapar.
+  Future<ManagedDevice> wipeDevice(int id) => _performDeviceAction(id, 'wipe', 'Hesap silinemedi.');
+
+  /// Senkronizasyonu zorlar. `batteryLevel`/`deviceModel`/`osVersion` verilirse
+  /// (yani bu uygulama gerçekten bir fiziksel cihazda çalışıyorsa,
+  /// DeviceTelemetryService ile okunmuşsa) backend bu GERÇEK değerleri kalıcı
+  /// olarak kaydeder; verilmezse yalnızca senkron zamanı güncellenir.
+  Future<ManagedDevice> forceSyncDevice(
+    int id, {
+    int? batteryLevel,
+    String? deviceModel,
+    String? osVersion,
+  }) =>
+      _performDeviceAction(
+        id,
+        'force-sync',
+        'Senkronizasyon zorlanamadı.',
+        body: {
+          'battery_level': ?batteryLevel,
+          'device_model': ?deviceModel,
+          'os_version': ?osVersion,
+        },
+      );
 
   String _extractError(http.Response response, String fallback) {
     try {

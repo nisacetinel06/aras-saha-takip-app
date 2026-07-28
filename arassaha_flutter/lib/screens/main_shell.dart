@@ -1,68 +1,82 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/work_order.dart';
+import '../providers/map_provider.dart';
+import '../providers/theme_provider.dart';
+import '../providers/work_order_list_provider.dart';
+import 'dashboard_screen.dart';
+import 'home/home_screen.dart';
 import 'map/map_screen.dart';
-import 'placeholder_screen.dart';
 import 'work_order_list_screen.dart';
 
-/// Görevler / Harita / Duyurular / Ayarlar arasında alt navigasyon çubuğuyla
-/// geçiş sağlayan ortak kabuk. Ortak app bar + bottom nav burada tanımlıdır;
-/// sekme içerikleri kendi Scaffold/AppBar'ını taşımaz.
+/// Uygulamanın kalıcı kabuğu: Ana Sayfa / İş Emirleri / Harita / Dashboard
+/// arasında alt navigasyon çubuğuyla geçiş sağlar. Ortak app bar (ekran
+/// başlığı + dark/light toggle) burada tanımlıdır; sekme içerikleri kendi
+/// Scaffold/AppBar'ını taşımaz. Bkz. DESIGN_SYSTEM.md Bölüm B.
 class MainShell extends StatefulWidget {
-  /// Dashboard'dan belirli bir statü filtresiyle Görevler sekmesine açılmak
-  /// istendiğinde verilir.
-  final WorkOrderStatus? initialStatusFilter;
-
-  /// Dashboard'dan doğrudan Harita sekmesine, belirli bir statü filtresi
-  /// önceden uygulanmış şekilde açılmak istendiğinde verilir (örn. "Açık
-  /// Arızalar" kartındaki harita ikonu -> Harita sekmesi + 'acik' filtresi).
-  final WorkOrderStatus? initialMapStatusFilter;
-
-  const MainShell({super.key, this.initialStatusFilter, this.initialMapStatusFilter});
+  const MainShell({super.key});
 
   @override
   State<MainShell> createState() => _MainShellState();
 }
 
 class _MainShellState extends State<MainShell> {
-  late int _index = widget.initialMapStatusFilter != null ? 1 : 0;
+  int _index = 0;
 
-  static const _titles = ['ArasSaha', 'Harita', 'Duyurular', 'Ayarlar'];
+  static const _titles = ['Ana Sayfa', 'İş Emirleri', 'Harita', 'Dashboard'];
+
+  /// Hub'daki modül kartlarından ya da Dashboard'daki özet kartlardan
+  /// çağrılır: ilgili sekmeye, isteğe bağlı bir statü filtresi önceden
+  /// uygulanmış şekilde geçer. Sekmeler IndexedStack ile canlı tutulduğu için
+  /// filtre, ilgili provider'a doğrudan burada uygulanır.
+  void _navigateToTab(int index, {WorkOrderStatus? statusFilter}) {
+    if (statusFilter != null) {
+      if (index == 1) {
+        context.read<WorkOrderListProvider>().setFilter(statusFilter);
+      } else if (index == 2) {
+        context.read<MapProvider>().fetchMapData(statusFilter: statusFilter.toJson());
+      }
+    }
+    setState(() => _index = index);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+
     final tabs = <Widget>[
-      WorkOrderListScreen(initialStatusFilter: widget.initialStatusFilter),
-      MapScreen(initialStatusFilter: widget.initialMapStatusFilter),
-      const PlaceholderScreen(
-        icon: Icons.notifications_outlined,
-        message: 'Bildirimler modülü yakında eklenecek.',
-      ),
-      const PlaceholderScreen(
-        icon: Icons.settings_outlined,
-        message: 'Ayarlar modülü yakında eklenecek.',
-      ),
+      HomeScreen(onNavigate: _navigateToTab),
+      const WorkOrderListScreen(),
+      const MapScreen(),
+      DashboardScreen(onNavigate: _navigateToTab),
     ];
 
     return Scaffold(
       appBar: AppBar(
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
         title: Text(_titles[_index]),
+        actions: [
+          IconButton(
+            tooltip: themeProvider.isDark ? 'Aydınlık moda geç' : 'Karanlık moda geç',
+            icon: Icon(themeProvider.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+            onPressed: themeProvider.toggle,
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
-      drawer: _ShellDrawer(onDashboardTap: () => Navigator.of(context).pop()),
       body: IndexedStack(index: _index, children: tabs),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
           NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Ana Sayfa',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.assignment_outlined),
             selectedIcon: Icon(Icons.assignment),
-            label: 'Görevler',
+            label: 'İş Emirleri',
           ),
           NavigationDestination(
             icon: Icon(Icons.map_outlined),
@@ -70,47 +84,11 @@ class _MainShellState extends State<MainShell> {
             label: 'Harita',
           ),
           NavigationDestination(
-            icon: Icon(Icons.notifications_outlined),
-            selectedIcon: Icon(Icons.notifications),
-            label: 'Duyurular',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Ayarlar',
+            icon: Icon(Icons.dashboard_outlined),
+            selectedIcon: Icon(Icons.dashboard),
+            label: 'Dashboard',
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ShellDrawer extends StatelessWidget {
-  final VoidCallback onDashboardTap;
-  const _ShellDrawer({required this.onDashboardTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Drawer(
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Text('ArasSaha', style: Theme.of(context).textTheme.headlineMedium),
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.dashboard_outlined),
-              title: const Text('Panele Dön'),
-              onTap: () {
-                Navigator.of(context).pop(); // sürgü menüyü kapat
-                onDashboardTap();
-              },
-            ),
-          ],
-        ),
       ),
     );
   }

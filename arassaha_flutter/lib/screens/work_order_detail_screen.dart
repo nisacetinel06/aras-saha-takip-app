@@ -1,13 +1,16 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/work_order.dart';
+import '../providers/theme_provider.dart';
 import '../providers/work_order_detail_provider.dart';
 import '../services/api_service.dart';
-import '../widgets/bento_card.dart';
+import '../theme/app_spacing.dart';
+import '../theme/app_text_styles.dart';
+import '../widgets/app_button.dart';
+import '../widgets/app_card.dart';
 import '../widgets/status_badge.dart';
 
 class WorkOrderDetailScreen extends StatelessWidget {
@@ -29,8 +32,19 @@ class _WorkOrderDetailBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
     return Scaffold(
-      appBar: AppBar(title: const Text('İş Emri Detayı')),
+      appBar: AppBar(
+        title: const Text('İş Emri Detayı'),
+        actions: [
+          IconButton(
+            tooltip: themeProvider.isDark ? 'Aydınlık moda geç' : 'Karanlık moda geç',
+            icon: Icon(themeProvider.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+            onPressed: themeProvider.toggle,
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
       body: Consumer<WorkOrderDetailProvider>(
         builder: (context, provider, _) {
           if (provider.isLoading && provider.workOrder == null) {
@@ -48,7 +62,7 @@ class _WorkOrderDetailBody extends StatelessWidget {
                     const SizedBox(height: 12),
                     Text(provider.errorMessage!, textAlign: TextAlign.center),
                     const SizedBox(height: 16),
-                    ElevatedButton(onPressed: provider.loadDetail, child: const Text('Tekrar Dene')),
+                    AppButton(label: 'Tekrar Dene', onPressed: provider.loadDetail),
                   ],
                 ),
               ),
@@ -91,12 +105,14 @@ class _WorkOrderDetailBody extends StatelessWidget {
                       _InfoRow(
                         icon: Icons.map_outlined,
                         text: 'Lat: ${workOrder.lat.toStringAsFixed(5)}, Lng: ${workOrder.lng.toStringAsFixed(5)}',
+                        mono: true,
                       ),
                       const SizedBox(height: 10),
-                      OutlinedButton.icon(
+                      AppButton(
+                        label: 'Haritada Aç',
+                        icon: Icons.directions_outlined,
+                        variant: AppButtonVariant.secondary,
                         onPressed: () => _openInMaps(context, workOrder.lat, workOrder.lng),
-                        icon: const Icon(Icons.directions_outlined, size: 18),
-                        label: const Text('Haritada Aç'),
                       ),
                     ],
                   ),
@@ -186,7 +202,7 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BentoCard(
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -245,7 +261,7 @@ class _EquipmentChip extends StatelessWidget {
         children: [
           Icon(Icons.qr_code_2_outlined, size: 14, color: scheme.onSurfaceVariant),
           const SizedBox(width: 4),
-          Text(code, style: GoogleFonts.jetBrainsMono(fontSize: 12, fontWeight: FontWeight.w500)),
+          Text(code, style: AppTextStyles.dataMono(color: scheme.onSurfaceVariant).copyWith(fontSize: 12)),
         ],
       ),
     );
@@ -276,7 +292,8 @@ class _InitialsAvatar extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String text;
-  const _InfoRow({required this.icon, required this.text});
+  final bool mono;
+  const _InfoRow({required this.icon, required this.text, this.mono = false});
 
   @override
   Widget build(BuildContext context) {
@@ -285,11 +302,30 @@ class _InfoRow extends StatelessWidget {
       children: [
         Icon(icon, size: 18, color: scheme.onSurfaceVariant),
         const SizedBox(width: 6),
-        Expanded(child: Text(text)),
+        Expanded(
+          child: mono
+              ? Text(text, style: AppTextStyles.dataMono(color: scheme.onSurface))
+              : Text(text),
+        ),
       ],
     );
   }
 }
+
+/// Bir sonraki statüye geçiş için sabit, kısa etiket + ikon — değişken
+/// uzunluktaki "${status}'a Geçir" metni dar ekranlarda taşmaya (RenderFlex
+/// overflow) yol açıyordu. Bkz. DESIGN_SYSTEM.md A.4.
+class _NextStatusAction {
+  final String label;
+  final IconData icon;
+  const _NextStatusAction(this.label, this.icon);
+}
+
+const _nextStatusActions = <WorkOrderStatus, _NextStatusAction>{
+  WorkOrderStatus.yolda: _NextStatusAction('Yolda', Icons.directions_car_outlined),
+  WorkOrderStatus.sahada: _NextStatusAction('Sahadayım', Icons.location_on_outlined),
+  WorkOrderStatus.cozuldu: _NextStatusAction('Çözüldü', Icons.check_circle_outline),
+};
 
 class _StatusUpdateSection extends StatelessWidget {
   final WorkOrder workOrder;
@@ -308,35 +344,33 @@ class _StatusUpdateSection extends StatelessWidget {
       );
     }
 
-    return Row(
+    final action = _nextStatusActions[nextStatus]!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Text('Mevcut durum: ${workOrder.status.label}'),
-        ),
-        ElevatedButton.icon(
-          onPressed: provider.isUpdating
-              ? null
-              : () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  final success = await provider.updateStatus(nextStatus);
-                  if (success) {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('Durum "${nextStatus.label}" olarak güncellendi.')),
-                    );
-                  } else {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text(provider.errorMessage ?? 'Durum güncellenemedi.')),
-                    );
-                  }
-                },
-          icon: provider.isUpdating
-              ? SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: scheme.onPrimary),
-                )
-              : const Icon(Icons.arrow_forward),
-          label: Text('${nextStatus.label}\'a Geçir'),
+        Text('Mevcut durum: ${workOrder.status.label}'),
+        const SizedBox(height: AppSpacing.sm + 4),
+        SizedBox(
+          width: double.infinity,
+          child: AppButton(
+            label: action.label,
+            icon: action.icon,
+            isLoading: provider.isUpdating,
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final success = await provider.updateStatus(nextStatus);
+              if (success) {
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Durum "${nextStatus.label}" olarak güncellendi.')),
+                );
+              } else {
+                messenger.showSnackBar(
+                  SnackBar(content: Text(provider.errorMessage ?? 'Durum güncellenemedi.')),
+                );
+              }
+            },
+          ),
         ),
       ],
     );
@@ -447,10 +481,11 @@ class _PhotoSection extends StatelessWidget {
             },
           ),
         const SizedBox(height: 12),
-        OutlinedButton.icon(
+        AppButton(
+          label: 'Fotoğraf Ekle',
+          icon: Icons.add_a_photo_outlined,
+          variant: AppButtonVariant.secondary,
           onPressed: provider.isUpdating ? null : () => _showSourcePicker(context),
-          icon: const Icon(Icons.add_a_photo_outlined),
-          label: const Text('Fotoğraf Ekle'),
         ),
       ],
     );

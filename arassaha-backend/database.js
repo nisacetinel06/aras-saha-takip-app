@@ -40,6 +40,34 @@ db.exec(`
     created_at TEXT NOT NULL,
     FOREIGN KEY (work_order_id) REFERENCES work_orders (id)
   );
+
+  -- Cihaz Yönetimi (MDM) modülü — bkz. ARCHITECTURE.md ve DESIGN_SYSTEM.md.
+  -- Bu tablo ve ilgili endpoint'ler gerçek bir cihaza komut GÖNDERMEZ; yalnızca
+  -- burada tutulan durumu değiştiren bir simülasyondur.
+  CREATE TABLE IF NOT EXISTS managed_devices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_name TEXT NOT NULL,
+    assigned_user_id INTEGER,
+    device_model TEXT,
+    os_version TEXT,
+    app_version TEXT,
+    enrollment_status TEXT NOT NULL DEFAULT 'kayitli',
+    compliance_status TEXT NOT NULL DEFAULT 'uyumlu',
+    last_sync_at TEXT,
+    battery_level INTEGER,
+    is_locked INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (assigned_user_id) REFERENCES users (id)
+  );
+
+  CREATE TABLE IF NOT EXISTS device_action_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id INTEGER NOT NULL,
+    action_type TEXT NOT NULL,
+    performed_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (device_id) REFERENCES managed_devices (id)
+  );
 `);
 
 module.exports = db;

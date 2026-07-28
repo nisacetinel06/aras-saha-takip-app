@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/work_order.dart';
 import '../providers/work_order_list_provider.dart';
+import '../widgets/app_button.dart';
 import '../widgets/work_order_card.dart';
 import 'work_order_detail_screen.dart';
 
 /// Görevler sekmesinin içeriği. MainShell'in ortak app bar'ı/alt navigasyonu
-/// altında gösterilir; kendi Scaffold/AppBar'ı yoktur.
+/// altında gösterilir; kendi Scaffold/AppBar'ı yoktur. Ana Sayfa'daki modül
+/// kartlarından ya da Dashboard'daki özet kartlardan belirli bir statü
+/// filtresiyle açılmak istendiğinde, MainShell bu ekran mount olmadan önce
+/// `WorkOrderListProvider.setFilter(...)` çağırır (bkz. main_shell.dart).
 class WorkOrderListScreen extends StatefulWidget {
-  /// Dashboard'daki özet kartlarından belirli bir statü ile açılmak istendiğinde
-  /// verilir (örn. "Açık Arızalar" kartı -> WorkOrderStatus.acik). Null ise
-  /// mevcut filtre neyse onunla (ya da tümüyle) açılır.
-  final WorkOrderStatus? initialStatusFilter;
-
-  const WorkOrderListScreen({super.key, this.initialStatusFilter});
+  const WorkOrderListScreen({super.key});
 
   @override
   State<WorkOrderListScreen> createState() => _WorkOrderListScreenState();
@@ -25,12 +24,7 @@ class _WorkOrderListScreenState extends State<WorkOrderListScreen> {
     super.initState();
     // Ekran ilk açıldığında listeyi backend'den çek.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = context.read<WorkOrderListProvider>();
-      if (widget.initialStatusFilter != null) {
-        provider.setFilter(widget.initialStatusFilter);
-      } else {
-        provider.loadWorkOrders();
-      }
+      context.read<WorkOrderListProvider>().loadWorkOrders();
     });
   }
 
@@ -195,7 +189,7 @@ class _ErrorState extends StatelessWidget {
             const SizedBox(height: 12),
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            ElevatedButton(onPressed: onRetry, child: const Text('Tekrar Dene')),
+            AppButton(label: 'Tekrar Dene', onPressed: onRetry),
           ],
         ),
       ),

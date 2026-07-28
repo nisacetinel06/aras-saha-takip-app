@@ -86,10 +86,14 @@ function equipmentRef() {
   return `TR-${year}-${num}`;
 }
 
+db.exec('DELETE FROM device_action_logs');
+db.exec('DELETE FROM managed_devices');
 db.exec('DELETE FROM work_order_photos');
 db.exec('DELETE FROM work_orders');
 db.exec('DELETE FROM users');
-db.exec("DELETE FROM sqlite_sequence WHERE name IN ('work_orders', 'work_order_photos', 'users')");
+db.exec(
+  "DELETE FROM sqlite_sequence WHERE name IN ('work_orders', 'work_order_photos', 'users', 'managed_devices', 'device_action_logs')"
+);
 
 const insertUser = db.prepare(`
   INSERT INTO users (name, role, sicil_no) VALUES (@name, @role, @sicil_no)
@@ -168,4 +172,62 @@ insertMany(rows);
 // yol açar; bu Temel Kalite İlkesi'ni ihlal eder. Gerçek fotoğraflar yalnızca
 // uygulama üzerinden (POST /api/workorders/:id/photos, multipart upload) eklenir.
 
-console.log(`${insertedUserIds.length} adet kişi ve ${rows.length} adet iş emri oluşturuldu.`);
+// --- Cihaz Yönetimi (MDM simülasyonu) — bkz. DESIGN_SYSTEM.md ---
+// personnelSeed ile aynı isimler kullanılır ki veri seti tutarlı görünsün
+// (bir kişinin hem iş emri hem cihaz kaydı olması gerçekçi bir senaryo).
+const userIdByName = Object.fromEntries(personnelSeed.map((p, i) => [p.name, insertedUserIds[i]]));
+
+function hoursAgoIso(hours) {
+  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+}
+
+// Çoğunluk 'kayitli' + 'uyumlu'; birkaçı eski OS versiyonu yüzünden 'uyumsuz',
+// birkaçı henüz ilk senkronunu yapmadığı için 'beklemede' (last_sync_at = null).
+const deviceSeed = [
+  { person: 'Ahmet Yılmaz', model: 'Samsung Galaxy A54', os: 'Android 14', app: '1.3.0', enrollment: 'kayitli', compliance: 'uyumlu', battery: 82, locked: 0, syncHoursAgo: 2 },
+  { person: 'Mehmet Demir', model: 'Samsung Galaxy Tab A9', os: 'Android 13', app: '1.3.0', enrollment: 'kayitli', compliance: 'uyumlu', battery: 65, locked: 0, syncHoursAgo: 5 },
+  { person: 'Ayşe Kaya', model: 'Xiaomi Redmi Note 12', os: 'Android 9', app: '1.1.0', enrollment: 'kayitli', compliance: 'uyumsuz', battery: 21, locked: 0, syncHoursAgo: 30 },
+  { person: 'Fatih Şahin', model: 'Samsung Galaxy A34', os: 'Android 13', app: '1.3.0', enrollment: 'kayitli', compliance: 'uyumlu', battery: 91, locked: 0, syncHoursAgo: 1 },
+  { person: 'Emre Çelik', model: 'Huawei MatePad T10', os: 'Android 10', app: '1.0.0', enrollment: 'kayitli', compliance: 'uyumsuz', battery: 8, locked: 1, syncHoursAgo: 72 },
+  { person: 'Hakan Yıldız', model: 'Samsung Galaxy A14', os: 'Android 13', app: '1.3.0', enrollment: 'kayitli', compliance: 'uyumlu', battery: 74, locked: 0, syncHoursAgo: 4 },
+  { person: 'Zeynep Arslan', model: 'Xiaomi Redmi 10C', os: 'Android 12', app: '1.2.0', enrollment: 'kayitli', compliance: 'uyumlu', battery: 55, locked: 0, syncHoursAgo: 6 },
+  { person: 'Murat Öztürk', model: 'Samsung Galaxy Tab S6 Lite', os: 'Android 14', app: '1.3.0', enrollment: 'kayitli', compliance: 'uyumlu', battery: 98, locked: 0, syncHoursAgo: 0.5 },
+  { person: 'Ahmet Yılmaz', model: 'Samsung Galaxy A25', os: 'Android 14', app: '1.3.0', enrollment: 'beklemede', compliance: 'uyumlu', battery: 100, locked: 0, syncHoursAgo: null },
+  { person: 'Mehmet Demir', model: 'Oppo A78', os: 'Android 13', app: '1.2.0', enrollment: 'beklemede', compliance: 'uyumlu', battery: 100, locked: 0, syncHoursAgo: null },
+  { person: 'Ayşe Kaya', model: 'Xiaomi Redmi Note 11', os: 'Android 11', app: '1.1.0', enrollment: 'kayitli', compliance: 'uyumsuz', battery: 34, locked: 0, syncHoursAgo: 48 },
+  { person: 'Fatih Şahin', model: 'Samsung Galaxy A15', os: 'Android 14', app: '1.3.0', enrollment: 'kayitli', compliance: 'uyumlu', battery: 60, locked: 0, syncHoursAgo: 3 },
+];
+
+const insertDevice = db.prepare(`
+  INSERT INTO managed_devices
+    (device_name, assigned_user_id, device_model, os_version, app_version, enrollment_status,
+     compliance_status, last_sync_at, battery_level, is_locked, created_at)
+  VALUES
+    (@device_name, @assigned_user_id, @device_model, @os_version, @app_version, @enrollment_status,
+     @compliance_status, @last_sync_at, @battery_level, @is_locked, @created_at)
+`);
+
+db.exec('BEGIN');
+try {
+  for (const d of deviceSeed) {
+    insertDevice.run({
+      device_name: `${d.person} - ${d.model}`,
+      assigned_user_id: userIdByName[d.person],
+      device_model: d.model,
+      os_version: d.os,
+      app_version: d.app,
+      enrollment_status: d.enrollment,
+      compliance_status: d.compliance,
+      last_sync_at: d.syncHoursAgo == null ? null : hoursAgoIso(d.syncHoursAgo),
+      battery_level: d.battery,
+      is_locked: d.locked,
+      created_at: hoursAgoIso(24 * 30),
+    });
+  }
+  db.exec('COMMIT');
+} catch (err) {
+  db.exec('ROLLBACK');
+  throw err;
+}
+
+console.log(`${insertedUserIds.length} adet kişi, ${rows.length} adet iş emri ve ${deviceSeed.length} adet cihaz kaydı oluşturuldu.`);

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/dashboard_provider.dart';
+import 'providers/device_provider.dart';
 import 'providers/map_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/work_order_list_provider.dart';
-import 'screens/dashboard_screen.dart';
+import 'screens/main_shell.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -21,6 +22,7 @@ class ArasSahaApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => WorkOrderListProvider()),
         ChangeNotifierProvider(create: (_) => DashboardProvider()),
         ChangeNotifierProvider(create: (_) => MapProvider()),
+        ChangeNotifierProvider(create: (_) => DeviceProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: Consumer<ThemeProvider>(
@@ -31,7 +33,7 @@ class ArasSahaApp extends StatelessWidget {
             themeMode: themeProvider.mode,
             theme: AppTheme.light(),
             darkTheme: AppTheme.dark(),
-            home: const DashboardScreen(),
+            home: const MainShell(),
           );
         },
       ),
