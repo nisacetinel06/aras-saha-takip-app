@@ -10,6 +10,9 @@ class WorkOrderMapPin {
   final WorkOrderPriority priority;
   final double lat;
   final double lng;
+  // Modül 4 (Ekipman) ile bağlantı: pin bir ekipmana bağlıysa harita bilgi
+  // balonunda "Ekipman Detayını Gör" bağlantısı gösterilebilsin diye taşınır.
+  final int? equipmentId;
 
   WorkOrderMapPin({
     required this.id,
@@ -18,6 +21,7 @@ class WorkOrderMapPin {
     required this.priority,
     required this.lat,
     required this.lng,
+    this.equipmentId,
   });
 
   factory WorkOrderMapPin.fromJson(Map<String, dynamic> json) {
@@ -28,6 +32,7 @@ class WorkOrderMapPin {
       priority: WorkOrderPriority.fromJson(json['priority'] as String),
       lat: (json['lat'] as num).toDouble(),
       lng: (json['lng'] as num).toDouble(),
+      equipmentId: json['equipment_id'] as int?,
     );
   }
 }

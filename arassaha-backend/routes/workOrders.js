@@ -33,24 +33,33 @@ const upload = multer({
   },
 });
 
-// İş emri satırlarına atanan kullanıcının ad/rol bilgisini gömen ortak SELECT.
+// İş emri satırlarına atanan kullanıcının ad/rol bilgisini ve (varsa) bağlı
+// ekipmanın QR kodunu gömen ortak SELECT. `equipment_id` iş emri Modül 4'e
+// gerçek bir FK ile bağlıdır (bkz. database.js); ekranda gösterilen
+// `equipment_ref` ise bu FK üzerinden JOIN edilen ekipmanın qr_code'udur.
 const SELECT_WORK_ORDER_WITH_USER = `
   SELECT
     wo.*,
     u.id AS assigned_user_id_join,
     u.name AS assigned_user_name,
-    u.role AS assigned_user_role
+    u.role AS assigned_user_role,
+    e.qr_code AS equipment_qr_code
   FROM work_orders wo
   LEFT JOIN users u ON u.id = wo.assigned_user_id
+  LEFT JOIN equipment e ON e.id = wo.equipment_id
 `;
 
 function mapWorkOrderRow(row) {
-  const { assigned_user_id_join, assigned_user_name, assigned_user_role, ...workOrder } = row;
+  const { assigned_user_id_join, assigned_user_name, assigned_user_role, equipment_qr_code, ...workOrder } = row;
   return {
     ...workOrder,
     assigned_user: assigned_user_id_join
       ? { id: assigned_user_id_join, name: assigned_user_name, role: assigned_user_role }
       : null,
+    // Modül 4 (Ekipman) ile geriye dönük uyumluluk: Flutter tarafı bu alanı
+    // QR kodu göstermek için okur; `equipment_id` ise Ekipman Detayı'na
+    // gitmek için ayrıca üstte (workOrder spread'i içinde) yer alır.
+    equipment_ref: equipment_qr_code || '',
   };
 }
 
@@ -97,7 +106,9 @@ router.get('/map', (req, res) => {
       });
     }
 
-    const baseQuery = 'SELECT id, title, status, priority, lat, lng FROM work_orders WHERE lat IS NOT NULL AND lng IS NOT NULL';
+    // equipment_id dahil edilir ki harita bilgi balonunda (varsa) "Ekipman
+    // Detayını Gör" bağlantısı gösterilebilsin (bkz. map_screen.dart).
+    const baseQuery = 'SELECT id, title, status, priority, lat, lng, equipment_id FROM work_orders WHERE lat IS NOT NULL AND lng IS NOT NULL';
     const rows = status
       ? db.prepare(`${baseQuery} AND status = ? ORDER BY id`).all(status)
       : db.prepare(`${baseQuery} ORDER BY id`).all();

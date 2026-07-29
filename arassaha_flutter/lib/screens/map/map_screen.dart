@@ -9,6 +9,7 @@ import '../../theme/app_spacing.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/status_badge.dart';
+import '../equipment/equipment_detail_screen.dart';
 import '../work_order_detail_screen.dart';
 
 /// Harita sekmesi içeriği: iş emirlerinin gerçek lat/lng konumlarını
@@ -100,6 +101,27 @@ class _MapScreenState extends State<MapScreen> {
                           },
                         ),
                       ),
+                      // Modül 4 (Ekipman) ile bağlantı: pin bir ekipmana bağlıysa
+                      // doğrudan Ekipman Detayı'na gidilebilir (modüller arası bütünlük).
+                      if (pin.equipmentId != null) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        SizedBox(
+                          width: double.infinity,
+                          child: AppButton(
+                            label: 'Ekipman Detayını Gör',
+                            icon: Icons.inventory_2_outlined,
+                            variant: AppButtonVariant.secondary,
+                            onPressed: () {
+                              Navigator.of(sheetContext).pop();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => EquipmentDetailScreen(equipmentId: pin.equipmentId!),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

@@ -123,6 +123,9 @@ class WorkOrder {
   final double lng;
   final AssignedUser? assignedUser;
   final String equipmentRef;
+  // Modül 4 (Ekipman) ile gerçek bağlantı: bu iş emri bir ekipmana bağlıysa
+  // equipment.id'ye giden değer — Ekipman Detay ekranına gitmek için kullanılır.
+  final int? equipmentId;
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<WorkOrderPhoto> photos;
@@ -138,6 +141,7 @@ class WorkOrder {
     required this.lng,
     required this.assignedUser,
     required this.equipmentRef,
+    this.equipmentId,
     required this.createdAt,
     required this.updatedAt,
     this.photos = const [],
@@ -157,6 +161,7 @@ class WorkOrder {
           ? AssignedUser.fromJson(json['assigned_user'] as Map<String, dynamic>)
           : null,
       equipmentRef: json['equipment_ref'] as String? ?? '',
+      equipmentId: json['equipment_id'] as int?,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       photos: json['photos'] != null
@@ -179,6 +184,7 @@ class WorkOrder {
       'lng': lng,
       'assigned_user': assignedUser?.toJson(),
       'equipment_ref': equipmentRef,
+      'equipment_id': equipmentId,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
@@ -196,6 +202,7 @@ class WorkOrder {
       lng: lng,
       assignedUser: assignedUser,
       equipmentRef: equipmentRef,
+      equipmentId: equipmentId,
       createdAt: createdAt,
       updatedAt: updatedAt,
       photos: photos ?? this.photos,

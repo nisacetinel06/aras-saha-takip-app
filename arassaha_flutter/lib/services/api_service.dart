@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import '../models/dashboard_summary.dart';
+import '../models/equipment.dart';
 import '../models/managed_device.dart';
 import '../models/work_order.dart';
 import '../models/work_order_map_pin.dart';
@@ -307,6 +308,93 @@ class ApiService {
           'os_version': ?osVersion,
         },
       );
+
+  // --- Ekipman / Envanter (QR Kod) — Modül 4 ---
+  // Bu verinin veritabanı şeması (install_date, last_maintenance_date vb.)
+  // bilinçli olarak ileride eklenecek Arıza Risk Tahmini (ML) modülünün
+  // girdisi olacak şekilde tasarlandı, bkz. lib/models/equipment.dart.
+
+  /// Ekipman listesi. `typeFilter`/`statusFilter` verilirse backend'e
+  /// ?type=.../&status=... query parametresi olarak gider.
+  Future<List<Equipment>> getEquipmentList({String? typeFilter, String? statusFilter}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/equipment').replace(
+        queryParameters: {
+          if (typeFilter != null) 'type': typeFilter,
+          if (statusFilter != null) 'status': statusFilter,
+        },
+      );
+      final response = await http.get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Ekipmanlar alınamadı.'));
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => Equipment.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// QR kod (ya da manuel girilen kod) ile ekipman sorgular — ana sorgulama
+  /// yöntemi. Eşleşme yoksa backend 404 + "Bu QR koda ait ekipman
+  /// bulunamadı." mesajı döner; bu mesaj olduğu gibi ApiException'a taşınır.
+  Future<Equipment> getEquipmentByQr(String qrCode) async {
+    try {
+      final uri = Uri.parse('$baseUrl/equipment/qr/${Uri.encodeComponent(qrCode)}');
+      final response = await http.get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Bu QR koda ait ekipman bulunamadı.'));
+      }
+
+      return Equipment.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// Harita/liste üzerinden gelindiğinde id ile ekipman detayı getirir.
+  Future<Equipment> getEquipmentDetail(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/equipment/$id');
+      final response = await http.get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Ekipman detayı alınamadı.'));
+      }
+
+      return Equipment.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// Bu ekipmana bağlı geçmiş iş emirlerini (arıza kayıtlarını) getirir.
+  Future<List<EquipmentHistoryEntry>> getEquipmentHistory(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/equipment/$id/history');
+      final response = await http.get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Ekipman geçmişi alınamadı.'));
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => EquipmentHistoryEntry.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
 
   String _extractError(http.Response response, String fallback) {
     try {

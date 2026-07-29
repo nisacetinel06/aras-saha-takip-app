@@ -8,6 +8,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_card.dart';
 import '../devices/device_list_screen.dart';
+import '../equipment/equipment_home_screen.dart';
 
 const _weekdays = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
 const _months = [
@@ -104,6 +105,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: AppColors.warning(context),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const DeviceListScreen()),
+                  ),
+                ),
+                _ModuleCard(
+                  icon: Icons.inventory_2_outlined,
+                  title: 'Ekipman',
+                  subtitle: 'QR ile sorgula',
+                  color: AppColors.accent(context),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const EquipmentHomeScreen()),
                   ),
                 ),
                 _ModuleCard(

@@ -63,6 +63,7 @@ dependencies:
   # sönmesi (flash) önlenir. Görsel üretimi de bu paketle yapılır
   # (dart run flutter_native_splash:create).
   flutter_native_splash: ^2.4.3
+  mobile_scanner: ^7.4.0
 
 dev_dependencies:
   flutter_test:

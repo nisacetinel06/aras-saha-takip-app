@@ -1,4 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Ekipman modülü (Modül 4): QR kod okuma için kamera erişimi. mobile_scanner
+         çalışma zamanı izin isteğini kendi yönetir; reddedilirse Flutter tarafı
+         kullanıcıyı manuel kod girişine yönlendirir (bkz. qr_scanner_screen.dart). -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+
     <application
         android:label="arassaha_flutter"
         android:name="${applicationName}"

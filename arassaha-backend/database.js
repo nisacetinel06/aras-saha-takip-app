@@ -17,6 +17,29 @@ db.exec(`
     sicil_no TEXT UNIQUE
   );
 
+  -- Ekipman / Envanter (Modül 4) — bkz. ARCHITECTURE.md ve DESIGN_SYSTEM.md.
+  -- Bu tablodaki install_date / last_maintenance_date alanları ve
+  -- equipment_history üzerinden sayılabilecek geçmiş arıza adedi BİLİNÇLİ
+  -- olarak buradadır: ileride eklenecek Arıza Risk Tahmini (Makine Öğrenmesi)
+  -- modülü, "ekipman yaşı" ve "son bakımdan bu yana geçen süre" gibi
+  -- özellikleri (feature) doğrudan bu alanlardan türetecektir — bugün sadece
+  -- envanter görüntüleme için kullanılıyor olsalar da şema bu yüzden bu
+  -- şekilde tasarlandı.
+  CREATE TABLE IF NOT EXISTS equipment (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    qr_code TEXT NOT NULL UNIQUE,
+    equipment_type TEXT NOT NULL,
+    location_name TEXT,
+    lat REAL,
+    lng REAL,
+    install_date TEXT,
+    last_maintenance_date TEXT,
+    manufacturer TEXT,
+    capacity_info TEXT,
+    status TEXT NOT NULL DEFAULT 'aktif',
+    created_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS work_orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
@@ -27,10 +50,11 @@ db.exec(`
     lat REAL,
     lng REAL,
     assigned_user_id INTEGER,
-    equipment_ref TEXT,
+    equipment_id INTEGER,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    FOREIGN KEY (assigned_user_id) REFERENCES users (id)
+    FOREIGN KEY (assigned_user_id) REFERENCES users (id),
+    FOREIGN KEY (equipment_id) REFERENCES equipment (id)
   );
 
   CREATE TABLE IF NOT EXISTS work_order_photos (

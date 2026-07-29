@@ -12,6 +12,7 @@ import '../theme/app_text_styles.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/status_badge.dart';
+import 'equipment/equipment_detail_screen.dart';
 
 class WorkOrderDetailScreen extends StatelessWidget {
   final int workOrderId;
@@ -145,7 +146,20 @@ class _WorkOrderDetailBody extends StatelessWidget {
                               ),
                             if (workOrder.equipmentRef.isNotEmpty) ...[
                               const SizedBox(height: 8),
-                              _EquipmentChip(code: workOrder.equipmentRef),
+                              // Modül 4 (Ekipman) ile gerçek bağlantı: equipmentId
+                              // doluysa kod, Ekipman Detay ekranına giden bir
+                              // bağlantı olarak gösterilir.
+                              workOrder.equipmentId != null
+                                  ? InkWell(
+                                      borderRadius: BorderRadius.circular(6),
+                                      onTap: () => Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => EquipmentDetailScreen(equipmentId: workOrder.equipmentId!),
+                                        ),
+                                      ),
+                                      child: _EquipmentChip(code: workOrder.equipmentRef),
+                                    )
+                                  : _EquipmentChip(code: workOrder.equipmentRef),
                             ],
                           ],
                         ),

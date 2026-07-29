@@ -7,6 +7,7 @@ const workOrdersRouter = require('./routes/workOrders');
 const usersRouter = require('./routes/users');
 const dashboardRouter = require('./routes/dashboard');
 const devicesRouter = require('./routes/devices');
+const equipmentRouter = require('./routes/equipment');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,6 +26,7 @@ app.use('/api/workorders', workOrdersRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/devices', devicesRouter);
+app.use('/api/equipment', equipmentRouter);
 
 app.get('/', (req, res) => {
   res.json({ message: 'ArasSaha backend çalışıyor.' });

@@ -80,19 +80,26 @@ function shuffle(arr) {
   return copy;
 }
 
-function equipmentRef() {
-  const year = 2020 + Math.floor(Math.random() * 5);
-  const num = String(Math.floor(Math.random() * 9999)).padStart(4, '0');
-  return `TR-${year}-${num}`;
+function yearsAgoIsoDate(years) {
+  // `years` çeyrek yıl (1.5, 2.5 vb.) olabilir; setFullYear tam sayı olmayan
+  // değerlerde yanlış sonuç ürettiği için gün bazlı milisaniye hesabı kullanılır.
+  return new Date(Date.now() - years * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function monthsAgoIsoDate(months) {
+  const d = new Date();
+  d.setMonth(d.getMonth() - months);
+  return d.toISOString().slice(0, 10);
 }
 
 db.exec('DELETE FROM device_action_logs');
 db.exec('DELETE FROM managed_devices');
 db.exec('DELETE FROM work_order_photos');
 db.exec('DELETE FROM work_orders');
+db.exec('DELETE FROM equipment');
 db.exec('DELETE FROM users');
 db.exec(
-  "DELETE FROM sqlite_sequence WHERE name IN ('work_orders', 'work_order_photos', 'users', 'managed_devices', 'device_action_logs')"
+  "DELETE FROM sqlite_sequence WHERE name IN ('work_orders', 'work_order_photos', 'users', 'managed_devices', 'device_action_logs', 'equipment')"
 );
 
 const insertUser = db.prepare(`
@@ -102,11 +109,78 @@ const insertUser = db.prepare(`
 const insertedUserIds = personnelSeed.map((person) => insertUser.run(person).lastInsertRowid);
 const technicianIds = insertedUserIds.filter((_, i) => personnelSeed[i].role === 'teknisyen');
 
+// --- Ekipman / Envanter (Modül 4) — bkz. ARCHITECTURE.md, DESIGN_SYSTEM.md ---
+// install_date/last_maintenance_date değerleri BİLİNÇLİ olarak çeşitlendirildi
+// (1-2 yıllık yeni ekipman ile 10+ yıllık eski ekipman karışık; bazılarında
+// bakım çok yakın zamanlı, bazılarında uzun süredir yapılmamış) — bu
+// çeşitlilik ileride Arıza Risk Tahmini (ML) modülünün eğitim verisinde
+// anlamlı bir dağılım olması için önemlidir. `hasHistory: true` olan
+// kayıtlar aşağıda work_orders'a kasıtlı olarak bağlanacak; `false` olanlar
+// hiç arıza kaydı olmayan ekipmanı temsil eder (risk modeli için çeşitlilik).
+const equipmentSeed = [
+  { qr_code: 'TR-2024-0451', equipment_type: 'trafo', location: locations[0], installYears: 1.5, maintenanceMonths: 2, manufacturer: 'ABB', capacity_info: '400 kVA', status: 'aktif', hasHistory: true },
+  { qr_code: 'TR-2015-0212', equipment_type: 'trafo', location: locations[1], installYears: 11, maintenanceMonths: 14, manufacturer: 'Siemens', capacity_info: '630 kVA', status: 'aktif', hasHistory: true },
+  { qr_code: 'TR-2013-0087', equipment_type: 'trafo', location: locations[3], installYears: 13, maintenanceMonths: 30, manufacturer: 'Schneider Electric', capacity_info: '250 kVA', status: 'bakimda', hasHistory: false },
+  { qr_code: 'TR-2023-0733', equipment_type: 'trafo', location: locations[7], installYears: 2, maintenanceMonths: 1, manufacturer: 'ABB', capacity_info: '1000 kVA', status: 'aktif', hasHistory: true },
+  { qr_code: 'TR-2012-0159', equipment_type: 'trafo', location: locations[6], installYears: 14, maintenanceMonths: 40, manufacturer: 'Siemens', capacity_info: '250 kVA', status: 'devre_disi', hasHistory: false },
+
+  { qr_code: 'DR-2022-1044', equipment_type: 'direk', location: locations[2], installYears: 2.5, maintenanceMonths: 6, manufacturer: 'Beksan Beton', capacity_info: '12 m beton direk', status: 'aktif', hasHistory: true },
+  { qr_code: 'DR-2011-0398', equipment_type: 'direk', location: locations[13], installYears: 14, maintenanceMonths: 36, manufacturer: 'Yılmaz Beton Direk', capacity_info: '9 m beton direk', status: 'aktif', hasHistory: true },
+  { qr_code: 'DR-2024-0876', equipment_type: 'direk', location: locations[9], installYears: 1, maintenanceMonths: 3, manufacturer: 'Beksan Beton', capacity_info: '12 m beton direk', status: 'aktif', hasHistory: false },
+  { qr_code: 'DR-2014-0261', equipment_type: 'direk', location: locations[11], installYears: 11.5, maintenanceMonths: null, manufacturer: 'Yılmaz Beton Direk', capacity_info: '9 m beton direk', status: 'bakimda', hasHistory: true },
+  { qr_code: 'DR-2020-0509', equipment_type: 'direk', location: locations[8], installYears: 5, maintenanceMonths: 10, manufacturer: 'Beksan Beton', capacity_info: '12 m beton direk', status: 'aktif', hasHistory: false },
+
+  { qr_code: 'KS-2023-0334', equipment_type: 'kesici', location: locations[4], installYears: 2, maintenanceMonths: 4, manufacturer: 'Eaton', capacity_info: '630 A', status: 'aktif', hasHistory: true },
+  { qr_code: 'KS-2010-0071', equipment_type: 'kesici', location: locations[12], installYears: 15, maintenanceMonths: 20, manufacturer: 'ETİ Elektrik', capacity_info: '400 A', status: 'aktif', hasHistory: true },
+  { qr_code: 'KS-2016-0620', equipment_type: 'kesici', location: locations[5], installYears: 9, maintenanceMonths: 30, manufacturer: 'Schneider Electric', capacity_info: '630 A', status: 'bakimda', hasHistory: false },
+  { qr_code: 'KS-2024-0198', equipment_type: 'kesici', location: locations[10], installYears: 1, maintenanceMonths: 2, manufacturer: 'Eaton', capacity_info: '400 A', status: 'aktif', hasHistory: false },
+
+  { qr_code: 'SY-2022-0455', equipment_type: 'sayac', location: locations[0], installYears: 3, maintenanceMonths: 5, manufacturer: 'Siemens', capacity_info: null, status: 'aktif', hasHistory: true },
+  { qr_code: 'SY-2013-0902', equipment_type: 'sayac', location: locations[14], installYears: 12, maintenanceMonths: 24, manufacturer: 'ABB', capacity_info: null, status: 'aktif', hasHistory: false },
+  { qr_code: 'SY-2025-0044', equipment_type: 'sayac', location: locations[6], installYears: 0.5, maintenanceMonths: 1, manufacturer: 'ABB', capacity_info: null, status: 'aktif', hasHistory: false },
+  { qr_code: 'SY-2011-0367', equipment_type: 'sayac', location: locations[7], installYears: 14.5, maintenanceMonths: 48, manufacturer: 'Siemens', capacity_info: null, status: 'devre_disi', hasHistory: true },
+];
+
+const insertEquipment = db.prepare(`
+  INSERT INTO equipment
+    (qr_code, equipment_type, location_name, lat, lng, install_date, last_maintenance_date, manufacturer, capacity_info, status, created_at)
+  VALUES
+    (@qr_code, @equipment_type, @location_name, @lat, @lng, @install_date, @last_maintenance_date, @manufacturer, @capacity_info, @status, @created_at)
+`);
+
+const equipmentIds = [];
+const equipmentIdsWithHistory = [];
+
+db.exec('BEGIN');
+try {
+  for (const eq of equipmentSeed) {
+    const info = insertEquipment.run({
+      qr_code: eq.qr_code,
+      equipment_type: eq.equipment_type,
+      location_name: `${eq.location.il} / ${eq.location.ilce} / ${eq.location.mah}`,
+      lat: eq.location.lat + randomJitter(),
+      lng: eq.location.lng + randomJitter(),
+      install_date: yearsAgoIsoDate(eq.installYears),
+      last_maintenance_date: eq.maintenanceMonths == null ? null : monthsAgoIsoDate(eq.maintenanceMonths),
+      manufacturer: eq.manufacturer,
+      capacity_info: eq.capacity_info,
+      status: eq.status,
+      created_at: yearsAgoIsoDate(eq.installYears),
+    });
+    equipmentIds.push(info.lastInsertRowid);
+    if (eq.hasHistory) equipmentIdsWithHistory.push(info.lastInsertRowid);
+  }
+  db.exec('COMMIT');
+} catch (err) {
+  db.exec('ROLLBACK');
+  throw err;
+}
+
 const insertWorkOrder = db.prepare(`
   INSERT INTO work_orders
-    (title, description, status, priority, location_name, lat, lng, assigned_user_id, equipment_ref, created_at, updated_at)
+    (title, description, status, priority, location_name, lat, lng, assigned_user_id, equipment_id, created_at, updated_at)
   VALUES
-    (@title, @description, @status, @priority, @location_name, @lat, @lng, @assigned_user_id, @equipment_ref, @created_at, @updated_at)
+    (@title, @description, @status, @priority, @location_name, @lat, @lng, @assigned_user_id, @equipment_id, @created_at, @updated_at)
 `);
 
 // node:sqlite'ın better-sqlite3'teki gibi bir db.transaction() sarmalayıcısı yok;
@@ -159,7 +233,10 @@ const rows = statusPlan.map((status, index) => {
     lat: location.lat + randomJitter(),
     lng: location.lng + randomJitter(),
     assigned_user_id: pick(technicianIds),
-    equipment_ref: equipmentRef(),
+    // equipment.id'ye giden gerçek bir FK — yalnızca "geçmiş arıza kaydı
+    // olsun" diye işaretlenmiş ekipmanlardan seçilir; bu sayede bazı
+    // ekipmanların gerçek geçmişi olur, bazılarınınsa hiç olmaz (bkz. yukarı).
+    equipment_id: pick(equipmentIdsWithHistory),
     created_at: createdAt.toISOString(),
     updated_at: updatedAt.toISOString(),
   };
@@ -230,4 +307,6 @@ try {
   throw err;
 }
 
-console.log(`${insertedUserIds.length} adet kişi, ${rows.length} adet iş emri ve ${deviceSeed.length} adet cihaz kaydı oluşturuldu.`);
+console.log(
+  `${insertedUserIds.length} adet kişi, ${equipmentIds.length} adet ekipman, ${rows.length} adet iş emri ve ${deviceSeed.length} adet cihaz kaydı oluşturuldu.`
+);
