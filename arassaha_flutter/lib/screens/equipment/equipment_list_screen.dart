@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/equipment.dart';
+import '../../models/equipment_risk.dart';
 import '../../providers/equipment_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../theme/app_colors.dart';
@@ -99,12 +100,25 @@ class _EquipmentListScreenState extends State<EquipmentListScreen> {
                     itemBuilder: (context, index) {
                       final equipment = provider.equipmentList[index];
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: _EquipmentCard(
-                          equipment: equipment,
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => EquipmentDetailScreen(equipmentId: equipment.id)),
-                          ),
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm, top: 6),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            _EquipmentCard(
+                              equipment: equipment,
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(builder: (_) => EquipmentDetailScreen(equipmentId: equipment.id)),
+                              ),
+                            ),
+                            // Arıza Risk Tahmini (Modül 9) — durum şeridiyle
+                            // karışmaması için sağ üst köşede ayrı bir rozet.
+                            if (equipment.riskScore != null && equipment.riskLevel != null)
+                              Positioned(
+                                top: -8,
+                                right: 8,
+                                child: _RiskBadge(score: equipment.riskScore!, level: equipment.riskLevel!),
+                              ),
+                          ],
                         ),
                       );
                     },
@@ -293,6 +307,49 @@ class _EquipmentCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Arıza Risk Tahmini (Modül 9) rozeti: küçük dairesel bir "72" gibi sayı +
+/// renk. Durum şeridiyle (sol kenar) karışmaması için kartın sağ üst
+/// köşesinde, ayrı bir görsel öğe olarak gösterilir.
+class _RiskBadge extends StatelessWidget {
+  final int score;
+  final RiskLevel level;
+  const _RiskBadge({required this.score, required this.level});
+
+  Color _color(BuildContext context) {
+    switch (level) {
+      case RiskLevel.dusuk:
+        return AppColors.success(context);
+      case RiskLevel.orta:
+        return AppColors.warning(context);
+      case RiskLevel.yuksek:
+        return AppColors.danger(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _color(context);
+    return Tooltip(
+      message: '${level.label}: $score',
+      child: Container(
+        width: 32,
+        height: 32,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(color: Theme.of(context).colorScheme.surface, width: 2),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 4, offset: const Offset(0, 2))],
+        ),
+        child: Text(
+          '$score',
+          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800),
+        ),
       ),
     );
   }

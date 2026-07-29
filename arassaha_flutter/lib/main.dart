@@ -5,6 +5,7 @@ import 'providers/dashboard_provider.dart';
 import 'providers/device_provider.dart';
 import 'providers/equipment_provider.dart';
 import 'providers/map_provider.dart';
+import 'providers/risk_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/work_order_list_provider.dart';
 import 'screens/main_shell.dart';
@@ -46,6 +47,7 @@ class _ArasSahaAppState extends State<ArasSahaApp> {
         ChangeNotifierProvider(create: (_) => MapProvider()),
         ChangeNotifierProvider(create: (_) => DeviceProvider()),
         ChangeNotifierProvider(create: (_) => EquipmentProvider()),
+        ChangeNotifierProvider(create: (_) => RiskProvider()),
         ChangeNotifierProvider.value(value: widget.themeProvider),
       ],
       child: Consumer<ThemeProvider>(

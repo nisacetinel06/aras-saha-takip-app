@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'equipment_risk.dart' show RiskLevel;
 import 'work_order.dart' show WorkOrderStatus, WorkOrderPriority;
 
 /// Ekipman türü. Backend'deki equipment.equipment_type ile birebir eşleşir.
@@ -131,6 +132,12 @@ class Equipment {
   final String? capacityInfo;
   final EquipmentStatus status;
   final DateTime createdAt;
+  // Arıza Risk Tahmini (Modül 9) — backend'in GET /api/equipment (liste) ve
+  // GET /api/equipment/:id yanıtlarına equipment_risk_scores'tan JOIN ile
+  // gömdüğü alanlar. Risk hiç hesaplanmamışsa (henüz refresh çalışmadıysa)
+  // ikisi de null gelir; liste ekranı bu durumda rozet göstermez.
+  final int? riskScore;
+  final RiskLevel? riskLevel;
 
   Equipment({
     required this.id,
@@ -145,6 +152,8 @@ class Equipment {
     required this.capacityInfo,
     required this.status,
     required this.createdAt,
+    this.riskScore,
+    this.riskLevel,
   });
 
   factory Equipment.fromJson(Map<String, dynamic> json) {
@@ -162,6 +171,8 @@ class Equipment {
       capacityInfo: json['capacity_info'] as String?,
       status: EquipmentStatus.fromJson(json['status'] as String),
       createdAt: DateTime.parse(json['created_at'] as String),
+      riskScore: json['risk_score'] as int?,
+      riskLevel: json['risk_level'] != null ? RiskLevel.fromJson(json['risk_level'] as String) : null,
     );
   }
 }

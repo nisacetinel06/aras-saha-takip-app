@@ -13,6 +13,17 @@ const router = express.Router();
 const VALID_TYPES = ['trafo', 'direk', 'kesici', 'sayac'];
 const VALID_STATUSES = ['aktif', 'bakimda', 'devre_disi'];
 
+// equipment_risk_scores 1:1 (equipment_id UNIQUE) olduğu için basit bir LEFT
+// JOIN yeterli — Modül 9 (Arıza Risk Tahmini) risk_score/risk_level'ı liste
+// ve detay yanıtlarına, Flutter tarafında ekstra bir istek atmaya gerek
+// kalmadan (N+1 önlenir) gömer. Hiç hesaplanmamışsa (henüz refresh
+// çalışmadıysa) her ikisi de null döner.
+const SELECT_EQUIPMENT_WITH_RISK = `
+  SELECT e.*, r.risk_score AS risk_score, r.risk_level AS risk_level
+  FROM equipment e
+  LEFT JOIN equipment_risk_scores r ON r.equipment_id = e.id
+`;
+
 // GET /api/equipment?type=trafo&status=aktif
 router.get('/', (req, res) => {
   try {
@@ -32,16 +43,18 @@ router.get('/', (req, res) => {
     const conditions = [];
     const params = [];
     if (type) {
-      conditions.push('equipment_type = ?');
+      conditions.push('e.equipment_type = ?');
       params.push(type);
     }
     if (status) {
-      conditions.push('status = ?');
+      conditions.push('e.status = ?');
       params.push(status);
     }
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const rows = db.prepare(`SELECT * FROM equipment ${whereClause} ORDER BY install_date DESC`).all(...params);
+    const rows = db
+      .prepare(`${SELECT_EQUIPMENT_WITH_RISK} ${whereClause} ORDER BY e.install_date DESC`)
+      .all(...params);
     res.json(rows);
   } catch (err) {
     console.error(err);
@@ -55,7 +68,7 @@ router.get('/', (req, res) => {
 router.get('/qr/:qrCode', (req, res) => {
   try {
     const { qrCode } = req.params;
-    const row = db.prepare('SELECT * FROM equipment WHERE qr_code = ?').get(qrCode);
+    const row = db.prepare(`${SELECT_EQUIPMENT_WITH_RISK} WHERE e.qr_code = ?`).get(qrCode);
 
     if (!row) {
       return res.status(404).json({ error: 'Bu QR koda ait ekipman bulunamadı.' });
@@ -76,7 +89,7 @@ router.get('/:id', (req, res) => {
       return res.status(400).json({ error: 'Geçersiz ekipman id değeri.' });
     }
 
-    const row = db.prepare('SELECT * FROM equipment WHERE id = ?').get(id);
+    const row = db.prepare(`${SELECT_EQUIPMENT_WITH_RISK} WHERE e.id = ?`).get(id);
     if (!row) {
       return res.status(404).json({ error: 'Ekipman bulunamadı.' });
     }

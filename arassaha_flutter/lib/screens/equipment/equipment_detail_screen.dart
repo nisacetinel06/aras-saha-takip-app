@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/equipment.dart';
+import '../../models/equipment_risk.dart';
 import '../../providers/equipment_provider.dart';
+import '../../providers/risk_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -34,6 +36,7 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
       final provider = context.read<EquipmentProvider>();
       provider.fetchEquipmentDetail(widget.equipmentId);
       provider.fetchEquipmentHistory(widget.equipmentId);
+      context.read<RiskProvider>().fetchEquipmentRisk(widget.equipmentId);
     });
   }
 
@@ -91,10 +94,12 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
+          final riskProvider = context.read<RiskProvider>();
           return RefreshIndicator(
             onRefresh: () async {
               await provider.fetchEquipmentDetail(widget.equipmentId);
               await provider.fetchEquipmentHistory(widget.equipmentId);
+              await riskProvider.fetchEquipmentRisk(widget.equipmentId);
             },
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -156,6 +161,13 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+
+                _SectionCard(
+                  title: 'Risk Analizi',
+                  icon: Icons.insights_outlined,
+                  child: _RiskAnalysisSection(equipmentId: widget.equipmentId),
                 ),
                 const SizedBox(height: AppSpacing.md),
 
@@ -297,6 +309,97 @@ class _HistorySection extends StatelessWidget {
           if (i > 0) const Divider(height: 20),
           _HistoryRow(entry: provider.history[i]),
         ],
+      ],
+    );
+  }
+}
+
+/// Arıza Risk Tahmini (Modül 9) — büyük skor + kısa, sabit bir açıklama
+/// metniyle modelin şeffaf olduğunu gösterir.
+///
+/// DÜRÜSTLÜK NOTU: Bu skoru üreten model, ArasSaha'nın henüz gerçek bir
+/// arıza geçmişi biriktirmemiş olması nedeniyle SENTETİK (kural tabanlı
+/// üretilmiş) bir veri setiyle eğitildi (bkz. arassaha-ml/README.md).
+class _RiskAnalysisSection extends StatelessWidget {
+  final int equipmentId;
+  const _RiskAnalysisSection({required this.equipmentId});
+
+  Color _colorFor(BuildContext context, RiskLevel level) {
+    switch (level) {
+      case RiskLevel.dusuk:
+        return AppColors.success(context);
+      case RiskLevel.orta:
+        return AppColors.warning(context);
+      case RiskLevel.yuksek:
+        return AppColors.danger(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<RiskProvider>();
+    final risk = provider.riskFor(equipmentId);
+    final isLoading = provider.isRiskLoading(equipmentId);
+    final scheme = Theme.of(context).colorScheme;
+
+    if (isLoading && risk == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (risk == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            provider.riskErrorMessage ?? 'Risk skoru henüz hesaplanmadı.',
+            style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          AppButton(
+            label: 'Risk Skorunu Hesapla',
+            icon: Icons.refresh,
+            variant: AppButtonVariant.secondary,
+            onPressed: () => provider.fetchEquipmentRisk(equipmentId),
+          ),
+        ],
+      );
+    }
+
+    final color = _colorFor(context, risk.riskLevel);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 64,
+          height: 64,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          child: Text(
+            '${risk.riskScore}',
+            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                risk.riskLevel.label,
+                style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 16),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Bu ekipmanın yaşı, son bakım tarihi ve geçmiş arıza sayısına göre hesaplanmıştır.',
+                style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }

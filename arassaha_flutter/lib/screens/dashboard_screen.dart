@@ -2,13 +2,18 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/dashboard_summary.dart';
+import '../models/equipment_risk.dart';
 import '../models/work_order.dart';
 import '../providers/dashboard_provider.dart';
+import '../providers/risk_provider.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_text_styles.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/work_order_card.dart' show formatRelativeTime;
+import 'equipment/equipment_detail_screen.dart';
 import 'work_order_detail_screen.dart';
 
 /// Dashboard sekmesi: Modül 2'nin detaylı analiz görünümü (grafikler, son
@@ -31,6 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DashboardProvider>().fetchSummary();
+      context.read<RiskProvider>().fetchRiskyEquipment();
     });
   }
 
@@ -66,6 +72,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: AppSpacing.lg),
               const _SectionHeader('Son Aktiviteler'),
               _RecentActivityList(items: summary.recentActivity),
+              const SizedBox(height: AppSpacing.lg),
+              const _SectionHeader('Riskli Ekipmanlar'),
+              const _RiskyEquipmentSection(),
             ],
           ),
         );
@@ -366,6 +375,103 @@ class _RecentActivityList extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Arıza Risk Tahmini (Modül 9) — Dashboard'un "Riskli Ekipmanlar" bölümü.
+/// GET /api/dashboard/risky-equipment'ten gelen ilk 5 kaydı kompakt bir liste
+/// olarak gösterir; bir öğeye tıklanınca Ekipman Detayı'na gidilir (modüller
+/// arası bağlantı).
+///
+/// DÜRÜSTLÜK NOTU: Risk skorları, ArasSaha'nın henüz gerçek bir arıza
+/// geçmişi biriktirmemiş olması nedeniyle SENTETİK bir veri setiyle eğitilmiş
+/// bir modelden gelir (bkz. arassaha-ml/README.md).
+class _RiskyEquipmentSection extends StatelessWidget {
+  const _RiskyEquipmentSection();
+
+  Color _colorFor(BuildContext context, RiskLevel level) {
+    switch (level) {
+      case RiskLevel.dusuk:
+        return AppColors.success(context);
+      case RiskLevel.orta:
+        return AppColors.warning(context);
+      case RiskLevel.yuksek:
+        return AppColors.danger(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<RiskProvider>();
+
+    if (provider.isRiskyListLoading && provider.riskyEquipment.isEmpty) {
+      return const AppCard(
+        padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (provider.riskyListErrorMessage != null && provider.riskyEquipment.isEmpty) {
+      return _EmptyChartCard(message: provider.riskyListErrorMessage!);
+    }
+
+    if (provider.riskyEquipment.isEmpty) {
+      return const _EmptyChartCard(message: 'Henüz risk skoru hesaplanmış ekipman yok.');
+    }
+
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          for (int i = 0; i < provider.riskyEquipment.length; i++) ...[
+            if (i > 0) const Divider(height: 1),
+            _RiskyEquipmentTile(
+              item: provider.riskyEquipment[i],
+              color: _colorFor(context, provider.riskyEquipment[i].riskLevel),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RiskyEquipmentTile extends StatelessWidget {
+  final RiskyEquipmentSummary item;
+  final Color color;
+  const _RiskyEquipmentTile({required this.item, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: color,
+        radius: 18,
+        child: Text(
+          '${item.riskScore}',
+          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800),
+        ),
+      ),
+      title: Text(
+        '${item.equipmentType.label} · ${item.qrCode}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        item.locationName,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+      ),
+      trailing: Text(
+        item.riskLevel.label,
+        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700),
+      ),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => EquipmentDetailScreen(equipmentId: item.id)),
       ),
     );
   }

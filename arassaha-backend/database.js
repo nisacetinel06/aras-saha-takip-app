@@ -92,6 +92,20 @@ db.exec(`
     created_at TEXT NOT NULL,
     FOREIGN KEY (device_id) REFERENCES managed_devices (id)
   );
+
+  -- Arıza Risk Tahmini (Modül 9) — bkz. routes/risk.js ve arassaha-ml/.
+  -- Her ekipmanın EN GÜNCEL risk skorunu tutar (equipment_id UNIQUE'tir; yeni
+  -- bir hesaplama geçmiş kaydı biriktirmez, var olan satırı günceller). Skoru
+  -- üreten model, ayrı bir Python (FastAPI) servisinde çalışır ve SENTETİK
+  -- (kural tabanlı üretilmiş) veriyle eğitildi — bkz. arassaha-ml/README.md.
+  CREATE TABLE IF NOT EXISTS equipment_risk_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    equipment_id INTEGER NOT NULL UNIQUE,
+    risk_score INTEGER NOT NULL,
+    risk_level TEXT NOT NULL,
+    computed_at TEXT NOT NULL,
+    FOREIGN KEY (equipment_id) REFERENCES equipment (id)
+  );
 `);
 
 module.exports = db;

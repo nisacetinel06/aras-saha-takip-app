@@ -5,6 +5,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import '../models/dashboard_summary.dart';
 import '../models/equipment.dart';
+import '../models/equipment_risk.dart';
 import '../models/managed_device.dart';
 import '../models/work_order.dart';
 import '../models/work_order_map_pin.dart';
@@ -389,6 +390,52 @@ class ApiService {
 
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => EquipmentHistoryEntry.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  // --- Arıza Risk Tahmini — Modül 9 ---
+  // DÜRÜSTLÜK NOTU: Bu skorları üreten model, ArasSaha'nın henüz gerçek bir
+  // arıza geçmişi biriktirmemiş olması nedeniyle SENTETİK (kural tabanlı
+  // üretilmiş) bir veri setiyle eğitildi. Bkz. arassaha-ml/README.md.
+
+  /// Bir ekipmanın en güncel risk skorunu getirir (yoksa backend anlık
+  /// hesaplayıp kaydeder — bkz. routes/risk.js).
+  Future<EquipmentRisk> getEquipmentRisk(int equipmentId) async {
+    try {
+      final uri = Uri.parse('$baseUrl/equipment/$equipmentId/risk');
+      final response = await http.get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Risk skoru alınamadı.'));
+      }
+
+      return EquipmentRisk.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// Dashboard'un "Riskli Ekipmanlar" bölümü için risk skoruna göre azalan
+  /// sırayla ilk `limit` ekipmanı getirir.
+  Future<List<RiskyEquipmentSummary>> getRiskyEquipment({int limit = 5}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/dashboard/risky-equipment').replace(
+        queryParameters: {'limit': '$limit'},
+      );
+      final response = await http.get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Riskli ekipman listesi alınamadı.'));
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => RiskyEquipmentSummary.fromJson(json)).toList();
     } on ApiException {
       rethrow;
     } catch (e) {
