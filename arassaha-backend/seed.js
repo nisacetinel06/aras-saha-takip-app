@@ -96,10 +96,12 @@ db.exec('DELETE FROM device_action_logs');
 db.exec('DELETE FROM managed_devices');
 db.exec('DELETE FROM work_order_photos');
 db.exec('DELETE FROM work_orders');
+db.exec('DELETE FROM equipment_risk_scores');
 db.exec('DELETE FROM equipment');
+db.exec('DELETE FROM isg_reports');
 db.exec('DELETE FROM users');
 db.exec(
-  "DELETE FROM sqlite_sequence WHERE name IN ('work_orders', 'work_order_photos', 'users', 'managed_devices', 'device_action_logs', 'equipment')"
+  "DELETE FROM sqlite_sequence WHERE name IN ('work_orders', 'work_order_photos', 'users', 'managed_devices', 'device_action_logs', 'equipment', 'isg_reports', 'equipment_risk_scores')"
 );
 
 const insertUser = db.prepare(`
@@ -249,6 +251,60 @@ insertMany(rows);
 // yol açar; bu Temel Kalite İlkesi'ni ihlal eder. Gerçek fotoğraflar yalnızca
 // uygulama üzerinden (POST /api/workorders/:id/photos, multipart upload) eklenir.
 
+// --- İSG (İş Sağlığı ve Güvenliği) Bildirimi (Modül 5) — bkz. ARCHITECTURE.md ---
+// `photo_path` burada kasıtlı olarak NULL bırakılıyor (bkz. database.js
+// yorumu) — Temel Kalite İlkesi gereği var olmayan bir dosyaya işaret eden
+// sahte bir yol seed edilmez. Gerçek fotoğraflar yalnızca uygulama üzerinden
+// (POST /api/isg-reports, multipart upload) eklenir; bu kayıtlar "uygulama
+// öncesinden var olan, fotoğrafsız bildirim" senaryosunu temsil eder.
+const isgReportSeed = [
+  { category: 'ekipman_arizasi', description: 'Direk üzerindeki izolatör çatlamış, acil kontrol gerekiyor.', location: locations[1], status: 'bekliyor', daysAgo: 2 },
+  { category: 'ekipman_arizasi', description: 'Trafo kapağı tam kapanmıyor, içerideki bağlantılar dışarıdan görünüyor.', location: locations[0], status: 'incelendi', daysAgo: 6, reviewNote: 'Bakım ekibi yönlendirildi, parça temini bekleniyor.', reviewAfterDays: 1 },
+  { category: 'ekipman_arizasi', description: 'Sayaç kutusunun kapağı kırık, yağmur suyu içeri giriyor.', location: locations[9], status: 'bekliyor', daysAgo: 1 },
+  { category: 'tehlikeli_durum', description: 'Trafo çevresindeki güvenlik çiti hasarlı, çocukların girebileceği bir alan oluşmuş.', location: locations[5], status: 'cozuldu', daysAgo: 12, reviewNote: 'Çit onarıldı, saha tekrar kontrol edildi.', reviewAfterDays: 3 },
+  { category: 'tehlikeli_durum', description: 'Kablo kanalı kapağı açık kalmış, yaya geçişinde tökezleme riski var.', location: locations[10], status: 'bekliyor', daysAgo: 3 },
+  { category: 'tehlikeli_durum', description: 'Direk dibinde çukur oluşmuş, zeminde çökme riski görülüyor.', location: locations[12], status: 'incelendi', daysAgo: 5, reviewNote: 'Zemin etüdü için ekip planlandı.', reviewAfterDays: 2 },
+  { category: 'is_kazasi_riski', description: 'Yüksek gerilim hattına çok yakın bir ağaç dalı büyümüş, budama gerekiyor.', location: locations[13], status: 'bekliyor', daysAgo: 4 },
+  { category: 'is_kazasi_riski', description: 'Sahada çalışırken merdiven sabitleme ekipmanı eksikti, iş güvenliği talimatı hatırlatılmalı.', location: locations[3], status: 'cozuldu', daysAgo: 15, reviewNote: 'Ekip iş güvenliği eğitiminden geçirildi.', reviewAfterDays: 4 },
+  { category: 'is_kazasi_riski', description: 'Trafo odasına giriş kapısının kilidi bozuk, yetkisiz erişime açık.', location: locations[4], status: 'bekliyor', daysAgo: 1 },
+  { category: 'diger', description: 'Sahadaki uyarı levhası solmuş, okunmuyor, yenilenmesi gerekiyor.', location: locations[6], status: 'bekliyor', daysAgo: 7 },
+  { category: 'diger', description: 'Bölgede sokak aydınlatması bir haftadır çalışmıyor.', location: locations[14], status: 'incelendi', daysAgo: 9, reviewNote: 'Aydınlatma ekibine bildirildi.', reviewAfterDays: 2 },
+];
+
+const insertIsgReport = db.prepare(`
+  INSERT INTO isg_reports
+    (reported_by_user_id, description, category, photo_path, location_name, lat, lng, status, reviewer_note, created_at, reviewed_at)
+  VALUES
+    (@reported_by_user_id, @description, @category, @photo_path, @location_name, @lat, @lng, @status, @reviewer_note, @created_at, @reviewed_at)
+`);
+
+db.exec('BEGIN');
+try {
+  for (const r of isgReportSeed) {
+    const createdAt = new Date(Date.now() - r.daysAgo * 24 * 60 * 60 * 1000);
+    const reviewedAt =
+      r.reviewAfterDays != null ? new Date(createdAt.getTime() + r.reviewAfterDays * 24 * 60 * 60 * 1000) : null;
+
+    insertIsgReport.run({
+      reported_by_user_id: pick(technicianIds),
+      description: r.description,
+      category: r.category,
+      photo_path: null,
+      location_name: `${r.location.il} / ${r.location.ilce} / ${r.location.mah}`,
+      lat: r.location.lat + randomJitter(),
+      lng: r.location.lng + randomJitter(),
+      status: r.status,
+      reviewer_note: r.reviewNote || null,
+      created_at: createdAt.toISOString(),
+      reviewed_at: reviewedAt ? reviewedAt.toISOString() : null,
+    });
+  }
+  db.exec('COMMIT');
+} catch (err) {
+  db.exec('ROLLBACK');
+  throw err;
+}
+
 // --- Cihaz Yönetimi (MDM simülasyonu) — bkz. DESIGN_SYSTEM.md ---
 // personnelSeed ile aynı isimler kullanılır ki veri seti tutarlı görünsün
 // (bir kişinin hem iş emri hem cihaz kaydı olması gerçekçi bir senaryo).
@@ -308,5 +364,6 @@ try {
 }
 
 console.log(
-  `${insertedUserIds.length} adet kişi, ${equipmentIds.length} adet ekipman, ${rows.length} adet iş emri ve ${deviceSeed.length} adet cihaz kaydı oluşturuldu.`
+  `${insertedUserIds.length} adet kişi, ${equipmentIds.length} adet ekipman, ${rows.length} adet iş emri, ` +
+    `${isgReportSeed.length} adet İSG bildirimi ve ${deviceSeed.length} adet cihaz kaydı oluşturuldu.`
 );

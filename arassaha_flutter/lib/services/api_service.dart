@@ -6,6 +6,7 @@ import 'package:mime/mime.dart';
 import '../models/dashboard_summary.dart';
 import '../models/equipment.dart';
 import '../models/equipment_risk.dart';
+import '../models/isg_report.dart';
 import '../models/managed_device.dart';
 import '../models/work_order.dart';
 import '../models/work_order_map_pin.dart';
@@ -436,6 +437,127 @@ class ApiService {
 
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => RiskyEquipmentSummary.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  // --- İSG (İş Sağlığı ve Güvenliği) Bildirimi — Modül 5 ---
+  // submitIsgReport gerçek bir fotoğraf dosyasını multipart/form-data ile
+  // yükler (work_orders/:id/photos ile aynı yaklaşım); lat/lng, çağıran
+  // tarafından (bkz. IsgProvider) cihazın gerçek GPS'inden okunmuş olarak gelir.
+
+  Future<List<IsgReport>> getIsgReports({String? statusFilter}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/isg-reports').replace(
+        queryParameters: statusFilter != null ? {'status': statusFilter} : null,
+      );
+      final response = await http.get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'İSG bildirimleri alınamadı.'));
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => IsgReport.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  Future<IsgReport> getIsgReportDetail(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/isg-reports/$id');
+      final response = await http.get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'İSG bildirimi detayı alınamadı.'));
+      }
+
+      return IsgReport.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// Yeni bir İSG bildirimi gönderir. Fotoğraf dosyası gerçekten backend'e
+  /// yüklenir (multipart/form-data); `lat`/`lng` cihazın gerçek GPS
+  /// konumundan (geolocator) okunmuş olmalıdır — bu metod bunu zorunlu kılar
+  /// ama gerçekliğini doğrulayamaz, o sorumluluk çağıran tarafındadır.
+  Future<IsgReport> submitIsgReport({
+    required int reportedByUserId,
+    required String description,
+    required IsgCategory category,
+    required double lat,
+    required double lng,
+    String? locationName,
+    required File photo,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/isg-reports');
+
+      final bytes = await photo.readAsBytes();
+      final detectedMime = lookupMimeType(photo.path, headerBytes: bytes);
+      final mimeType = (detectedMime == 'image/jpeg' || detectedMime == 'image/png')
+          ? detectedMime!
+          : 'image/jpeg';
+      final filename = photo.path.split(Platform.pathSeparator).last;
+
+      final request = http.MultipartRequest('POST', uri)
+        ..fields['reported_by_user_id'] = '$reportedByUserId'
+        ..fields['description'] = description
+        ..fields['category'] = category.toJson()
+        ..fields['lat'] = '$lat'
+        ..fields['lng'] = '$lng'
+        ..files.add(http.MultipartFile.fromBytes(
+          'photo',
+          bytes,
+          filename: filename,
+          contentType: MediaType.parse(mimeType),
+        ));
+
+      if (locationName != null && locationName.trim().isNotEmpty) {
+        request.fields['location_name'] = locationName.trim();
+      }
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode != 201) {
+        throw ApiException(_extractError(response, 'İSG bildirimi gönderilemedi.'));
+      }
+
+      return IsgReport.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  Future<IsgReport> updateIsgReportStatus(int id, IsgStatus newStatus, {String? reviewerNote}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/isg-reports/$id/status');
+      final response = await http.patch(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'status': newStatus.toJson(),
+          if (reviewerNote != null && reviewerNote.trim().isNotEmpty) 'reviewer_note': reviewerNote.trim(),
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'İSG bildirimi durumu güncellenemedi.'));
+      }
+
+      return IsgReport.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
     } catch (e) {

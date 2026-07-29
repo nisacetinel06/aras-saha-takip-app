@@ -5,6 +5,13 @@
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
 
+    <!-- İSG Bildirimi (Modül 5): bildirime eklenen gerçek GPS konumu için.
+         geolocator çalışma zamanı izin akışını kendi yönetir (bkz.
+         isg_report_form_screen.dart); reddedilirse/GPS kapalıysa kullanıcıya
+         anlamlı bir uyarı gösterilir. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+
     <application
         android:label="arassaha_flutter"
         android:name="${applicationName}"

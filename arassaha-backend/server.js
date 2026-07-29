@@ -9,12 +9,15 @@ const dashboardRouter = require('./routes/dashboard');
 const devicesRouter = require('./routes/devices');
 const equipmentRouter = require('./routes/equipment');
 const riskRouter = require('./routes/risk');
+const isgRouter = require('./routes/isg');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+// İSG Bildirimi (Modül 5) fotoğrafları için ayrı bir alt klasör.
+fs.mkdirSync(path.join(UPLOADS_DIR, 'isg'), { recursive: true });
 
 app.use(cors());
 app.use(express.json());
@@ -32,6 +35,7 @@ app.use('/api/equipment', equipmentRouter);
 // 'dashboard/risky-equipment' gibi farklı öneklere sahip tam yollar
 // tanımlar (bkz. routes/risk.js); bu yüzden '/api' kökünde mount edilir.
 app.use('/api', riskRouter);
+app.use('/api/isg-reports', isgRouter);
 
 app.get('/', (req, res) => {
   res.json({ message: 'ArasSaha backend çalışıyor.' });

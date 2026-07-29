@@ -64,6 +64,7 @@ dependencies:
   # (dart run flutter_native_splash:create).
   flutter_native_splash: ^2.4.3
   mobile_scanner: ^7.4.0
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:

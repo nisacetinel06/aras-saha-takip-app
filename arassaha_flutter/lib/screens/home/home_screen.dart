@@ -9,6 +9,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/app_card.dart';
 import '../devices/device_list_screen.dart';
 import '../equipment/equipment_home_screen.dart';
+import '../isg/isg_report_list_screen.dart';
 
 const _weekdays = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
 const _months = [
@@ -119,10 +120,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 _ModuleCard(
                   icon: Icons.shield_outlined,
                   title: 'İSG Bildirimi',
-                  subtitle: 'Yakında',
+                  subtitle: 'Risk bildir',
                   color: AppColors.danger(context),
-                  comingSoon: true,
-                  onTap: () => _showComingSoon('İSG Bildirimi'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const IsgReportListScreen()),
+                  ),
                 ),
                 _ModuleCard(
                   icon: Icons.notifications_outlined,

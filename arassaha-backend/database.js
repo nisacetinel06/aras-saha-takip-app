@@ -93,6 +93,34 @@ db.exec(`
     FOREIGN KEY (device_id) REFERENCES managed_devices (id)
   );
 
+  -- İSG (İş Sağlığı ve Güvenliği) Bildirimi (Modül 5) — bkz. routes/isg.js.
+  -- reported_by_user_id: prompt'ta serbest metin bir "reported_by" alanı
+  -- istenmişti, ancak bu, ARCHITECTURE.md Bölüm 11.1'de "Zorunlu kural"
+  -- olarak belirlenmiş ilkeyi (kişi bilgisi hiçbir yerde serbest metin/sabit
+  -- isim olamaz, her zaman users tablosuna giden gerçek bir FK olmalı) ihlal
+  -- ederdi — work_orders.assigned_user_id ve managed_devices.assigned_user_id
+  -- ile aynı tutarlılığı korumak için burada da gerçek bir FK kullanıldı.
+  -- photo_path NULL olabilir: seed verisinde gerçek bir fotoğraf dosyası
+  -- olmadığı için (Temel Kalite İlkesi — sahte/var olmayan dosya yoluna asla
+  -- yer verilmez) seed kayıtlarının fotoğrafı yoktur; gerçek fotoğraflar
+  -- yalnızca uygulama üzerinden (POST /api/isg-reports, multipart upload)
+  -- eklenir ve o zaman dolar.
+  CREATE TABLE IF NOT EXISTS isg_reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reported_by_user_id INTEGER NOT NULL,
+    description TEXT NOT NULL,
+    category TEXT NOT NULL,
+    photo_path TEXT,
+    location_name TEXT,
+    lat REAL NOT NULL,
+    lng REAL NOT NULL,
+    status TEXT NOT NULL DEFAULT 'bekliyor',
+    reviewer_note TEXT,
+    created_at TEXT NOT NULL,
+    reviewed_at TEXT,
+    FOREIGN KEY (reported_by_user_id) REFERENCES users (id)
+  );
+
   -- Arıza Risk Tahmini (Modül 9) — bkz. routes/risk.js ve arassaha-ml/.
   -- Her ekipmanın EN GÜNCEL risk skorunu tutar (equipment_id UNIQUE'tir; yeni
   -- bir hesaplama geçmiş kaydı biriktirmez, var olan satırı günceller). Skoru
