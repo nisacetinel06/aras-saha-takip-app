@@ -4,17 +4,23 @@ import '../models/work_order.dart';
 import '../providers/auth_provider.dart';
 import '../providers/map_provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/user_provider.dart';
 import '../providers/work_order_list_provider.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/user_avatar.dart';
 import 'dashboard_screen.dart';
 import 'home/home_screen.dart';
 import 'map/map_screen.dart';
+import 'profile/profile_screen.dart';
 import 'work_order_list_screen.dart';
 
-/// Uygulamanın kalıcı kabuğu: Ana Sayfa / İş Emirleri / Harita / Dashboard
-/// arasında alt navigasyon çubuğuyla geçiş sağlar. Ortak app bar (ekran
-/// başlığı + dark/light toggle) burada tanımlıdır; sekme içerikleri kendi
-/// Scaffold/AppBar'ını taşımaz. Bkz. DESIGN_SYSTEM.md Bölüm B.
+/// Uygulamanın kalıcı kabuğu: Ana Sayfa / İş Emirleri / Harita / Dashboard /
+/// Profil arasında alt navigasyon çubuğuyla geçiş sağlar. Ortak app bar
+/// (ekran başlığı + dark/light toggle) burada tanımlıdır; sekme içerikleri
+/// kendi Scaffold/AppBar'ını taşımaz. Bkz. DESIGN_SYSTEM.md Bölüm B.
+///
+/// "Çıkış Yap" artık burada DEĞİL, Profil sekmesinde (Modül 8) — tek bir
+/// yerde tutarlı olsun diye (bkz. profile_screen.dart).
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -25,7 +31,17 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _index = 0;
 
-  static const _titles = ['Ana Sayfa', 'İş Emirleri', 'Harita', 'Dashboard'];
+  static const _titles = ['Ana Sayfa', 'İş Emirleri', 'Harita', 'Dashboard', 'Profil'];
+
+  @override
+  void initState() {
+    super.initState();
+    // Profil sekmesindeki avatarın (fotoğraf varsa) alt navigasyon
+    // ikonunda da görünebilmesi için uygulama açılışında bir kez çekilir.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<UserProvider>().fetchMyProfile();
+    });
+  }
 
   /// Hub'daki modül kartlarından ya da Dashboard'daki özet kartlardan
   /// çağrılır: ilgili sekmeye, isteğe bağlı bir statü filtresi önceden
@@ -42,39 +58,19 @@ class _MainShellState extends State<MainShell> {
     setState(() => _index = index);
   }
 
-  Future<void> _confirmLogout(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Çıkış Yap'),
-        content: const Text('Oturumu kapatmak istediğinize emin misiniz?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Vazgeç'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text('Çıkış Yap', style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && context.mounted) {
-      await context.read<AuthProvider>().logout();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
+    final auth = context.watch<AuthProvider>();
+    final myProfile = context.watch<UserProvider>().myProfile;
+    final scheme = Theme.of(context).colorScheme;
 
     final tabs = <Widget>[
       HomeScreen(onNavigate: _navigateToTab),
       const WorkOrderListScreen(),
       const MapScreen(),
       DashboardScreen(onNavigate: _navigateToTab),
+      const ProfileScreen(),
     ];
 
     return Scaffold(
@@ -87,16 +83,29 @@ class _MainShellState extends State<MainShell> {
             Flexible(child: Text(_titles[_index], overflow: TextOverflow.ellipsis)),
           ],
         ),
+        // Hangi rolle (ve kim olarak) giriş yaptığını her zaman hatırlatan
+        // küçük bir alt şerit — kullanıcı "paneli unutuyorum" dediği için
+        // eklendi (Modül 7). Tüm sekmelerde ortak olduğu için burada,
+        // MainShell'in ortak AppBar'ında duruyor.
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(22),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 6),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '${auth.currentUser?.name ?? ''} · ${auth.roleLabel}',
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ),
         actions: [
           IconButton(
             tooltip: themeProvider.isDark ? 'Aydınlık moda geç' : 'Karanlık moda geç',
             icon: Icon(themeProvider.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
             onPressed: themeProvider.toggle,
-          ),
-          IconButton(
-            tooltip: 'Çıkış Yap',
-            icon: const Icon(Icons.logout_outlined),
-            onPressed: () => _confirmLogout(context),
           ),
           const SizedBox(width: 4),
         ],
@@ -105,26 +114,35 @@ class _MainShellState extends State<MainShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
             label: 'Ana Sayfa',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.assignment_outlined),
             selectedIcon: Icon(Icons.assignment),
             label: 'İş Emirleri',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.map_outlined),
             selectedIcon: Icon(Icons.map),
             label: 'Harita',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
             selectedIcon: Icon(Icons.dashboard),
             label: 'Dashboard',
+          ),
+          NavigationDestination(
+            icon: myProfile != null
+                ? UserAvatar(photoPath: myProfile.photoPath, initials: myProfile.initials, role: myProfile.role, radius: 12)
+                : const Icon(Icons.person_outline),
+            selectedIcon: myProfile != null
+                ? UserAvatar(photoPath: myProfile.photoPath, initials: myProfile.initials, role: myProfile.role, radius: 12)
+                : const Icon(Icons.person),
+            label: 'Profil',
           ),
         ],
       ),

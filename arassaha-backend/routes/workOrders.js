@@ -65,11 +65,30 @@ function mapWorkOrderRow(row) {
   };
 }
 
+// Hiyerarşik görünürlük kuralı (Modül 7 devamı — bkz. ARCHITECTURE.md):
+// - teknisyen: yalnızca kendine atanan işler
+// - dispeçer: yalnızca KENDİ EKİBİNDEKİ (supervisor_id = kendi id'si)
+//   teknisyenlere atanan işler — başka bir dispeçerin ekibini görmez
+// - yönetici: tüm işler (filtre yok)
+// Bu, hem iş emri listesinde hem haritada hem dashboard özetinde aynı
+// mantıkla uygulanır ki "amirin panelinde sadece kendi ekibi görünsün" kuralı
+// her ekranda tutarlı olsun.
+function applyVisibilityFilter(req, conditions, params) {
+  if (req.user.role === 'teknisyen') {
+    conditions.push('wo.assigned_user_id = ?');
+    params.push(req.user.id);
+  } else if (req.user.role === 'dispecer') {
+    conditions.push('wo.assigned_user_id IN (SELECT id FROM users WHERE supervisor_id = ?)');
+    params.push(req.user.id);
+  }
+  // yönetici: ek filtre yok, tümünü görür.
+}
+
 // GET /api/workorders?status=acik
 // Tüm iş emirlerini listeler, opsiyonel status filtresi destekler.
-// Teknisyen rolündeki kullanıcılar yalnızca kendine atanan işleri görür —
-// bu filtre burada, backend'de zorunlu kılınır (Flutter tarafı ekstra bir şey
-// göndermez, token'daki role/id üzerinden otomatik uygulanır).
+// Rol bazlı görünürlük backend'de zorunlu kılınır (bkz. applyVisibilityFilter);
+// Flutter tarafı ekstra bir şey göndermez, token'daki role/id üzerinden
+// otomatik uygulanır.
 router.get('/', (req, res) => {
   try {
     const { status } = req.query;
@@ -86,10 +105,7 @@ router.get('/', (req, res) => {
       conditions.push('wo.status = ?');
       params.push(status);
     }
-    if (req.user.role === 'teknisyen') {
-      conditions.push('wo.assigned_user_id = ?');
-      params.push(req.user.id);
-    }
+    applyVisibilityFilter(req, conditions, params);
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const rows = db
@@ -133,9 +149,20 @@ router.post('/', requireRole('dispecer', 'yonetici'), (req, res) => {
       return res.status(400).json({ error: 'assigned_user_id alanı zorunludur.' });
     }
 
-    const assignedUser = db.prepare('SELECT id, role FROM users WHERE id = ?').get(assignedUserId);
+    const assignedUser = db
+      .prepare('SELECT id, role, supervisor_id, is_active FROM users WHERE id = ?')
+      .get(assignedUserId);
     if (!assignedUser || assignedUser.role !== 'teknisyen') {
       return res.status(400).json({ error: 'assigned_user_id geçerli bir teknisyene ait olmalı.' });
+    }
+    if (!assignedUser.is_active) {
+      return res.status(400).json({ error: 'assigned_user_id pasif bir teknisyene ait olamaz.' });
+    }
+    // Dispeçer yalnızca KENDİ ekibindeki teknisyene iş emri atayabilir; başka
+    // bir dispeçerin teknisyenine atama yapamaz. Yönetici için bu kısıtlama
+    // yoktur (herhangi bir teknisyene atayabilir).
+    if (req.user.role === 'dispecer' && assignedUser.supervisor_id !== req.user.id) {
+      return res.status(403).json({ error: 'assigned_user_id sizin ekibinizdeki bir teknisyene ait olmalı.' });
     }
 
     if (equipmentId != null) {
@@ -191,10 +218,25 @@ router.get('/map', (req, res) => {
 
     // equipment_id dahil edilir ki harita bilgi balonunda (varsa) "Ekipman
     // Detayını Gör" bağlantısı gösterilebilsin (bkz. map_screen.dart).
-    const baseQuery = 'SELECT id, title, status, priority, lat, lng, equipment_id FROM work_orders WHERE lat IS NOT NULL AND lng IS NOT NULL';
-    const rows = status
-      ? db.prepare(`${baseQuery} AND status = ? ORDER BY id`).all(status)
-      : db.prepare(`${baseQuery} ORDER BY id`).all();
+    const conditions = ['lat IS NOT NULL', 'lng IS NOT NULL'];
+    const params = [];
+    if (status) {
+      conditions.push('status = ?');
+      params.push(status);
+    }
+    if (req.user.role === 'teknisyen') {
+      conditions.push('assigned_user_id = ?');
+      params.push(req.user.id);
+    } else if (req.user.role === 'dispecer') {
+      conditions.push('assigned_user_id IN (SELECT id FROM users WHERE supervisor_id = ?)');
+      params.push(req.user.id);
+    }
+
+    const rows = db
+      .prepare(
+        `SELECT id, title, status, priority, lat, lng, equipment_id FROM work_orders WHERE ${conditions.join(' AND ')} ORDER BY id`
+      )
+      .all(...params);
 
     res.json(rows);
   } catch (err) {
@@ -259,6 +301,58 @@ router.patch('/:id/status', (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'İş emri durumu güncellenirken bir hata oluştu.' });
+  }
+});
+
+// PATCH /api/workorders/:id/assign — yalnızca dispeçer/yönetici.
+// Body: { assigned_user_id }
+// Var olan, açık bir iş emrinin atanan kişisini değiştirir (Modül 7'de
+// yalnızca OLUŞTURMA sırasında atama yapılıyordu — bu, sonradan yeniden
+// atama akışını tamamlar). Aynı doğrulamalar POST / ile birebir aynıdır:
+// hedef GERÇEKTEN bir teknisyen olmalı, AKTİF olmalı (pasif bir teknisyene
+// yeni iş yüklenmez) ve dispeçer yalnızca KENDİ ekibine atayabilir.
+router.patch('/:id/assign', requireRole('dispecer', 'yonetici'), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Geçersiz iş emri id değeri.' });
+    }
+
+    const existing = db.prepare('SELECT id FROM work_orders WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'İş emri bulunamadı.' });
+    }
+
+    const assignedUserId = Number(req.body.assigned_user_id);
+    if (!Number.isInteger(assignedUserId)) {
+      return res.status(400).json({ error: 'assigned_user_id alanı zorunludur.' });
+    }
+
+    const assignedUser = db
+      .prepare('SELECT id, role, supervisor_id, is_active FROM users WHERE id = ?')
+      .get(assignedUserId);
+    if (!assignedUser || assignedUser.role !== 'teknisyen') {
+      return res.status(400).json({ error: 'assigned_user_id geçerli bir teknisyene ait olmalı.' });
+    }
+    if (!assignedUser.is_active) {
+      return res.status(400).json({ error: 'assigned_user_id pasif bir teknisyene ait olamaz.' });
+    }
+    if (req.user.role === 'dispecer' && assignedUser.supervisor_id !== req.user.id) {
+      return res.status(403).json({ error: 'assigned_user_id sizin ekibinizdeki bir teknisyene ait olmalı.' });
+    }
+
+    const updatedAt = new Date().toISOString();
+    db.prepare('UPDATE work_orders SET assigned_user_id = ?, updated_at = ? WHERE id = ?').run(
+      assignedUserId,
+      updatedAt,
+      id
+    );
+
+    const updated = db.prepare(`${SELECT_WORK_ORDER_WITH_USER} WHERE wo.id = ?`).get(id);
+    res.json(mapWorkOrderRow(updated));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'İş emri ataması değiştirilirken bir hata oluştu.' });
   }
 });
 

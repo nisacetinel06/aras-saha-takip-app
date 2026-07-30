@@ -55,6 +55,25 @@ class WorkOrderDetailProvider extends ChangeNotifier {
     }
   }
 
+  /// Var olan iş emrinin atanan kişisini değiştirir (yalnızca dispeçer/
+  /// yönetici — bkz. WorkOrderDetailScreen "Atanan Kişiyi Değiştir").
+  Future<bool> reassign(int newAssignedUserId) async {
+    _isUpdating = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _workOrder = await _apiService.assignWorkOrder(workOrderId, newAssignedUserId);
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      return false;
+    } finally {
+      _isUpdating = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> addPhoto(File imageFile) async {
     _isUpdating = true;
     _errorMessage = null;

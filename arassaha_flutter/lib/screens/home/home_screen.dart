@@ -4,10 +4,14 @@ import '../../models/dashboard_summary.dart';
 import '../../models/work_order.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/dashboard_provider.dart';
+import '../../providers/user_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/role_badge.dart';
+import '../../widgets/user_avatar.dart';
+import '../admin/user_management_list_screen.dart';
 import '../devices/device_list_screen.dart';
 import '../equipment/equipment_home_screen.dart';
 import '../isg/isg_report_list_screen.dart';
@@ -58,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final scheme = Theme.of(context).colorScheme;
     final summary = context.watch<DashboardProvider>().summary;
     final auth = context.watch<AuthProvider>();
+    final myProfile = context.watch<UserProvider>().myProfile;
 
     // Rol bazlı görünürlük (Modül 7 — RBAC): backend zaten bu endpoint'leri
     // rol bazlı engelliyor (requireRole), burada UI tarafında da aynı
@@ -69,8 +74,36 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xl + 56),
           children: [
-            Text('ArasSaha Operasyon Paneli', style: AppTextStyles.displayLarge(color: scheme.onSurface)),
-            const SizedBox(height: AppSpacing.xs),
+            // Karşılama (Modül 8 — Profil): isim + rol rozeti + avatar; avatara
+            // dokununca doğrudan Profil sekmesine (index 4) geçilir.
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Merhaba, ${auth.currentUser?.name ?? ''}',
+                        style: AppTextStyles.displayLarge(color: scheme.onSurface),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      RoleBadge(role: auth.currentUser?.role ?? '', label: auth.roleLabel),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                GestureDetector(
+                  onTap: () => widget.onNavigate(4),
+                  child: UserAvatar(
+                    photoPath: myProfile?.photoPath,
+                    initials: myProfile?.initials ?? (auth.currentUser?.name.isNotEmpty == true ? auth.currentUser!.name[0].toUpperCase() : '?'),
+                    role: auth.currentUser?.role ?? '',
+                    radius: 26,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
             Text(_formatToday(), style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant)),
             const SizedBox(height: AppSpacing.lg),
             _CompactSummaryStrip(summary: summary),
@@ -117,6 +150,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: AppColors.warning(context),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const DeviceListScreen()),
+                    ),
+                  ),
+                // Kullanıcı Yönetimi de yalnızca yönetici rolüne görünür
+                // (bkz. ARCHITECTURE.md Modül 8) — backend requireRole ile
+                // ayrıca engelliyor.
+                if (auth.isYonetici)
+                  _ModuleCard(
+                    icon: Icons.manage_accounts_outlined,
+                    title: 'Kullanıcı Yönetimi',
+                    subtitle: 'Ekle · Düzenle',
+                    color: roleColor(context, 'yonetici'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const UserManagementListScreen()),
                     ),
                   ),
                 _ModuleCard(

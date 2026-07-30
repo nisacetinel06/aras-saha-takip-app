@@ -38,6 +38,20 @@ class AppColors {
   static const darkTextPrimary = Color(0xFFE8EAED);
   static const darkTextSecondary = Color(0xFF9AA0A8);
 
+  // --- Rol rozeti paleti (Modül 8 — Profil / Kullanıcı Yönetimi) ---
+  // BİLİNÇLİ olarak yukarıdaki statü/öncelik renklerinden (danger/warning/
+  // primary/success) FARKLI tonlar: bir rozet "iş emri durumu" mu yoksa
+  // "kullanıcı rolü" mü gösteriyor karışmasın diye ayrı bir palet. Profil
+  // ekranındaki rol rozeti ve Ana Sayfa'daki karşılamadaki rozet hep buradan
+  // okur (bkz. roleColor).
+  static const lightRoleTeknisyen = Color(0xFF2563EB); // indigo/mavi — primary'den farklı ton
+  static const lightRoleDispecer = Color(0xFF7C3AED); // mor
+  static const lightRoleYonetici = Color(0xFFC2410C); // koyu/bronz turuncu — accent/warning'den farklı ton
+
+  static const darkRoleTeknisyen = Color(0xFF60A5FA);
+  static const darkRoleDispecer = Color(0xFFA78BFA);
+  static const darkRoleYonetici = Color(0xFFFB923C);
+
   static Color primary(BuildContext c) => _pick(c, lightPrimary, darkPrimary);
   static Color accent(BuildContext c) => _pick(c, lightAccent, darkAccent);
   static Color success(BuildContext c) => _pick(c, lightSuccess, darkSuccess);
@@ -88,3 +102,24 @@ Color priorityColor(BuildContext context, WorkOrderPriority priority) {
 Color onPriorityColor(BuildContext context, WorkOrderPriority priority) {
   return Colors.white;
 }
+
+/// Kullanıcı rolü rengi (Modül 8 — Profil / Kullanıcı Yönetimi): teknisyen,
+/// dispeçer, yönetici. `role`, backend'deki `users.role` alanıyla birebir
+/// eşleşen ham string'dir ('teknisyen' | 'dispecer' | 'yonetici').
+Color roleColor(BuildContext context, String role) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  switch (role) {
+    case 'teknisyen':
+      return isDark ? AppColors.darkRoleTeknisyen : AppColors.lightRoleTeknisyen;
+    case 'dispecer':
+      return isDark ? AppColors.darkRoleDispecer : AppColors.lightRoleDispecer;
+    case 'yonetici':
+      return isDark ? AppColors.darkRoleYonetici : AppColors.lightRoleYonetici;
+    default:
+      return AppColors.textSecondary(context);
+  }
+}
+
+/// Rol rengi zemininin üzerine gelecek metin/ikon rengi — üç rol rengi de
+/// yeterince koyu/doygun olduğu için her zaman beyaz.
+Color onRoleColor(BuildContext context, String role) => Colors.white;

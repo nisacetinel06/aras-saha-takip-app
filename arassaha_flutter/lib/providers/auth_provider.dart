@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/work_order.dart' show AssignedUser;
 import '../services/api_service.dart';
+import '../utils/role_helper.dart' as role_helper;
 
 /// Auth (Modül 7 — Kullanıcı Rolleri ve Yetkilendirme) durumunu yönetir:
 /// giriş/çıkış, uygulama açılışında otomatik giriş denemesi ve rol bazlı
@@ -35,6 +36,10 @@ class AuthProvider extends ChangeNotifier {
 
   /// İş emri oluşturma/atama yetkisi — dispeçer ve yönetici.
   bool get canCreateWorkOrders => isDispecer || isYonetici;
+
+  /// Kullanıcının rolünün Türkçe, ekranda gösterilebilir hâli — AppBar'daki
+  /// rol rozeti, Ana Sayfa karşılaması ve Profil ekranı bunu kullanır.
+  String get roleLabel => _currentUser != null ? role_helper.roleLabel(_currentUser!.role) : '';
 
   Future<bool> login(String sicilNo, String password) async {
     _isLoading = true;

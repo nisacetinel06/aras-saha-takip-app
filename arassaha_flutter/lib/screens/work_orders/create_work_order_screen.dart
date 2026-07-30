@@ -84,7 +84,7 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
       _technicianError = null;
     });
     try {
-      final users = await ApiService().getUsers(roleFilter: 'teknisyen');
+      final users = await ApiService().getUsers(roleFilter: 'teknisyen', activeOnly: true);
       setState(() => _technicians = users);
     } catch (e) {
       setState(() => _technicianError = e.toString());

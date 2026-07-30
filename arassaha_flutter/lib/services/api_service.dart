@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
+import '../models/app_user.dart';
 import '../models/dashboard_summary.dart';
 import '../models/equipment.dart';
 import '../models/equipment_risk.dart';
@@ -214,6 +215,26 @@ class ApiService {
     }
   }
 
+  /// PATCH /api/workorders/:id/assign — yalnızca dispeçer/yönetici. Var olan
+  /// bir iş emrinin atanan kişisini değiştirir (bkz. WorkOrderDetailScreen
+  /// "Atanan Kişiyi Değiştir").
+  Future<WorkOrder> assignWorkOrder(int id, int assignedUserId) async {
+    try {
+      final uri = Uri.parse('$baseUrl/workorders/$id/assign');
+      final response = await _patch(uri, body: jsonEncode({'assigned_user_id': assignedUserId}));
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'İş emri ataması değiştirilemedi.'));
+      }
+
+      return WorkOrder.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
   /// POST /api/workorders — yeni iş emri oluşturur (yalnızca dispeçer/yönetici,
   /// backend requireRole ile korur). `equipmentId` opsiyoneldir.
   Future<WorkOrder> createWorkOrder({
@@ -260,12 +281,6 @@ class ApiService {
   Future<WorkOrderPhoto> addPhoto(int id, File imageFile) async {
     try {
       final uri = Uri.parse('$baseUrl/workorders/$id/photos');
-
-      // Bazı cihazlarda (kamera/galeri kaynağına göre) dosya yolu tanınabilir bir
-      // uzantı taşımayabilir; bu durumda `MultipartFile.fromPath` content-type'ı
-      // "application/octet-stream" olarak gönderir ve backend'in "yalnızca resim"
-      // kontrolü isteği reddeder. Bunu önlemek için içerik (byte) bazlı mime tespiti
-      // yapıp content-type'ı açıkça belirtiyoruz, bulunamazsa image/jpeg'e düşüyoruz.
       final bytes = await imageFile.readAsBytes();
       final detectedMime = lookupMimeType(imageFile.path, headerBytes: bytes);
       final mimeType = (detectedMime != null && detectedMime.startsWith('image/'))
@@ -300,10 +315,16 @@ class ApiService {
 
   /// "Kişiler" listesi hiçbir yerde sabit kodlanmaz; her zaman bu endpoint
   /// üzerinden gerçek `users` tablosundan çekilir (bkz. ARCHITECTURE.md Bölüm 11.1).
-  Future<List<AssignedUser>> getUsers({String? roleFilter}) async {
+  /// `activeOnly: true` verilirse yalnızca aktif kullanıcılar döner — iş emri
+  /// atama/yeniden atama dropdown'larının pasif bir teknisyeni HİÇ göstermemesi
+  /// için (bkz. CreateWorkOrderScreen, WorkOrderDetailScreen reassignment).
+  Future<List<AssignedUser>> getUsers({String? roleFilter, bool activeOnly = false}) async {
     try {
       final uri = Uri.parse('$baseUrl/users').replace(
-        queryParameters: roleFilter != null ? {'role': roleFilter} : null,
+        queryParameters: {
+          if (roleFilter != null) 'role': roleFilter,
+          if (activeOnly) 'active': 'true',
+        },
       );
       final response = await _get(uri);
 
@@ -319,6 +340,256 @@ class ApiService {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
+
+  // --- Profil ve Kullanıcı Yönetimi — Modül 8 ---
+  // GET /api/users, çağıran yöneticiyse backend zaten zenginleştirilmiş
+  // (telefon/e-posta/fotoğraf dahil) yanıt döner (bkz. routes/users.js);
+  // getAllUsersFull bu zengin yanıtı AppUser'a çözer. getUsers (yukarıda),
+  // hafif "kişi seçici" ihtiyaçları (iş emri atama, İSG bildiren personel)
+  // için değişmeden kalır.
+
+  /// GET /api/users/me — giriş yapmış kullanıcının kendi tam profili.
+  Future<AppUser> getMyProfile() async {
+    try {
+      final uri = Uri.parse('$baseUrl/users/me');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Profil bilgisi alınamadı.'));
+      }
+
+      return AppUser.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// Kullanıcı Yönetimi paneli (yalnızca yönetici) — tüm kullanıcıları tam
+  /// alan setiyle getirir.
+  Future<List<AppUser>> getAllUsersFull({String? roleFilter}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/users').replace(
+        queryParameters: roleFilter != null ? {'role': roleFilter} : null,
+      );
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Kullanıcılar alınamadı.'));
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => AppUser.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// GET /api/users/:id — yalnızca yönetici, tek kullanıcı detayı.
+  Future<AppUser> getUserDetail(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/users/$id');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Kullanıcı detayı alınamadı.'));
+      }
+
+      return AppUser.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// POST /api/users — yeni kullanıcı oluşturur (yalnızca yönetici).
+  /// `supervisorId` verilirse (yeni teknisyeni doğrudan bir dispeçere
+  /// bağlamak için), backend bunun GERÇEKTEN bir dispeçere ait olduğunu
+  /// doğrular — bkz. ARCHITECTURE.md Modül 8 (dispeçer atama/değiştirme).
+  Future<AppUser> createUser({
+    required String name,
+    required String sicilNo,
+    required String password,
+    required String role,
+    String? phone,
+    String? email,
+    int? supervisorId,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/users');
+      final response = await _post(
+        uri,
+        body: jsonEncode({
+          'name': name,
+          'sicil_no': sicilNo,
+          'password': password,
+          'role': role,
+          if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+          if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+          'supervisor_id': ?supervisorId,
+        }),
+      );
+
+      if (response.statusCode != 201) {
+        throw ApiException(_extractError(response, 'Kullanıcı oluşturulamadı.'));
+      }
+
+      return AppUser.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// PATCH /api/users/:id — yalnızca yönetici. Yalnızca verilen alanlar güncellenir.
+  ///
+  /// NOT: is_active bu metottan YÖNETİLMEZ — aktifleştirme/pasifleştirme
+  /// yalnızca `reactivateUser`/`deactivateUser` üzerinden, loglanarak yapılır.
+  ///
+  /// `updateSupervisor: true` verilirse `supervisor_id` alanı body'ye dahil
+  /// edilir — `supervisorId` bir değerse ATAMA/DEĞİŞTİRME, `null` ise
+  /// teknisyenin dispeçer bağını SİLME anlamına gelir. `updateSupervisor:
+  /// false` (varsayılan) iken bu alan hiç gönderilmez, backend dokunmaz —
+  /// bu ayrım gerekli çünkü "null gönder" (bağı kaldır) ile "hiç gönderme"
+  /// (dokunma) backend için FARKLI anlamlara gelir.
+  Future<AppUser> updateUser(
+    int id, {
+    String? name,
+    String? phone,
+    String? email,
+    String? role,
+    bool updateSupervisor = false,
+    int? supervisorId,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/users/$id');
+      final response = await _patch(
+        uri,
+        body: jsonEncode({
+          'name': ?name,
+          'phone': ?phone,
+          'email': ?email,
+          'role': ?role,
+          if (updateSupervisor) 'supervisor_id': supervisorId,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Kullanıcı güncellenemedi.'));
+      }
+
+      return AppUser.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// POST /api/users/:id/photo — yalnızca yönetici, gerçek multipart/form-data
+  /// yüklemesi (work_orders/:id/photos ile aynı desen).
+  Future<AppUser> uploadUserPhoto(int id, File imageFile) async {
+    try {
+      final uri = Uri.parse('$baseUrl/users/$id/photo');
+
+      final bytes = await imageFile.readAsBytes();
+      final detectedMime = lookupMimeType(imageFile.path, headerBytes: bytes);
+      final mimeType = (detectedMime != null && detectedMime.startsWith('image/'))
+          ? detectedMime
+          : 'image/jpeg';
+      final filename = imageFile.path.split(Platform.pathSeparator).last;
+
+      final request = http.MultipartRequest('POST', uri)
+        ..headers.addAll(_headers())
+        ..files.add(http.MultipartFile.fromBytes(
+          'photo',
+          bytes,
+          filename: filename,
+          contentType: MediaType.parse(mimeType),
+        ));
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      _reportIfUnauthorized(response);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Profil fotoğrafı yüklenemedi.'));
+      }
+
+      return AppUser.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// DELETE /api/users/:id — yalnızca yönetici. Gerçek silme değil, soft
+  /// delete (is_active=0) — bkz. routes/users.js. Backend, yöneticinin KENDİ
+  /// hesabını pasifleştirmesini 400 ile engeller.
+  Future<AppUser> deactivateUser(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/users/$id');
+      final response = await http.delete(uri, headers: _headers());
+      _reportIfUnauthorized(response);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Kullanıcı pasif hale getirilemedi.'));
+      }
+
+      return AppUser.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// PATCH /api/users/:id/reactivate — yalnızca yönetici. deactivateUser'ın tersi.
+  Future<AppUser> reactivateUser(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/users/$id/reactivate');
+      final response = await _patch(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Kullanıcı aktif hale getirilemedi.'));
+      }
+
+      return AppUser.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// PATCH /api/users/:id/reset-password — yalnızca yönetici. Teknisyen/
+  /// dispeçer kendi şifresini değiştiremediği için (profil salt-okunur),
+  /// şifresini unutan bir kullanıcının şifresi buradan yönetici tarafından
+  /// sıfırlanır.
+  Future<void> resetUserPassword(int id, String newPassword) async {
+    try {
+      final uri = Uri.parse('$baseUrl/users/$id/reset-password');
+      final response = await _patch(uri, body: jsonEncode({'password': newPassword}));
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Şifre sıfırlanamadı.'));
+      }
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// Profil fotoğrafı URL'i — `photo_path` backend'den `/uploads/...` şeklinde
+  /// göreli bir yol olarak gelir; sunucu host'uyla birleştirilir (bkz. photoUrl).
+  static String? profilePhotoUrl(String? photoPath) => photoPath != null ? photoUrl(photoPath) : null;
 
   /// Dashboard (Modül 2) için özet istatistikleri getirir.
   Future<DashboardSummary> getDashboardSummary() async {

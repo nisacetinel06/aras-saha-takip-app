@@ -33,6 +33,8 @@ const UPLOADS_DIR = path.join(__dirname, 'uploads');
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 // İSG Bildirimi (Modül 5) fotoğrafları için ayrı bir alt klasör.
 fs.mkdirSync(path.join(UPLOADS_DIR, 'isg'), { recursive: true });
+// Profil fotoğrafları (Modül 8 — Profil ve Kullanıcı Yönetimi) için ayrı bir alt klasör.
+fs.mkdirSync(path.join(UPLOADS_DIR, 'profiles'), { recursive: true });
 
 app.use(cors());
 app.use(express.json());

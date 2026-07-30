@@ -10,12 +10,28 @@ const db = new DatabaseSync(dbPath);
 db.exec('PRAGMA foreign_keys = ON');
 
 db.exec(`
+  -- supervisor_id: hiyerarşik yetkilendirme (Modül 7 devamı). Bir teknisyenin
+  -- supervisor_id'si kendi dispeçerine işaret eder; dispeçerlerinki de
+  -- yöneticiye işaret edebilir. Bu sayede "her dispeçer yalnızca kendi
+  -- ekibindeki teknisyenlerin verisini görür" kuralı tek bir alanla kurulur.
+  -- photo_path/phone/email: Profil ve Kullanıcı Yönetimi (Modül 8). Kullanıcı
+  -- kendi profilini yalnızca GÖRÜNTÜLER; bu alanları yalnızca yönetici,
+  -- Kullanıcı Yönetimi panelinden değiştirebilir (bkz. routes/users.js).
+  -- is_active: yönetici bir kullanıcıyı GERÇEKTEN silmez (geçmiş iş
+  -- emirleri/İSG bildirimleri gibi FK bağları kopmasın diye), yalnızca
+  -- pasif hale getirir — DELETE /api/users/:id bu yüzden aslında bir
+  -- soft-delete'tir.
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'teknisyen',
     sicil_no TEXT UNIQUE,
-    password_hash TEXT
+    password_hash TEXT,
+    supervisor_id INTEGER REFERENCE S users (id),
+    photo_path TEXT,
+    phone TEXT,
+    email TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1
   );
 
   -- Ekipman / Envanter (Modül 4) — bkz. ARCHITECTURE.md ve DESIGN_SYSTEM.md.
@@ -122,6 +138,20 @@ db.exec(`
     FOREIGN KEY (reported_by_user_id) REFERENCES users (id)
   );
 
+  -- Kullanıcı Yönetimi işlem geçmişi (Modül 8 devamı — hesap verebilirlik).
+  -- device_action_logs ile AYNI desen: "kim, ne zaman, hangi kullanıcıya ne
+  -- yaptı" kaydı. Yönetimsel her aksiyonda (oluşturma, güncelleme,
+  -- pasifleştirme, aktifleştirme, şifre sıfırlama, rol değiştirme) otomatik
+  -- bir satır eklenir — bkz. routes/users.js logUserAction().
+  CREATE TABLE IF NOT EXISTS user_action_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_user_id INTEGER NOT NULL,
+    action_type TEXT NOT NULL,
+    performed_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (target_user_id) REFERENCES users (id)
+  );
+
   -- Arıza Risk Tahmini (Modül 9) — bkz. routes/risk.js ve arassaha-ml/.
   -- Her ekipmanın EN GÜNCEL risk skorunu tutar (equipment_id UNIQUE'tir; yeni
   -- bir hesaplama geçmiş kaydı biriktirmez, var olan satırı günceller). Skoru
@@ -146,6 +176,27 @@ const userColumns = db.prepare('PRAGMA table_info(users)').all();
 const hasPasswordHash = userColumns.some((col) => col.name === 'password_hash');
 if (!hasPasswordHash) {
   db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT');
+}
+
+// Migrasyon: hiyerarşik yetkilendirme (dispeçer -> yalnızca kendi
+// teknisyenlerini görür) için sonradan eklenen supervisor_id sütunu.
+const hasSupervisorId = userColumns.some((col) => col.name === 'supervisor_id');
+if (!hasSupervisorId) {
+  db.exec('ALTER TABLE users ADD COLUMN supervisor_id INTEGER REFERENCES users (id)');
+}
+
+// Migrasyon: Profil ve Kullanıcı Yönetimi (Modül 8) için sonradan eklenen
+// sütunlar — mevcut aras_saha.db dosyasını silmeden geçilebilsin diye.
+const userColumnAdditions = {
+  photo_path: 'TEXT',
+  phone: 'TEXT',
+  email: 'TEXT',
+  is_active: 'INTEGER NOT NULL DEFAULT 1',
+};
+for (const [column, type] of Object.entries(userColumnAdditions)) {
+  if (!userColumns.some((col) => col.name === column)) {
+    db.exec(`ALTER TABLE users ADD COLUMN ${column} ${type}`);
+  }
 }
 
 module.exports = db;

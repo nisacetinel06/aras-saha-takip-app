@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/work_order.dart';
+import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/work_order_detail_provider.dart';
 import '../services/api_service.dart';
@@ -164,6 +165,14 @@ class _WorkOrderDetailBody extends StatelessWidget {
                           ],
                         ),
                       ),
+                      // Yeniden atama — yalnızca dispeçer/yönetici (Modül 7 devamı,
+                      // bkz. ARCHITECTURE.md). Teknisyen bu ikonu hiç görmez.
+                      if (context.watch<AuthProvider>().canCreateWorkOrders)
+                        IconButton(
+                          tooltip: 'Atanan Kişiyi Değiştir',
+                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          onPressed: () => _showReassignSheet(context, workOrder),
+                        ),
                     ],
                   ),
                 ),
@@ -186,6 +195,15 @@ class _WorkOrderDetailBody extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  void _showReassignSheet(BuildContext context, WorkOrder workOrder) {
+    final provider = context.read<WorkOrderDetailProvider>();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => _ReassignSheet(provider: provider, currentAssignedUserId: workOrder.assignedUser?.id),
     );
   }
 
@@ -502,6 +520,132 @@ class _PhotoSection extends StatelessWidget {
           onPressed: provider.isUpdating ? null : () => _showSourcePicker(context),
         ),
       ],
+    );
+  }
+}
+
+/// "Atanan Kişiyi Değiştir" alt sayfası — yalnızca dispeçer/yönetici erişir
+/// (bkz. WorkOrderDetailScreen "Değiştir" ikonu). Yalnızca AKTİF
+/// teknisyenleri listeler (pasif bir teknisyene yeni iş yüklenmez, backend
+/// de bunu ayrıca doğrular — bkz. PATCH /api/workorders/:id/assign).
+class _ReassignSheet extends StatefulWidget {
+  final WorkOrderDetailProvider provider;
+  final int? currentAssignedUserId;
+  const _ReassignSheet({required this.provider, required this.currentAssignedUserId});
+
+  @override
+  State<_ReassignSheet> createState() => _ReassignSheetState();
+}
+
+class _ReassignSheetState extends State<_ReassignSheet> {
+  List<AssignedUser> _technicians = [];
+  AssignedUser? _selectedTechnician;
+  bool _isLoading = true;
+  String? _loadError;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTechnicians();
+  }
+
+  Future<void> _loadTechnicians() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+    try {
+      final technicians = await ApiService().getUsers(roleFilter: 'teknisyen', activeOnly: true);
+      if (!mounted) return;
+      AssignedUser? current;
+      for (final t in technicians) {
+        if (t.id == widget.currentAssignedUserId) {
+          current = t;
+          break;
+        }
+      }
+      setState(() {
+        _technicians = technicians;
+        _selectedTechnician = current;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadError = e.toString());
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _submit() async {
+    if (_selectedTechnician == null) return;
+    setState(() => _isSubmitting = true);
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final success = await widget.provider.reassign(_selectedTechnician!.id);
+
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+
+    if (success) {
+      navigator.pop();
+      messenger.showSnackBar(
+        SnackBar(content: Text('İş emri ${_selectedTechnician!.name} kişisine atandı.')),
+      );
+    } else {
+      messenger.showSnackBar(
+        SnackBar(content: Text(widget.provider.errorMessage ?? 'Atama değiştirilemedi.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        MediaQuery.of(context).viewInsets.bottom + AppSpacing.md,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Atanan Kişiyi Değiştir', style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: AppSpacing.md),
+          if (_isLoading)
+            const Center(child: Padding(padding: EdgeInsets.all(AppSpacing.lg), child: CircularProgressIndicator()))
+          else if (_loadError != null) ...[
+            Text(_loadError!, style: TextStyle(color: scheme.error, fontSize: 13)),
+            const SizedBox(height: AppSpacing.sm),
+            AppButton(label: 'Tekrar Dene', variant: AppButtonVariant.secondary, onPressed: _loadTechnicians),
+          ] else ...[
+            DropdownButtonFormField<AssignedUser>(
+              initialValue: _selectedTechnician,
+              isExpanded: true,
+              decoration: const InputDecoration(hintText: 'Teknisyen seçin', isDense: true),
+              items: _technicians
+                  .map((t) => DropdownMenuItem(value: t, child: Text(t.name)))
+                  .toList(),
+              onChanged: (t) => setState(() => _selectedTechnician = t),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            SizedBox(
+              width: double.infinity,
+              child: AppButton(
+                label: 'Ata',
+                icon: Icons.check,
+                isLoading: _isSubmitting,
+                onPressed: _selectedTechnician != null ? _submit : null,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
