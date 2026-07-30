@@ -1,6 +1,13 @@
 // Veritabanına gerçek personel kayıtları, 15 adet sahte iş emri yükler.
 // Bu script tekrar çalıştırılabilir olsun diye önce mevcut kayıtları temizler.
+const bcrypt = require('bcrypt');
 const db = require('./database');
+
+// Tüm demo kullanıcılar aynı basit şifreyi kullanır — staj sunumu için
+// kolay hatırlanır olması önemli, gerçek üretimde bu asla yapılmaz
+// (bkz. ARCHITECTURE.md Bölüm 10 "Kimlik doğrulama basittir").
+const DEMO_PASSWORD = 'sifre123';
+const DEMO_PASSWORD_HASH = bcrypt.hashSync(DEMO_PASSWORD, 10);
 
 const locations = [
   { il: 'Erzurum', ilce: 'Yakutiye', mah: 'Merkez Mah.', lat: 39.9086, lng: 41.2769 },
@@ -32,15 +39,18 @@ const titles = [
 // "Kişiler" artık sabit bir isimden değil, gerçek bir `users` tablosu kaydından gelir.
 // Bu dizi yalnızca seed (sahte veri üretimi) amacıyla kullanılır; uygulama çalışırken
 // hiçbir ekran bu listeyi değil, GET /api/users endpoint'ini kullanır (bkz. ARCHITECTURE.md 11.1).
+// sicil_no değerleri kasıtlı olarak sade sayısal (1001, 2001, 3001...) — demo
+// sunumunda kolay hatırlanması için (bkz. script sonundaki "DEMO GİRİŞ BİLGİLERİ").
 const personnelSeed = [
-  { name: 'Ahmet Yılmaz', role: 'teknisyen', sicil_no: 'T-1001' },
-  { name: 'Mehmet Demir', role: 'teknisyen', sicil_no: 'T-1002' },
-  { name: 'Ayşe Kaya', role: 'teknisyen', sicil_no: 'T-1003' },
-  { name: 'Fatih Şahin', role: 'teknisyen', sicil_no: 'T-1004' },
-  { name: 'Emre Çelik', role: 'teknisyen', sicil_no: 'T-1005' },
-  { name: 'Hakan Yıldız', role: 'teknisyen', sicil_no: 'T-1006' },
-  { name: 'Zeynep Arslan', role: 'dispecer', sicil_no: 'D-2001' },
-  { name: 'Murat Öztürk', role: 'yonetici', sicil_no: 'Y-3001' },
+  { name: 'Ahmet Yılmaz', role: 'teknisyen', sicil_no: '1001' },
+  { name: 'Mehmet Demir', role: 'teknisyen', sicil_no: '1002' },
+  { name: 'Ayşe Kaya', role: 'teknisyen', sicil_no: '1003' },
+  { name: 'Fatih Şahin', role: 'teknisyen', sicil_no: '1004' },
+  { name: 'Emre Çelik', role: 'teknisyen', sicil_no: '1005' },
+  { name: 'Hakan Yıldız', role: 'teknisyen', sicil_no: '1006' },
+  { name: 'Zeynep Arslan', role: 'dispecer', sicil_no: '2001' },
+  { name: 'Elif Korkmaz', role: 'dispecer', sicil_no: '2002' },
+  { name: 'Murat Öztürk', role: 'yonetici', sicil_no: '3001' },
 ];
 
 const priorities = ['acil', 'normal', 'normal', 'dusuk'];
@@ -105,10 +115,12 @@ db.exec(
 );
 
 const insertUser = db.prepare(`
-  INSERT INTO users (name, role, sicil_no) VALUES (@name, @role, @sicil_no)
+  INSERT INTO users (name, role, sicil_no, password_hash) VALUES (@name, @role, @sicil_no, @password_hash)
 `);
 
-const insertedUserIds = personnelSeed.map((person) => insertUser.run(person).lastInsertRowid);
+const insertedUserIds = personnelSeed.map(
+  (person) => insertUser.run({ ...person, password_hash: DEMO_PASSWORD_HASH }).lastInsertRowid
+);
 const technicianIds = insertedUserIds.filter((_, i) => personnelSeed[i].role === 'teknisyen');
 
 // --- Ekipman / Envanter (Modül 4) — bkz. ARCHITECTURE.md, DESIGN_SYSTEM.md ---
@@ -367,3 +379,10 @@ console.log(
   `${insertedUserIds.length} adet kişi, ${equipmentIds.length} adet ekipman, ${rows.length} adet iş emri, ` +
     `${isgReportSeed.length} adet İSG bildirimi ve ${deviceSeed.length} adet cihaz kaydı oluşturuldu.`
 );
+
+console.log(`
+DEMO GİRİŞ BİLGİLERİ:
+Teknisyen  → sicil_no: 1001, şifre: ${DEMO_PASSWORD}
+Dispeçer   → sicil_no: 2001, şifre: ${DEMO_PASSWORD}
+Yönetici   → sicil_no: 3001, şifre: ${DEMO_PASSWORD}
+`);

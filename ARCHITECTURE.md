@@ -352,7 +352,7 @@ Bu bölümün amacı, sunum sırasında "neden bazı şeyler gerçek değil" sor
 
 ## 11. Mevcut Kod Durumu — Plandan Sapmalar (Acil Düzeltilmesi Gereken Kalemler)
 
-> **Güncelleme:** 11.1 ve 11.2 uygulanmıştır (bkz. madde başlarındaki ✅). 11.3 (rol bazlı yetkilendirme/auth ekranları) henüz uygulanmamıştır; `users.role` alanı ve API'de rol filtresi mevcuttur ama giriş ekranı ve rol bazlı görüntüleme filtresi yoktur.
+> **Güncelleme:** 11.1, 11.2 ve 11.3 uygulanmıştır (bkz. madde başlarındaki ✅).
 
 Bu bölüm, mevcut kod tabanının (`arassaha-backend/`) yukarıdaki plandan **nerede saptığını** somut dosya/satır referanslarıyla listeler. Bu maddeler "gelecekte yapılacak" değil, **Temel Kalite İlkesi'ni şu anda ihlal eden, düzeltilmesi zorunlu** teknik borçlardır. Rastgele/sahte veri kullanılması sorun değildir (bkz. Bölüm 10); buradaki sorun, veri akışının/mekanizmasının eksik veya sahte çalışmasıdır.
 
@@ -369,9 +369,10 @@ Bu bölüm, mevcut kod tabanının (`arassaha-backend/`) yukarıdaki plandan **n
 - **Etkilenen dosyalar:** `arassaha-backend/server.js`, `arassaha-backend/routes/workOrders.js`, Flutter `lib/services/api_service.dart` (çoklu-part istek göndermeli).
 - **Uygulandı:** `multer` ile gerçek multipart upload eklendi; dosyalar `arassaha-backend/uploads/` klasörüne yazılıyor, `server.js` bunu `/uploads` altında statik servis ediyor. `photo_path` artık `/uploads/<dosya>` gibi kalıcı bir URL. Flutter tarafı `http.MultipartRequest` ile gerçek dosya gönderiyor ve `Image.network` ile sunucudan çekilen fotoğrafı gösteriyor (önceden `Image.file` ile cihazın kendi yerel dosyasını gösteriyordu — bu yüzden başka bir cihaz/amir hiçbir şey göremiyordu). Uçtan uca test edildi: dosya yüklendi, diskte oluştu, HTTP 200 ile servis edildi, iş emri detayında göründü.
 
-### 11.3 Rol bazlı yetkilendirme ve amir/yönetici ekranı henüz kodda yok
+### 11.3 ✅ Rol bazlı yetkilendirme ve amir/yönetici ekranı henüz kodda yok — DÜZELTİLDİ
 - **Sorun:** Bölüm 8'deki yetkilendirme matrisi ve `users.role` alanı henüz backend'de veya Flutter'da uygulanmamıştır; şu an tüm istemciler aynı `GET /api/workorders` uç noktasını, rol ayrımı olmadan kullanır.
 - **Plana göre olması gereken:** 11.1 tamamlandıktan sonra, giriş yapan kullanıcının rolüne göre (teknisyen: kendine atananlar, amir/dispeçer/yönetici: tümü) filtreleme uygulanmalı; amirin tüm iş emirlerini ve eklenen fotoğrafları kendi ekranından görebildiği doğrulanmalıdır (manuel test: bir cihazdan fotoğraf ekle, ikinci bir cihaz/oturumdan aynı iş emrini aç, fotoğrafın göründüğünü doğrula).
 - **Etkilenen dosyalar:** `arassaha-backend/routes/workOrders.js`, yeni auth route'ları, Flutter auth/rol katmanı (henüz oluşturulmadı).
+- **Uygulandı:** `users.password_hash` sütunu eklendi (migrasyonla, mevcut `aras_saha.db`'yi silmeye gerek kalmadan); `POST /api/auth/login` (bcrypt + JWT, 7 gün geçerli) ve `GET /api/auth/me` eklendi; `middleware/auth.js`'teki `verifyToken`/`requireRole` TÜM route'lara (`/api/auth/login` hariç) uygulandı. `GET /api/workorders` teknisyen rolünde `assigned_user_id = req.user.id` ile otomatik filtreleniyor; `POST /api/workorders` (yeni iş emri oluşturma) yalnızca dispeçer/yönetici. `/api/devices/*` ve `/api/dashboard/risky-equipment` yalnızca yönetici. Flutter tarafında `AuthProvider` + `LoginScreen` + `AuthGate` (otomatik giriş/splash) eklendi; `ApiService` artık tüm isteklere merkezi olarak `Authorization: Bearer` header'ı ekliyor ve 401 durumunda oturumu otomatik temizleyip kullanıcıyı LoginScreen'e düşürüyor. Ana Sayfa rol bazlı: teknisyende "Görevlerim" etiketi + Cihaz Yönetimi/"Yeni İş Emri Ata" gizli; dispeçer/yönetici "Tüm İş Emirleri" + yeni `CreateWorkOrderScreen`; Cihaz Yönetimi ve Dashboard'daki "Riskli Ekipmanlar" yalnızca yönetici. `CreateWorkOrderScreen` ve `DeviceListScreen` ayrıca kendi içlerinde rol kontrolü yapıp yetkisiz erişimde Ana Sayfa'ya geri yönlendiriyor (ikinci koruma katmanı). Uçtan uca curl ile test edildi: 3 rolün de login/`/me`/RBAC davranışı (200/401/403) doğrulandı.
 
 **Öncelik sırası:** 11.1 → 11.2 → 11.3 (kişiler tablosu olmadan fotoğraf/iş emri ilişkilendirmesi ve rol bazlı görüntüleme anlamlı şekilde test edilemez).

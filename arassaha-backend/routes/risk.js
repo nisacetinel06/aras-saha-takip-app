@@ -15,6 +15,7 @@
 // yeniden eğitilir; bu route'ta hiçbir değişiklik gerekmez.
 const express = require('express');
 const db = require('../database');
+const { requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -122,7 +123,9 @@ async function refreshAllRiskScores() {
 }
 
 // POST /api/ml/refresh-risk-scores
-router.post('/ml/refresh-risk-scores', async (req, res) => {
+// Tüm ekipmanların risk skorunu yeniden hesaplatan bakım/yönetim aksiyonu —
+// yalnızca yönetici tetikleyebilir.
+router.post('/ml/refresh-risk-scores', requireRole('yonetici'), async (req, res) => {
   const result = await refreshAllRiskScores();
 
   if (result.updated === 0 && result.failed > 0) {
@@ -168,8 +171,9 @@ router.get('/equipment/:id/risk', async (req, res) => {
 });
 
 // GET /api/dashboard/risky-equipment?limit=5
-// Risk skoruna göre azalan sırayla en riskli ekipmanları döner.
-router.get('/dashboard/risky-equipment', (req, res) => {
+// Risk skoruna göre azalan sırayla en riskli ekipmanları döner. Bu bir
+// yönetim raporu olduğu için yalnızca yönetici erişebilir.
+router.get('/dashboard/risky-equipment', requireRole('yonetici'), (req, res) => {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit) || 5, 1), 10);
     const rows = db

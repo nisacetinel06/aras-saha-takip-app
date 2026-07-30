@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/managed_device.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/device_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../theme/app_colors.dart';
@@ -51,6 +52,23 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
+    // İkinci koruma katmanı (bkz. ARCHITECTURE.md Modül 7): Ana Sayfa'da bu
+    // ekrana giden kart zaten yalnızca yönetici rolüne gösteriliyor; ama bir
+    // şekilde (deep link, state restore) yetkisiz bir rol buraya ulaşırsa
+    // burada da engellenir. Backend requireRole('yonetici') ile ayrıca 403 döner.
+    if (!auth.isYonetici) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bu ekrana erişim yetkiniz yok.')),
+        );
+        Navigator.of(context).pop();
+      });
+      return const Scaffold(body: SizedBox.shrink());
+    }
+
     final themeProvider = context.watch<ThemeProvider>();
     final provider = context.watch<DeviceProvider>();
 

@@ -33,12 +33,118 @@ class ApiService {
   /// bir yol olarak gelir; ekranda göstermek için sunucu host'uyla birleştirilir.
   static String photoUrl(String photoPath) => '$host$photoPath';
 
+  // --- Auth (Modül 7) — merkezi token yönetimi ---
+  //
+  // ApiService her çağrıldığında yeni bir örnek olarak kullanılabildiği için
+  // (bkz. her provider'ın kendi `ApiService()` alanı) token'ı burada, sınıf
+  // düzeyinde (static) bir alanda tutuyoruz. AuthProvider login/logout/
+  // tryAutoLogin sırasında bu alanı günceller; böylece TÜM istekler (hangi
+  // provider'dan gelirse gelsin) aynı token'ı otomatik taşır — her metodun
+  // kendi başına token okumasına gerek kalmaz.
+  static String? authToken;
+
+  /// Herhangi bir istek 401 (oturum geçersiz/süresi dolmuş) dönerse çağrılır.
+  /// AuthProvider bunu kendi oturum temizleme mantığına bağlar; bu sayede
+  /// token süresi dolduğunda kullanıcı otomatik olarak LoginScreen'e düşer.
+  static void Function()? onUnauthorized;
+
+  Map<String, String> _headers({bool json = false}) {
+    return {
+      if (json) 'Content-Type': 'application/json',
+      if (authToken != null) 'Authorization': 'Bearer $authToken',
+    };
+  }
+
+  /// Auth header'ı otomatik ekleyen ve 401 durumunda global oturum
+  /// temizleme callback'ini tetikleyen ortak GET/POST/PATCH yardımcıları.
+  /// Tüm iş modülü metodları (workorders, equipment, isg, devices, dashboard,
+  /// risk) bunlar üzerinden çağrı yapar — Authorization header'ını tekrar
+  /// tekrar elle eklemek gerekmez.
+  Future<http.Response> _get(Uri uri) async {
+    final response = await http.get(uri, headers: _headers());
+    _reportIfUnauthorized(response);
+    return response;
+  }
+
+  Future<http.Response> _post(Uri uri, {Object? body}) async {
+    final response = await http.post(uri, headers: _headers(json: body != null), body: body);
+    _reportIfUnauthorized(response);
+    return response;
+  }
+
+  Future<http.Response> _patch(Uri uri, {Object? body}) async {
+    final response = await http.patch(uri, headers: _headers(json: body != null), body: body);
+    _reportIfUnauthorized(response);
+    return response;
+  }
+
+  void _reportIfUnauthorized(http.Response response) {
+    if (response.statusCode == 401) {
+      onUnauthorized?.call();
+    }
+  }
+
+  /// POST /api/auth/login
+  /// Sicil no + şifre yanlışsa backend 401 döner — bu, "oturum süresi doldu"
+  /// anlamına gelmediği (henüz bir oturum bile yok) için `onUnauthorized`
+  /// callback'i BİLEREK tetiklenmez; hata doğrudan LoginScreen'e mesaj
+  /// olarak döner.
+  Future<({String token, AssignedUser user})> login({
+    required String sicilNo,
+    required String password,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/auth/login');
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'sicil_no': sicilNo, 'password': password}),
+      );
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Sicil no veya şifre hatalı.'));
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return (
+        token: data['token'] as String,
+        user: AssignedUser.fromJson(data['user'] as Map<String, dynamic>),
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// GET /api/auth/me — verilen token'ın hâlâ geçerli olup olmadığını ve
+  /// kullanıcının güncel bilgisini kontrol eder (uygulama açılışında
+  /// otomatik giriş için kullanılır). Bilinçli olarak `authToken` static
+  /// alanını DEĞİL, parametre olarak verilen token'ı kullanır — çünkü
+  /// tryAutoLogin bu çağrı başarılı olmadan `authToken`'ı kalıcı kabul etmez.
+  Future<AssignedUser> getMe(String token) async {
+    try {
+      final uri = Uri.parse('$baseUrl/auth/me');
+      final response = await http.get(uri, headers: {'Authorization': 'Bearer $token'});
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Oturum geçersiz.'));
+      }
+
+      return AssignedUser.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
   Future<List<WorkOrder>> getWorkOrders({String? statusFilter}) async {
     try {
       final uri = Uri.parse('$baseUrl/workorders').replace(
         queryParameters: statusFilter != null ? {'status': statusFilter} : null,
       );
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'İş emirleri alınamadı.'));
@@ -59,7 +165,7 @@ class ApiService {
       final uri = Uri.parse('$baseUrl/workorders/map').replace(
         queryParameters: statusFilter != null ? {'status': statusFilter} : null,
       );
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Harita verileri alınamadı.'));
@@ -77,7 +183,7 @@ class ApiService {
   Future<WorkOrder> getWorkOrderDetail(int id) async {
     try {
       final uri = Uri.parse('$baseUrl/workorders/$id');
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'İş emri detayı alınamadı.'));
@@ -94,14 +200,50 @@ class ApiService {
   Future<WorkOrder> updateStatus(int id, String newStatus) async {
     try {
       final uri = Uri.parse('$baseUrl/workorders/$id/status');
-      final response = await http.patch(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'status': newStatus}),
-      );
+      final response = await _patch(uri, body: jsonEncode({'status': newStatus}));
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Durum güncellenemedi.'));
+      }
+
+      return WorkOrder.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// POST /api/workorders — yeni iş emri oluşturur (yalnızca dispeçer/yönetici,
+  /// backend requireRole ile korur). `equipmentId` opsiyoneldir.
+  Future<WorkOrder> createWorkOrder({
+    required String title,
+    required String description,
+    required WorkOrderPriority priority,
+    required String locationName,
+    required double lat,
+    required double lng,
+    required int assignedUserId,
+    int? equipmentId,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/workorders');
+      final response = await _post(
+        uri,
+        body: jsonEncode({
+          'title': title,
+          'description': description,
+          'priority': priority.toJson(),
+          'location_name': locationName,
+          'lat': lat,
+          'lng': lng,
+          'assigned_user_id': assignedUserId,
+          'equipment_id': equipmentId,
+        }),
+      );
+
+      if (response.statusCode != 201) {
+        throw ApiException(_extractError(response, 'İş emri oluşturulamadı.'));
       }
 
       return WorkOrder.fromJson(jsonDecode(response.body));
@@ -132,6 +274,7 @@ class ApiService {
       final filename = imageFile.path.split(Platform.pathSeparator).last;
 
       final request = http.MultipartRequest('POST', uri)
+        ..headers.addAll(_headers())
         ..files.add(http.MultipartFile.fromBytes(
           'photo',
           bytes,
@@ -141,6 +284,7 @@ class ApiService {
 
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
+      _reportIfUnauthorized(response);
 
       if (response.statusCode != 201) {
         throw ApiException(_extractError(response, 'Fotoğraf eklenemedi.'));
@@ -161,7 +305,7 @@ class ApiService {
       final uri = Uri.parse('$baseUrl/users').replace(
         queryParameters: roleFilter != null ? {'role': roleFilter} : null,
       );
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Kişiler alınamadı.'));
@@ -180,7 +324,7 @@ class ApiService {
   Future<DashboardSummary> getDashboardSummary() async {
     try {
       final uri = Uri.parse('$baseUrl/dashboard/summary');
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Dashboard özeti alınamadı.'));
@@ -204,7 +348,7 @@ class ApiService {
   Future<List<ManagedDevice>> getDevices() async {
     try {
       final uri = Uri.parse('$baseUrl/devices');
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Cihazlar alınamadı.'));
@@ -222,7 +366,7 @@ class ApiService {
   Future<ManagedDevice> getDeviceDetail(int id) async {
     try {
       final uri = Uri.parse('$baseUrl/devices/$id');
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Cihaz detayı alınamadı.'));
@@ -239,7 +383,7 @@ class ApiService {
   Future<List<DeviceActionLog>> getDeviceLogs(int id) async {
     try {
       final uri = Uri.parse('$baseUrl/devices/$id/logs');
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'İşlem geçmişi alınamadı.'));
@@ -262,11 +406,7 @@ class ApiService {
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/devices/$id/actions/$actionSlug');
-      final response = await http.post(
-        uri,
-        headers: body != null ? {'Content-Type': 'application/json'} : null,
-        body: body != null ? jsonEncode(body) : null,
-      );
+      final response = await _post(uri, body: body != null ? jsonEncode(body) : null);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, fallbackError));
@@ -326,7 +466,7 @@ class ApiService {
           if (statusFilter != null) 'status': statusFilter,
         },
       );
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Ekipmanlar alınamadı.'));
@@ -347,7 +487,7 @@ class ApiService {
   Future<Equipment> getEquipmentByQr(String qrCode) async {
     try {
       final uri = Uri.parse('$baseUrl/equipment/qr/${Uri.encodeComponent(qrCode)}');
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Bu QR koda ait ekipman bulunamadı.'));
@@ -365,7 +505,7 @@ class ApiService {
   Future<Equipment> getEquipmentDetail(int id) async {
     try {
       final uri = Uri.parse('$baseUrl/equipment/$id');
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Ekipman detayı alınamadı.'));
@@ -383,7 +523,7 @@ class ApiService {
   Future<List<EquipmentHistoryEntry>> getEquipmentHistory(int id) async {
     try {
       final uri = Uri.parse('$baseUrl/equipment/$id/history');
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Ekipman geçmişi alınamadı.'));
@@ -408,7 +548,7 @@ class ApiService {
   Future<EquipmentRisk> getEquipmentRisk(int equipmentId) async {
     try {
       final uri = Uri.parse('$baseUrl/equipment/$equipmentId/risk');
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Risk skoru alınamadı.'));
@@ -429,7 +569,7 @@ class ApiService {
       final uri = Uri.parse('$baseUrl/dashboard/risky-equipment').replace(
         queryParameters: {'limit': '$limit'},
       );
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Riskli ekipman listesi alınamadı.'));
@@ -454,7 +594,7 @@ class ApiService {
       final uri = Uri.parse('$baseUrl/isg-reports').replace(
         queryParameters: statusFilter != null ? {'status': statusFilter} : null,
       );
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'İSG bildirimleri alınamadı.'));
@@ -472,7 +612,7 @@ class ApiService {
   Future<IsgReport> getIsgReportDetail(int id) async {
     try {
       final uri = Uri.parse('$baseUrl/isg-reports/$id');
-      final response = await http.get(uri);
+      final response = await _get(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'İSG bildirimi detayı alınamadı.'));
@@ -510,6 +650,7 @@ class ApiService {
       final filename = photo.path.split(Platform.pathSeparator).last;
 
       final request = http.MultipartRequest('POST', uri)
+        ..headers.addAll(_headers())
         ..fields['reported_by_user_id'] = '$reportedByUserId'
         ..fields['description'] = description
         ..fields['category'] = category.toJson()
@@ -528,6 +669,7 @@ class ApiService {
 
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
+      _reportIfUnauthorized(response);
 
       if (response.statusCode != 201) {
         throw ApiException(_extractError(response, 'İSG bildirimi gönderilemedi.'));
@@ -544,9 +686,8 @@ class ApiService {
   Future<IsgReport> updateIsgReportStatus(int id, IsgStatus newStatus, {String? reviewerNote}) async {
     try {
       final uri = Uri.parse('$baseUrl/isg-reports/$id/status');
-      final response = await http.patch(
+      final response = await _patch(
         uri,
-        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'status': newStatus.toJson(),
           if (reviewerNote != null && reviewerNote.trim().isNotEmpty) 'reviewer_note': reviewerNote.trim(),

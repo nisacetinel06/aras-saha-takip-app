@@ -10,8 +10,13 @@
 // aynı prensip).
 const express = require('express');
 const db = require('../database');
+const { requireRole } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Cihaz Yönetimi yalnızca yönetici rolüne açıktır (bkz. ARCHITECTURE.md
+// Modül 7 — Auth + RBAC); teknisyen ve dispeçer 403 alır.
+router.use(requireRole('yonetici'));
 
 // Cihaz satırlarına atanan kullanıcının ad/rol bilgisini gömen ortak SELECT.
 const SELECT_DEVICE_WITH_USER = `
@@ -41,10 +46,13 @@ function logAction(deviceId, actionType, performedBy) {
   ).run(deviceId, actionType, performedBy, new Date().toISOString());
 }
 
-// Şimdilik gerçek bir oturum/kimlik doğrulama akışı yok; işlemi yapan kişi
-// sabit "Yönetici" olarak kaydedilir (bkz. ARCHITECTURE.md Bölüm 8 — rol
-// bazlı yetkilendirme henüz uygulanmadı, bu alan onun yerini tutuyor).
-const PERFORMED_BY = 'Yönetici';
+// Artık gerçek bir oturum var (Modül 7 — Auth): işlemi yapan kişi, isteği
+// atan JWT'deki kullanıcının gerçek adıdır (yalnızca yönetici rolü bu
+// route'lara erişebildiği için her zaman bir yönetici olur).
+function performedByFromRequest(req) {
+  const user = db.prepare('SELECT name FROM users WHERE id = ?').get(req.user.id);
+  return user ? user.name : 'Yönetici';
+}
 
 // GET /api/devices
 router.get('/', (req, res) => {
@@ -120,7 +128,7 @@ function handleAction(actionType, buildUpdate) {
       }
 
       buildUpdate(id, req);
-      logAction(id, actionType, PERFORMED_BY);
+      logAction(id, actionType, performedByFromRequest(req));
 
       const updated = db.prepare(`${SELECT_DEVICE_WITH_USER} WHERE d.id = ?`).get(id);
       res.json(mapDeviceRow(updated));

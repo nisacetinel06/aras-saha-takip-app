@@ -14,7 +14,8 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'teknisyen',
-    sicil_no TEXT UNIQUE
+    sicil_no TEXT UNIQUE,
+    password_hash TEXT
   );
 
   -- Ekipman / Envanter (Modül 4) — bkz. ARCHITECTURE.md ve DESIGN_SYSTEM.md.
@@ -135,5 +136,16 @@ db.exec(`
     FOREIGN KEY (equipment_id) REFERENCES equipment (id)
   );
 `);
+
+// Migrasyon: bu proje ilk kurulduğunda `users` tablosu `password_hash`
+// sütunu olmadan oluşturulmuştu (Modül 7 öncesi). `CREATE TABLE IF NOT EXISTS`
+// var olan bir tabloya yeni sütun eklemediği için, sütun eksikse burada
+// `ALTER TABLE` ile eklenir — mevcut aras_saha.db dosyasını silmeden Modül 7'ye
+// geçilebilsin diye.
+const userColumns = db.prepare('PRAGMA table_info(users)').all();
+const hasPasswordHash = userColumns.some((col) => col.name === 'password_hash');
+if (!hasPasswordHash) {
+  db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT');
+}
 
 module.exports = db;

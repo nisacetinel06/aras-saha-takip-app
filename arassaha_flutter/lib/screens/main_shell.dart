@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/work_order.dart';
+import '../providers/auth_provider.dart';
 import '../providers/map_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/work_order_list_provider.dart';
@@ -41,6 +42,30 @@ class _MainShellState extends State<MainShell> {
     setState(() => _index = index);
   }
 
+  Future<void> _confirmLogout(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Çıkış Yap'),
+        content: const Text('Oturumu kapatmak istediğinize emin misiniz?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('Çıkış Yap', style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      await context.read<AuthProvider>().logout();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
@@ -67,6 +92,11 @@ class _MainShellState extends State<MainShell> {
             tooltip: themeProvider.isDark ? 'Aydınlık moda geç' : 'Karanlık moda geç',
             icon: Icon(themeProvider.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
             onPressed: themeProvider.toggle,
+          ),
+          IconButton(
+            tooltip: 'Çıkış Yap',
+            icon: const Icon(Icons.logout_outlined),
+            onPressed: () => _confirmLogout(context),
           ),
           const SizedBox(width: 4),
         ],

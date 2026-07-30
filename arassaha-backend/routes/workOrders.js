@@ -4,10 +4,12 @@ const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
 const db = require('../database');
+const { requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
 const VALID_STATUSES = ['acik', 'yolda', 'sahada', 'cozuldu'];
+const VALID_PRIORITIES = ['acil', 'normal', 'dusuk'];
 
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
 
@@ -65,6 +67,9 @@ function mapWorkOrderRow(row) {
 
 // GET /api/workorders?status=acik
 // Tüm iş emirlerini listeler, opsiyonel status filtresi destekler.
+// Teknisyen rolündeki kullanıcılar yalnızca kendine atanan işleri görür —
+// bu filtre burada, backend'de zorunlu kılınır (Flutter tarafı ekstra bir şey
+// göndermez, token'daki role/id üzerinden otomatik uygulanır).
 router.get('/', (req, res) => {
   try {
     const { status } = req.query;
@@ -75,19 +80,97 @@ router.get('/', (req, res) => {
       });
     }
 
-    let rows;
+    const conditions = [];
+    const params = [];
     if (status) {
-      rows = db
-        .prepare(`${SELECT_WORK_ORDER_WITH_USER} WHERE wo.status = ? ORDER BY wo.created_at DESC`)
-        .all(status);
-    } else {
-      rows = db.prepare(`${SELECT_WORK_ORDER_WITH_USER} ORDER BY wo.created_at DESC`).all();
+      conditions.push('wo.status = ?');
+      params.push(status);
     }
+    if (req.user.role === 'teknisyen') {
+      conditions.push('wo.assigned_user_id = ?');
+      params.push(req.user.id);
+    }
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const rows = db
+      .prepare(`${SELECT_WORK_ORDER_WITH_USER} ${whereClause} ORDER BY wo.created_at DESC`)
+      .all(...params);
 
     res.json(rows.map(mapWorkOrderRow));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'İş emirleri listelenirken bir hata oluştu.' });
+  }
+});
+
+// POST /api/workorders
+// Yeni iş emri oluşturur (yalnızca dispeçer/yönetici — bkz. requireRole).
+// Body: { title, description, priority, location_name, lat, lng, assigned_user_id, equipment_id? }
+// Oluşturulan kaydın status'ü her zaman 'acik'tir.
+router.post('/', requireRole('dispecer', 'yonetici'), (req, res) => {
+  try {
+    const { title, description, priority, location_name, assigned_user_id, equipment_id } = req.body;
+    const lat = Number(req.body.lat);
+    const lng = Number(req.body.lng);
+    const assignedUserId = Number(assigned_user_id);
+    const equipmentId = equipment_id != null && equipment_id !== '' ? Number(equipment_id) : null;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'title alanı zorunludur.' });
+    }
+    if (!priority || !VALID_PRIORITIES.includes(priority)) {
+      return res.status(400).json({
+        error: `Geçersiz priority değeri. Geçerli değerler: ${VALID_PRIORITIES.join(', ')}`,
+      });
+    }
+    if (!location_name || !location_name.trim()) {
+      return res.status(400).json({ error: 'location_name alanı zorunludur.' });
+    }
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      return res.status(400).json({ error: 'lat ve lng alanları zorunludur.' });
+    }
+    if (!Number.isInteger(assignedUserId)) {
+      return res.status(400).json({ error: 'assigned_user_id alanı zorunludur.' });
+    }
+
+    const assignedUser = db.prepare('SELECT id, role FROM users WHERE id = ?').get(assignedUserId);
+    if (!assignedUser || assignedUser.role !== 'teknisyen') {
+      return res.status(400).json({ error: 'assigned_user_id geçerli bir teknisyene ait olmalı.' });
+    }
+
+    if (equipmentId != null) {
+      const equipment = db.prepare('SELECT id FROM equipment WHERE id = ?').get(equipmentId);
+      if (!equipment) {
+        return res.status(400).json({ error: 'equipment_id geçerli bir ekipmana ait değil.' });
+      }
+    }
+
+    const now = new Date().toISOString();
+    const info = db
+      .prepare(
+        `INSERT INTO work_orders
+           (title, description, status, priority, location_name, lat, lng, assigned_user_id, equipment_id, created_at, updated_at)
+         VALUES
+           (@title, @description, 'acik', @priority, @location_name, @lat, @lng, @assigned_user_id, @equipment_id, @created_at, @updated_at)`
+      )
+      .run({
+        title: title.trim(),
+        description: description ? description.trim() : '',
+        priority,
+        location_name: location_name.trim(),
+        lat,
+        lng,
+        assigned_user_id: assignedUserId,
+        equipment_id: equipmentId,
+        created_at: now,
+        updated_at: now,
+      });
+
+    const created = db.prepare(`${SELECT_WORK_ORDER_WITH_USER} WHERE wo.id = ?`).get(info.lastInsertRowid);
+    res.status(201).json(mapWorkOrderRow(created));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'İş emri oluşturulurken bir hata oluştu.' });
   }
 });
 

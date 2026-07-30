@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/dashboard_summary.dart';
 import '../../models/work_order.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -10,6 +11,7 @@ import '../../widgets/app_card.dart';
 import '../devices/device_list_screen.dart';
 import '../equipment/equipment_home_screen.dart';
 import '../isg/isg_report_list_screen.dart';
+import '../work_orders/create_work_order_screen.dart';
 
 const _weekdays = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
 const _months = [
@@ -55,6 +57,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final summary = context.watch<DashboardProvider>().summary;
+    final auth = context.watch<AuthProvider>();
+
+    // Rol bazlı görünürlük (Modül 7 — RBAC): backend zaten bu endpoint'leri
+    // rol bazlı engelliyor (requireRole), burada UI tarafında da aynı
+    // ayrımı yansıtıyoruz — teknisyen/dispeçer bu kartları hiç görmez.
+    final workOrdersCardTitle = auth.isTeknisyen ? 'Görevlerim' : 'Tüm İş Emirleri';
 
     return Scaffold(
       body: SafeArea(
@@ -79,7 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 _ModuleCard(
                   icon: Icons.assignment_outlined,
-                  title: 'İş Emirleri',
+                  title: workOrdersCardTitle,
                   subtitle: summary != null ? '${summary.openCount} açık' : null,
                   color: AppColors.primary(context),
                   onTap: () => widget.onNavigate(1),
@@ -98,16 +106,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: AppColors.success(context),
                   onTap: () => widget.onNavigate(3),
                 ),
-                _ModuleCard(
-                  icon: Icons.phonelink_lock_outlined,
-                  title: 'Cihaz Yönetimi',
-                  subtitle: 'Kilitle · Senkronize et',
-                  badgeLabel: 'Yönetici',
-                  color: AppColors.warning(context),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const DeviceListScreen()),
+                // Cihaz Yönetimi yalnızca yönetici rolüne görünür — dispeçer
+                // ve teknisyen bu kartı hiç görmez (backend zaten requireRole
+                // ile engelliyor, bkz. routes/devices.js).
+                if (auth.isYonetici)
+                  _ModuleCard(
+                    icon: Icons.phonelink_lock_outlined,
+                    title: 'Cihaz Yönetimi',
+                    subtitle: 'Kilitle · Senkronize et',
+                    color: AppColors.warning(context),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const DeviceListScreen()),
+                    ),
                   ),
-                ),
                 _ModuleCard(
                   icon: Icons.inventory_2_outlined,
                   title: 'Ekipman',
@@ -139,11 +150,18 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showComingSoon('Yeni Arıza Gir'),
-        icon: const Icon(Icons.add),
-        label: const Text('Yeni Arıza Gir'),
-      ),
+      // "Yeni İş Emri Ata" yalnızca dispeçer/yönetici içindir — teknisyen bu
+      // FAB'ı hiç görmez (backend zaten POST /api/workorders'ı requireRole
+      // ile engelliyor, bkz. routes/workOrders.js).
+      floatingActionButton: auth.canCreateWorkOrders
+          ? FloatingActionButton.extended(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CreateWorkOrderScreen()),
+              ),
+              icon: const Icon(Icons.add),
+              label: const Text('Yeni İş Emri Ata'),
+            )
+          : null,
     );
   }
 }
@@ -250,18 +268,12 @@ class _ModuleCard extends StatelessWidget {
   final bool comingSoon;
   final VoidCallback onTap;
 
-  /// Kavramsal erişim kısıtlaması sinyali için küçük bir etiket (örn.
-  /// "Yönetici") — gerçek bir rol/yetki sistemi kurmadan, bu ekranın
-  /// gerçek bir üründe kimlere açık olacağını sunumda göstermek içindir.
-  final String? badgeLabel;
-
   const _ModuleCard({
     required this.icon,
     required this.title,
     this.subtitle,
     required this.color,
     this.comingSoon = false,
-    this.badgeLabel,
     required this.onTap,
   });
 
@@ -305,20 +317,6 @@ class _ModuleCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (badgeLabel != null) ...[
-                        const SizedBox(width: 5),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.22),
-                            borderRadius: BorderRadius.circular(AppRadius.chip),
-                          ),
-                          child: Text(
-                            badgeLabel!,
-                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                   if (subtitle != null) ...[

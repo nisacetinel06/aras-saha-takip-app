@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/dashboard_summary.dart';
 import '../models/equipment_risk.dart';
 import '../models/work_order.dart';
+import '../providers/auth_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/risk_provider.dart';
 import '../theme/app_colors.dart';
@@ -36,7 +37,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DashboardProvider>().fetchSummary();
-      context.read<RiskProvider>().fetchRiskyEquipment();
+      // "Riskli Ekipmanlar" bir yönetim raporudur; backend GET
+      // /api/dashboard/risky-equipment'i requireRole('yonetici') ile korur
+      // (bkz. routes/risk.js) — teknisyen/dispeçer için bu isteği hiç atmayız.
+      if (context.read<AuthProvider>().isYonetici) {
+        context.read<RiskProvider>().fetchRiskyEquipment();
+      }
     });
   }
 
@@ -46,6 +52,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isYonetici = context.watch<AuthProvider>().isYonetici;
+
     return Consumer<DashboardProvider>(
       builder: (context, provider, _) {
         if (provider.errorMessage != null && provider.summary == null) {
@@ -72,9 +80,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: AppSpacing.lg),
               const _SectionHeader('Son Aktiviteler'),
               _RecentActivityList(items: summary.recentActivity),
-              const SizedBox(height: AppSpacing.lg),
-              const _SectionHeader('Riskli Ekipmanlar'),
-              const _RiskyEquipmentSection(),
+              // Riskli Ekipmanlar bir yönetim raporudur (bkz. initState) —
+              // yalnızca yönetici rolüne gösterilir.
+              if (isYonetici) ...[
+                const SizedBox(height: AppSpacing.lg),
+                const _SectionHeader('Riskli Ekipmanlar'),
+                const _RiskyEquipmentSection(),
+              ],
             ],
           ),
         );
