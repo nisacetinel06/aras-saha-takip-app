@@ -1,28 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/work_order.dart';
-import '../providers/auth_provider.dart';
 import '../providers/map_provider.dart';
 import '../providers/notification_provider.dart';
-import '../providers/theme_provider.dart';
 import '../providers/user_provider.dart';
 import '../providers/work_order_list_provider.dart';
 import '../services/local_notification_service.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_spacing.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/app_top_bar.dart';
 import '../widgets/user_avatar.dart';
 import 'dashboard_screen.dart';
 import 'home/home_screen.dart';
 import 'map/map_screen.dart';
-import 'notifications/notifications_screen.dart';
 import 'profile/profile_screen.dart';
 import 'work_order_list_screen.dart';
 
 /// Uygulamanın kalıcı kabuğu: Ana Sayfa / İş Emirleri / Harita / Dashboard /
 /// Profil arasında alt navigasyon çubuğuyla geçiş sağlar. Ortak app bar
-/// (ekran başlığı + dark/light toggle) burada tanımlıdır; sekme içerikleri
-/// kendi Scaffold/AppBar'ını taşımaz. Bkz. DESIGN_SYSTEM.md Bölüm B.
+/// burada tanımlıdır; sekme içerikleri kendi Scaffold/AppBar'ını taşımaz.
+/// Bkz. DESIGN_SYSTEM.md Bölüm B.
+///
+/// Zil ve tema butonları [NotificationBellButton]/[ThemeToggleButton]
+/// (bkz. widgets/app_top_bar.dart) üzerinden gelir — [AppTopBar] kullanan
+/// diğer TÜM ekranlarla birebir aynı, tek bir kaynaktan yönetilen bileşen.
+///
+/// Kullanıcı adı/rolü BİLEREK burada gösterilmez — bu üst çubuk her sekmede
+/// (Ana Sayfa, Profil dahil) aynı anda görünür kaldığı için, kullanıcı adı/
+/// rolünü burada göstermek, HomeScreen'in karşılama bölümündeki veya
+/// ProfileScreen'deki [RoleBadge] ile AYNI bilgiyi ekranda İKİ KEZ (örn.
+/// "Yönetici" hem üst çubukta hem karşılama kartında) tekrar ettiriyordu.
+/// Artık kullanıcı adı/rolü YALNIZCA HomeScreen'in karşılama bölümünde ve
+/// ProfileScreen'de, tek bir yerde gösteriliyor.
 ///
 /// "Çıkış Yap" artık burada DEĞİL, Profil sekmesinde (Modül 8) — tek bir
 /// yerde tutarlı olsun diye (bkz. profile_screen.dart).
@@ -79,11 +87,7 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = context.watch<ThemeProvider>();
-    final auth = context.watch<AuthProvider>();
     final myProfile = context.watch<UserProvider>().myProfile;
-    final unreadCount = context.watch<NotificationProvider>().unreadCount;
-    final scheme = Theme.of(context).colorScheme;
 
     final tabs = <Widget>[
       HomeScreen(onNavigate: _navigateToTab),
@@ -103,67 +107,10 @@ class _MainShellState extends State<MainShell> {
             Flexible(child: Text(_titles[_index], overflow: TextOverflow.ellipsis)),
           ],
         ),
-        // Hangi rolle (ve kim olarak) giriş yaptığını her zaman hatırlatan
-        // küçük bir alt şerit — kullanıcı "paneli unutuyorum" dediği için
-        // eklendi (Modül 7). Tüm sekmelerde ortak olduğu için burada,
-        // MainShell'in ortak AppBar'ında duruyor.
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(22),
-          child: Padding(
-            padding: const EdgeInsets.only(left: 16, bottom: 6),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '${auth.currentUser?.name ?? ''} · ${auth.roleLabel}',
-                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-        ),
-        actions: [
-          // Bildirim Sistemi (Modül 6) — Ana Sayfa'daki "Bildirimler" modül
-          // kartıyla aynı ekrana gider; buradaki rozet okunmamış sayıyı her
-          // sekmeden erişilebilir şekilde gösterir (bkz. NotificationProvider).
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                tooltip: 'Bildirimler',
-                icon: const Icon(Icons.notifications_outlined),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-                ),
-              ),
-              if (unreadCount > 0)
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: IgnorePointer(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                      decoration: BoxDecoration(
-                        color: AppColors.danger(context),
-                        borderRadius: BorderRadius.circular(AppRadius.pill),
-                        border: Border.all(color: scheme.surface, width: 1.5),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        unreadCount > 9 ? '9+' : '$unreadCount',
-                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          IconButton(
-            tooltip: themeProvider.isDark ? 'Aydınlık moda geç' : 'Karanlık moda geç',
-            icon: Icon(themeProvider.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
-            onPressed: themeProvider.toggle,
-          ),
-          const SizedBox(width: 4),
+        actions: const [
+          NotificationBellButton(),
+          ThemeToggleButton(),
+          SizedBox(width: 4),
         ],
       ),
       body: IndexedStack(index: _index, children: tabs),

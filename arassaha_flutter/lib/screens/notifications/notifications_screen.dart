@@ -7,6 +7,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/app_top_bar.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 import '../equipment/equipment_detail_screen.dart';
 import '../isg/isg_report_detail_screen.dart';
@@ -65,9 +66,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Bildirimler'),
-      ),
+      // showNotificationBell: false — bu ekran zilin GİTTİĞİ yer, zilin
+      // KENDİSİNİ tekrar göstermek anlamsız/kafa karıştırıcı olurdu.
+      appBar: const AppTopBar(title: 'Bildirimler', showNotificationBell: false),
       body: RefreshIndicator(
         onRefresh: provider.fetchNotifications,
         child: _buildBody(provider, scheme),

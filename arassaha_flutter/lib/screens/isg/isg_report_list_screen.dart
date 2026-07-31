@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/isg_report.dart';
 import '../../providers/isg_provider.dart';
-import '../../providers/theme_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/app_top_bar.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 import 'isg_report_detail_screen.dart';
 import 'isg_report_form_screen.dart';
@@ -42,21 +42,10 @@ class _IsgReportListScreenState extends State<IsgReportListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = context.watch<ThemeProvider>();
     final provider = context.watch<IsgProvider>();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('İSG Bildirimleri'),
-        actions: [
-          IconButton(
-            tooltip: themeProvider.isDark ? 'Aydınlık moda geç' : 'Karanlık moda geç',
-            icon: Icon(themeProvider.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
-            onPressed: themeProvider.toggle,
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
+      appBar: const AppTopBar(title: 'İSG Bildirimleri'),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           await Navigator.of(context).push(

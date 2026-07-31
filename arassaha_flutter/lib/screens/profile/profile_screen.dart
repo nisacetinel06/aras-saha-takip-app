@@ -139,8 +139,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: AppButton(
               label: 'Çıkış Yap',
               icon: Icons.logout_outlined,
-              variant: AppButtonVariant.secondary,
-              color: scheme.error,
+              variant: AppButtonVariant.destructive,
               onPressed: () => _confirmLogout(context),
             ),
           ),

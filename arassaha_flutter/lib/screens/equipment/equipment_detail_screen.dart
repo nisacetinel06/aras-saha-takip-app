@@ -4,12 +4,12 @@ import '../../models/equipment.dart';
 import '../../models/equipment_risk.dart';
 import '../../providers/equipment_provider.dart';
 import '../../providers/risk_provider.dart';
-import '../../providers/theme_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/app_top_bar.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 import '../work_order_detail_screen.dart';
@@ -51,22 +51,11 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = context.watch<ThemeProvider>();
     final provider = context.watch<EquipmentProvider>();
     final equipment = provider.selectedEquipment?.id == widget.equipmentId ? provider.selectedEquipment : null;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ekipman Detayı'),
-        actions: [
-          IconButton(
-            tooltip: themeProvider.isDark ? 'Aydınlık moda geç' : 'Karanlık moda geç',
-            icon: Icon(themeProvider.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
-            onPressed: themeProvider.toggle,
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
+      appBar: const AppTopBar(title: 'Ekipman Detayı'),
       body: Builder(
         builder: (context) {
           if (equipment == null && provider.detailErrorMessage != null) {

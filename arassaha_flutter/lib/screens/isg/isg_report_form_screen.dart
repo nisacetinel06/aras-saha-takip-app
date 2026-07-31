@@ -5,12 +5,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../models/isg_report.dart';
 import '../../providers/isg_provider.dart';
-import '../../providers/theme_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/app_top_bar.dart';
 
 /// İSG (İş Sağlığı ve Güvenliği) Bildirimi (Modül 5) — yeni bildirim formu.
 ///
@@ -179,22 +179,11 @@ class _IsgReportFormScreenState extends State<IsgReportFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = context.watch<ThemeProvider>();
     final provider = context.watch<IsgProvider>();
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('İSG Bildirimi Oluştur'),
-        actions: [
-          IconButton(
-            tooltip: themeProvider.isDark ? 'Aydınlık moda geç' : 'Karanlık moda geç',
-            icon: Icon(themeProvider.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
-            onPressed: themeProvider.toggle,
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
+      appBar: const AppTopBar(title: 'İSG Bildirimi Oluştur'),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xl),
         children: [

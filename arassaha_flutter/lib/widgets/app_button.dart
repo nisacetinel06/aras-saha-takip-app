@@ -1,7 +1,19 @@
 import 'package:flutter/material.dart';
 import '../theme/app_spacing.dart';
 
-enum AppButtonVariant { primary, secondary, text }
+/// Renk kuralı (bkz. DESIGN_SYSTEM.md / app_colors.dart):
+/// - `primary`: birincil/asıl aksiyon ("Kaydet", "Gönder", "Giriş Yap" gibi
+///   kullanıcıyı asıl harekete geçiren buton) — HER ZAMAN primary (mavi), dolu.
+///   FAB kendi accent (turuncu) rengini korur (bkz. app_theme.dart
+///   floatingActionButtonTheme) — bu bilinçli bir ayrım, FAB'ın ekranda ayrı
+///   bir vurgu olarak öne çıkması isteniyor.
+/// - `secondary`: ikincil/nötr/iptal aksiyonu — primary (mavi), outline.
+/// - `text`: en düşük vurgulu aksiyon — primary (mavi), zeminsiz.
+/// - `destructive`: yıkıcı/geri alınamaz aksiyon ("Hesabı Sil", "Çıkış Yap",
+///   "Pasifleştir") — danger (kırmızı), outline. Durum renkleri (success/
+///   warning/danger) BAŞKA HİÇBİR yerde genel bir buton rengi olarak
+///   kullanılmaz — yalnızca bu varyant ve rozetler/durum şeritlerinde.
+enum AppButtonVariant { primary, secondary, text, destructive }
 
 /// Uygulamadaki TÜM butonlar için tek ortak bileşen. Metin her zaman
 /// `Flexible` + `TextOverflow.ellipsis` ile sarmalanır — buton ne kadar dar
@@ -13,9 +25,9 @@ class AppButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool isLoading;
 
-  /// Yıkıcı/riskli aksiyonlar (örn. "Hesabı Sil") için varsayılan primary/
-  /// secondary rengini geçersiz kılar (örn. `colorScheme.error`). Belirtilmezse
-  /// tema rengi kullanılır.
+  /// Yalnızca istisnai bir durum için varsayılan varyant rengini geçersiz
+  /// kılar. Yıkıcı aksiyonlar için bunu KULLANMA — `AppButtonVariant.destructive`
+  /// zaten doğru (danger) rengi otomatik uygular.
   final Color? color;
 
   const AppButton({
@@ -33,15 +45,14 @@ class AppButton extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final effectiveOnPressed = isLoading ? null : onPressed;
 
+    Color loadingColor() {
+      if (variant == AppButtonVariant.primary) return Colors.white;
+      if (color != null) return color!;
+      return variant == AppButtonVariant.destructive ? scheme.error : scheme.primary;
+    }
+
     final leading = isLoading
-        ? SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: variant == AppButtonVariant.primary ? scheme.onPrimary : (color ?? scheme.primary),
-            ),
-          )
+        ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: loadingColor()))
         : (icon != null ? Icon(icon, size: 18) : null);
 
     final content = Row(
@@ -58,10 +69,16 @@ class AppButton extends StatelessWidget {
 
     switch (variant) {
       case AppButtonVariant.primary:
+        // Birincil aksiyon HER ZAMAN primary (mavi), dolu — ambient temanın
+        // ElevatedButton varsayılanı zaten scheme.primary'dir, ama burada
+        // açıkça belirtiliyor ki `color` geçersiz kılması net şekilde çalışsın.
         return ConstrainedBox(
           constraints: constraints,
           child: ElevatedButton(
-            style: color != null ? ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white) : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color ?? scheme.primary,
+              foregroundColor: Colors.white,
+            ),
             onPressed: effectiveOnPressed,
             child: content,
           ),
@@ -82,6 +99,19 @@ class AppButton extends StatelessWidget {
           constraints: constraints,
           child: TextButton(
             style: color != null ? TextButton.styleFrom(foregroundColor: color) : null,
+            onPressed: effectiveOnPressed,
+            child: content,
+          ),
+        );
+      case AppButtonVariant.destructive:
+        final destructiveColor = color ?? scheme.error;
+        return ConstrainedBox(
+          constraints: constraints,
+          child: OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: destructiveColor,
+              side: BorderSide(color: destructiveColor, width: 1.5),
+            ),
             onPressed: effectiveOnPressed,
             child: content,
           ),

@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/managed_device.dart';
 import '../../providers/device_provider.dart';
-import '../../providers/theme_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../services/device_telemetry_service.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/app_top_bar.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 
 /// Cihaz Yönetimi — cihaz detay ekranı.
@@ -100,22 +100,11 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = context.watch<ThemeProvider>();
     final provider = context.watch<DeviceProvider>();
     final device = provider.selectedDevice?.id == widget.deviceId ? provider.selectedDevice : null;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Cihaz Detayı'),
-        actions: [
-          IconButton(
-            tooltip: themeProvider.isDark ? 'Aydınlık moda geç' : 'Karanlık moda geç',
-            icon: Icon(themeProvider.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
-            onPressed: themeProvider.toggle,
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
+      appBar: const AppTopBar(title: 'Cihaz Detayı'),
       body: Builder(
         builder: (context) {
           if (device == null && provider.detailErrorMessage != null) {
@@ -267,8 +256,7 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
                             AppButton(
                               label: 'Hesabı Sil',
                               icon: Icons.delete_outline,
-                              variant: AppButtonVariant.secondary,
-                              color: Theme.of(context).colorScheme.error,
+                              variant: AppButtonVariant.destructive,
                               isLoading: provider.isPerformingAction,
                               onPressed: () => _runAction(
                                 'wipe',

@@ -3,12 +3,12 @@ import 'package:provider/provider.dart';
 import '../../models/equipment.dart';
 import '../../models/equipment_risk.dart';
 import '../../providers/equipment_provider.dart';
-import '../../providers/theme_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/app_top_bar.dart';
 import 'equipment_detail_screen.dart';
 
 /// Ekipman envanterinin tam listesi — tip ve durum filtresi destekler.
@@ -33,21 +33,10 @@ class _EquipmentListScreenState extends State<EquipmentListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = context.watch<ThemeProvider>();
     final provider = context.watch<EquipmentProvider>();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ekipmanlar'),
-        actions: [
-          IconButton(
-            tooltip: themeProvider.isDark ? 'Aydınlık moda geç' : 'Karanlık moda geç',
-            icon: Icon(themeProvider.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
-            onPressed: themeProvider.toggle,
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
+      appBar: const AppTopBar(title: 'Ekipmanlar'),
       body: Column(
         children: [
           _TypeFilterBar(provider: provider),

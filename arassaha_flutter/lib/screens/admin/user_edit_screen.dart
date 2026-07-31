@@ -12,6 +12,7 @@ import '../../theme/app_text_styles.dart';
 import '../../utils/role_helper.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/app_top_bar.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 
@@ -344,7 +345,7 @@ class _UserEditScreenState extends State<UserEditScreen> {
     final provider = context.watch<UserProvider>();
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.isEditMode ? 'Kullanıcıyı Düzenle' : 'Yeni Kullanıcı Ekle')),
+      appBar: AppTopBar(title: widget.isEditMode ? 'Kullanıcıyı Düzenle' : 'Yeni Kullanıcı Ekle'),
       body: _isLoadingDetail
           ? const Center(child: CircularProgressIndicator())
           : _loadErrorMessage != null

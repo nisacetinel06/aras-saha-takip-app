@@ -9,6 +9,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/app_top_bar.dart';
 
 /// Bölge seçici için sabit bir konum listesi. Bu, `ARCHITECTURE.md` Bölüm
 /// 11.1'deki "kişiler hiçbir yerde sabit kodlanmaz" kuralını İHLAL ETMEZ —
@@ -221,7 +222,7 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Yeni İş Emri Oluştur')),
+      appBar: const AppTopBar(title: 'Yeni İş Emri Oluştur'),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xl),
         children: [
