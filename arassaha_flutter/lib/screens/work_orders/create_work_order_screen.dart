@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../models/description_classification.dart';
 import '../../models/work_order.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
@@ -65,6 +67,17 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
   bool _isSubmitting = false;
   String? _submitError;
 
+  // Arıza Açıklaması Otomatik Sınıflandırma (Modül 10) — kullanıcı açıklama
+  // yazmayı bıraktıktan 800ms sonra (debounce) arka planda öneri istenir.
+  // Bu, her tuş vuruşunda istek atmayı önler (gereksiz ağ trafiği/ML servis
+  // yükü). Öneri, kullanıcı metni DEĞİŞTİRMEDEN "Yoksay" derse ya da form
+  // gönderilene kadar geçerliliğini korur; metin tekrar değişince eskisi
+  // temizlenip yeni bir öneri beklenir.
+  Timer? _debounceTimer;
+  DescriptionClassification? _suggestion;
+  bool _isClassifying = false;
+  bool _suggestionDismissed = false;
+
   @override
   void initState() {
     super.initState();
@@ -73,9 +86,64 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _titleController.dispose();
     _descriptionController.dispose();
     super.dispose();
+  }
+
+  void _onDescriptionChanged(String text) {
+    // Metin her değiştiğinde önceki öneri artık güncel açıklamayla ilgili
+    // olmayabilir — hemen temizlenir, yeni öneri debounce sonrası gelir.
+    setState(() {
+      _suggestion = null;
+      _suggestionDismissed = false;
+    });
+
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 800), () => _classifyDescription(text));
+  }
+
+  Future<void> _classifyDescription(String text) async {
+    // 3 kelimeden az metin için backend zaten öneri döndürmez (bkz.
+    // arassaha-ml/app.py MIN_WORD_COUNT) — burada da aynı kısayolu
+    // uygulayıp gereksiz bir ağ isteğini baştan engelliyoruz.
+    if (text.trim().split(RegExp(r'\s+')).length < 3) return;
+    if (!mounted) return;
+
+    setState(() => _isClassifying = true);
+    try {
+      final result = await ApiService().classifyDescription(text);
+      if (!mounted || _descriptionController.text != text) return;
+      setState(() => _suggestion = result.hasSuggestion ? result : null);
+    } catch (_) {
+      // ML servisi kapalıysa/erişilemezse sessizce yutulur — bu bir
+      // yardımcı öneri özelliği, formun geri kalanını engellememeli.
+    } finally {
+      if (mounted) setState(() => _isClassifying = false);
+    }
+  }
+
+  void _applySuggestion() {
+    if (_suggestion == null) return;
+    setState(() {
+      // "arıza tipi" work_orders şemasında ayrı bir alan değildir; öneri
+      // uygulanınca formdaki mevcut Başlık alanına yazılır (bkz. üstteki
+      // model yorumu) — kullanıcı sonradan yine elle değiştirebilir.
+      _titleController.text = _suggestion!.suggestedType!.label;
+      if (_suggestion!.suggestedPriority != null) {
+        _priority = _suggestion!.suggestedPriority!;
+      }
+      _suggestion = null;
+      _suggestionDismissed = true;
+    });
+  }
+
+  void _dismissSuggestion() {
+    setState(() {
+      _suggestion = null;
+      _suggestionDismissed = true;
+    });
   }
 
   Future<void> _loadTechnicians() async {
@@ -171,11 +239,26 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
           TextField(
             controller: _descriptionController,
             maxLines: 4,
-            decoration: const InputDecoration(
+            onChanged: _onDescriptionChanged,
+            decoration: InputDecoration(
               hintText: 'İşin detaylarını açıklayın...',
               alignLabelWithHint: true,
+              suffixIcon: _isClassifying
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                    )
+                  : null,
             ),
           ),
+          if (_suggestion != null && !_suggestionDismissed) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _ClassificationSuggestionBox(
+              suggestion: _suggestion!,
+              onApply: _applySuggestion,
+              onDismiss: _dismissSuggestion,
+            ),
+          ],
           const SizedBox(height: AppSpacing.lg),
 
           Text('Öncelik', style: Theme.of(context).textTheme.headlineSmall),
@@ -297,6 +380,76 @@ class _PriorityChip extends StatelessWidget {
             color: selected ? color : scheme.onSurface,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Arıza Açıklaması Otomatik Sınıflandırma (Modül 10) — açıklama alanının
+/// hemen altında beliren, dikkat çekici ama rahatsız etmeyen öneri kutusu.
+/// "(yapay zeka önerisi)" etiketi şeffaflık için bilinçli olarak eklendi —
+/// kullanıcı bunun otomatik/tahmini bir öneri olduğunu, bağlayıcı olmadığını
+/// bilmeli. Öneri yalnızca bilgi amaçlıdır; "Uygula" denmezse form normal
+/// şekilde manuel doldurulmaya devam eder.
+class _ClassificationSuggestionBox extends StatelessWidget {
+  final DescriptionClassification suggestion;
+  final VoidCallback onApply;
+  final VoidCallback onDismiss;
+
+  const _ClassificationSuggestionBox({
+    required this.suggestion,
+    required this.onApply,
+    required this.onDismiss,
+  });
+
+  String get _message {
+    final typeLabel = suggestion.suggestedType!.label;
+    final priority = suggestion.suggestedPriority;
+    if (priority == null) {
+      return 'Bu açıklama "$typeLabel" ile uyuşuyor gibi görünüyor.';
+    }
+    return 'Bu açıklama "$typeLabel" ve "${priority.label}" önceliğiyle uyuşuyor gibi görünüyor.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final accent = AppColors.accent(context);
+
+    return AppCard(
+      backgroundTint: accent,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.auto_awesome, size: 16, color: accent),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  _message,
+                  style: TextStyle(fontSize: 13, color: scheme.onSurface),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '(yapay zeka önerisi)',
+            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              AppButton(label: 'Yoksay', variant: AppButtonVariant.text, onPressed: onDismiss),
+              const SizedBox(width: AppSpacing.xs),
+              AppButton(label: 'Uygula', variant: AppButtonVariant.secondary, onPressed: onApply),
+            ],
+          ),
+        ],
       ),
     );
   }

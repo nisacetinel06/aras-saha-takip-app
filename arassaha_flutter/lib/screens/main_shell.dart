@@ -3,14 +3,19 @@ import 'package:provider/provider.dart';
 import '../models/work_order.dart';
 import '../providers/auth_provider.dart';
 import '../providers/map_provider.dart';
+import '../providers/notification_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/user_provider.dart';
 import '../providers/work_order_list_provider.dart';
+import '../services/local_notification_service.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_spacing.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/user_avatar.dart';
 import 'dashboard_screen.dart';
 import 'home/home_screen.dart';
 import 'map/map_screen.dart';
+import 'notifications/notifications_screen.dart';
 import 'profile/profile_screen.dart';
 import 'work_order_list_screen.dart';
 
@@ -38,9 +43,23 @@ class _MainShellState extends State<MainShell> {
     super.initState();
     // Profil sekmesindeki avatarın (fotoğraf varsa) alt navigasyon
     // ikonunda da görünebilmesi için uygulama açılışında bir kez çekilir.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       context.read<UserProvider>().fetchMyProfile();
+
+      // Bildirim Sistemi (Modül 6): MainShell yalnızca kimlik doğrulanmış
+      // kullanıcının gördüğü kabuk olduğu için polling burada başlatılır —
+      // login öncesi (LoginScreen) hiç çalışmaz. Kullanıcı çıkış yaptığında
+      // (ya da 401 ile oturumu düşünce) AuthGate bu widget'ı unmount eder,
+      // dispose() timer'ı otomatik durdurur — ayrı bir logout hook'una gerek yok.
+      await LocalNotificationService.instance.requestPermission();
+      if (mounted) context.read<NotificationProvider>().startPolling();
     });
+  }
+
+  @override
+  void dispose() {
+    context.read<NotificationProvider>().stopPolling();
+    super.dispose();
   }
 
   /// Hub'daki modül kartlarından ya da Dashboard'daki özet kartlardan
@@ -63,6 +82,7 @@ class _MainShellState extends State<MainShell> {
     final themeProvider = context.watch<ThemeProvider>();
     final auth = context.watch<AuthProvider>();
     final myProfile = context.watch<UserProvider>().myProfile;
+    final unreadCount = context.watch<NotificationProvider>().unreadCount;
     final scheme = Theme.of(context).colorScheme;
 
     final tabs = <Widget>[
@@ -102,6 +122,42 @@ class _MainShellState extends State<MainShell> {
           ),
         ),
         actions: [
+          // Bildirim Sistemi (Modül 6) — Ana Sayfa'daki "Bildirimler" modül
+          // kartıyla aynı ekrana gider; buradaki rozet okunmamış sayıyı her
+          // sekmeden erişilebilir şekilde gösterir (bkz. NotificationProvider).
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                tooltip: 'Bildirimler',
+                icon: const Icon(Icons.notifications_outlined),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                ),
+              ),
+              if (unreadCount > 0)
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: IgnorePointer(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      decoration: BoxDecoration(
+                        color: AppColors.danger(context),
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                        border: Border.all(color: scheme.surface, width: 1.5),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        unreadCount > 9 ? '9+' : '$unreadCount',
+                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             tooltip: themeProvider.isDark ? 'Aydınlık moda geç' : 'Karanlık moda geç',
             icon: Icon(themeProvider.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),

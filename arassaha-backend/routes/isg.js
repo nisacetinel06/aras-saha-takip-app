@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
 const db = require('../database');
+const { createNotification } = require('../utils/notify');
 
 const router = express.Router();
 
@@ -107,8 +108,12 @@ router.get('/:id', (req, res) => {
 });
 
 // POST /api/isg-reports
-// multipart/form-data — alanlar: reported_by_user_id, description, category,
-// lat, lng, location_name (opsiyonel), photo (dosya, zorunlu).
+// multipart/form-data — alanlar: description, category, lat, lng,
+// location_name (opsiyonel), photo (dosya, zorunlu).
+// reported_by_user_id istemciden ALINMAZ: bildiren kişi her zaman zaten giriş
+// yapmış kullanıcıdır (req.user.id, verifyToken tarafından JWT'den doldurulur)
+// — bu sayede kullanıcı kendi adına değil başkası adına bildirim giremez ve
+// Flutter formunda tekrar "bildiren kişi" seçtirmeye gerek kalmaz.
 router.post('/', (req, res) => {
   upload.single('photo')(req, res, (uploadErr) => {
     if (uploadErr) {
@@ -122,7 +127,7 @@ router.post('/', (req, res) => {
 
       const { description, category, lat, lng } = req.body;
       const location_name = req.body.location_name || null;
-      const reported_by_user_id = Number(req.body.reported_by_user_id);
+      const reported_by_user_id = req.user.id;
       const latNum = Number(lat);
       const lngNum = Number(lng);
 
@@ -134,16 +139,8 @@ router.post('/', (req, res) => {
           error: `Geçersiz category değeri. Geçerli değerler: ${VALID_CATEGORIES.join(', ')}`,
         });
       }
-      if (!Number.isInteger(reported_by_user_id)) {
-        return res.status(400).json({ error: 'reported_by_user_id alanı zorunludur.' });
-      }
       if (Number.isNaN(latNum) || Number.isNaN(lngNum)) {
         return res.status(400).json({ error: 'lat ve lng alanları zorunludur (gerçek GPS konumu).' });
-      }
-
-      const user = db.prepare('SELECT id FROM users WHERE id = ?').get(reported_by_user_id);
-      if (!user) {
-        return res.status(400).json({ error: 'reported_by_user_id geçerli bir kullanıcıya ait değil.' });
       }
 
       const photo_path = `/uploads/isg/${req.file.filename}`;
@@ -192,7 +189,7 @@ router.patch('/:id/status', (req, res) => {
       });
     }
 
-    const existing = db.prepare('SELECT id FROM isg_reports WHERE id = ?').get(id);
+    const existing = db.prepare('SELECT * FROM isg_reports WHERE id = ?').get(id);
     if (!existing) {
       return res.status(404).json({ error: 'İSG bildirimi bulunamadı.' });
     }
@@ -206,6 +203,17 @@ router.patch('/:id/status', (req, res) => {
     ).run(status, reviewer_note || null, reviewed_at, id);
 
     const updated = db.prepare(`${SELECT_ISG_WITH_USER} WHERE r.id = ?`).get(id);
+
+    // Bildirim Sistemi (Modül 6) — bildiren kullanıcıya durum güncellemesini bildir.
+    if (status === 'incelendi' || status === 'cozuldu') {
+      createNotification(
+        existing.reported_by_user_id,
+        `İSG bildiriminiz "${status}" olarak güncellendi`,
+        'isg_report',
+        id
+      );
+    }
+
     res.json(mapIsgRow(updated));
   } catch (err) {
     console.error(err);

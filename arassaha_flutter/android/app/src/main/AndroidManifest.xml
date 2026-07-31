@@ -12,6 +12,13 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
+    <!-- Bildirim Sistemi (Modül 6): Android 13+ (API 33) itibarıyla bildirim
+         gösterebilmek için bu izin ZORUNLUDUR. flutter_local_notifications
+         çalışma zamanında bunu ister (bkz. LocalNotificationService.requestPermission);
+         reddedilirse yerel bildirim sessizce gösterilmez, Bildirimler ekranından
+         tam liste yine de görülebilir. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
     <application
         android:label="arassaha_flutter"
         android:name="${applicationName}"

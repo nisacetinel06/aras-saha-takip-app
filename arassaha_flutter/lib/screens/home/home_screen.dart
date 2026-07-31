@@ -4,6 +4,7 @@ import '../../models/dashboard_summary.dart';
 import '../../models/work_order.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/dashboard_provider.dart';
+import '../../providers/notification_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -15,6 +16,7 @@ import '../admin/user_management_list_screen.dart';
 import '../devices/device_list_screen.dart';
 import '../equipment/equipment_home_screen.dart';
 import '../isg/isg_report_list_screen.dart';
+import '../notifications/notifications_screen.dart';
 import '../work_orders/create_work_order_screen.dart';
 
 const _weekdays = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
@@ -51,18 +53,13 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _showComingSoon(String moduleName) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$moduleName modülü yakında eklenecek.')),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final summary = context.watch<DashboardProvider>().summary;
     final auth = context.watch<AuthProvider>();
     final myProfile = context.watch<UserProvider>().myProfile;
+    final unreadCount = context.watch<NotificationProvider>().unreadCount;
 
     // Rol bazlı görünürlük (Modül 7 — RBAC): backend zaten bu endpoint'leri
     // rol bazlı engelliyor (requireRole), burada UI tarafında da aynı
@@ -186,10 +183,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 _ModuleCard(
                   icon: Icons.notifications_outlined,
                   title: 'Bildirimler',
-                  subtitle: 'Yakında',
+                  subtitle: unreadCount > 0 ? '$unreadCount okunmamış' : 'Güncel',
                   color: AppColors.primary(context),
-                  comingSoon: true,
-                  onTap: () => _showComingSoon('Bildirimler'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                  ),
                 ),
               ],
             ),
@@ -311,7 +309,6 @@ class _ModuleCard extends StatelessWidget {
   final String title;
   final String? subtitle;
   final Color color;
-  final bool comingSoon;
   final VoidCallback onTap;
 
   const _ModuleCard({
@@ -319,66 +316,61 @@ class _ModuleCard extends StatelessWidget {
     required this.title,
     this.subtitle,
     required this.color,
-    this.comingSoon = false,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final contentOpacity = comingSoon ? 0.55 : 1.0;
 
-    return Opacity(
-      opacity: contentOpacity,
-      child: AppCard(
-        onTap: onTap,
-        backgroundTint: color,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(AppRadius.chip),
-                boxShadow: [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 8, offset: const Offset(0, 3))],
-              ),
-              child: Icon(icon, size: 18, color: Colors.white),
+    return AppCard(
+      onTap: onTap,
+      backgroundTint: color,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(AppRadius.chip),
+              boxShadow: [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 8, offset: const Offset(0, 3))],
             ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          title,
-                          style: AppTextStyles.headingMedium(color: scheme.onSurface).copyWith(fontSize: 14),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+            child: Icon(icon, size: 18, color: Colors.white),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: AppTextStyles.headingMedium(color: scheme.onSurface).copyWith(fontSize: 14),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ],
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 1),
-                    Text(
-                      subtitle!,
-                      style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 1),
+                  Text(
+                    subtitle!,
+                    style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

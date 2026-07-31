@@ -73,8 +73,9 @@ class IsgProvider extends ChangeNotifier {
   }
 
   /// Yeni bildirim gönderir. Başarılıysa true döner ve listeyi tazeler.
+  /// "Bildiren kişi" burada YOK — backend bunu giriş yapmış kullanıcının
+  /// token'ından otomatik doldurur (bkz. ApiService.submitIsgReport).
   Future<bool> submitReport({
-    required int reportedByUserId,
     required String description,
     required IsgCategory category,
     required double lat,
@@ -88,7 +89,6 @@ class IsgProvider extends ChangeNotifier {
 
     try {
       await _apiService.submitIsgReport(
-        reportedByUserId: reportedByUserId,
         description: description,
         category: category,
         lat: lat,

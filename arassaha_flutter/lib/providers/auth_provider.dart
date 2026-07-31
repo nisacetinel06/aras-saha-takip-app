@@ -37,6 +37,12 @@ class AuthProvider extends ChangeNotifier {
   /// İş emri oluşturma/atama yetkisi — dispeçer ve yönetici.
   bool get canCreateWorkOrders => isDispecer || isYonetici;
 
+  /// İş emri durum güncelleme yetkisi — yalnızca teknisyen ve dispeçer.
+  /// Yönetici sahada çalışmadığı için durumu bizzat değiştiremez, yalnızca
+  /// takip eder (bkz. WorkOrderDetailScreen "Durum Güncelle" bölümü ve
+  /// backend PATCH /api/workorders/:id/status — requireRole ile aynı kural).
+  bool get canUpdateWorkOrderStatus => isTeknisyen || isDispecer;
+
   /// Kullanıcının rolünün Türkçe, ekranda gösterilebilir hâli — AppBar'daki
   /// rol rozeti, Ana Sayfa karşılaması ve Profil ekranı bunu kullanır.
   String get roleLabel => _currentUser != null ? role_helper.roleLabel(_currentUser!.role) : '';

@@ -66,6 +66,13 @@ dependencies:
   mobile_scanner: ^7.4.0
   geolocator: ^14.0.2
 
+  # Bildirim Sistemi (Modül 6) — cihazda GERÇEK bir OS bildirimi göstermek için.
+  # Bir staj projesi kapsamında Firebase Cloud Messaging (proje açma, sunucu
+  # anahtarı, native push kurulumu) gereksiz karmaşıklık katardığından, bunun
+  # yerine backend'in periyodik olarak (polling) yoklanmasıyla tetiklenen
+  # YEREL bir bildirim yaklaşımı kullanılıyor (bkz. services/local_notification_service.dart).
+  flutter_local_notifications: ^22.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

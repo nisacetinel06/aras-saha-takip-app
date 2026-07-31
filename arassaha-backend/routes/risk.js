@@ -16,6 +16,7 @@
 const express = require('express');
 const db = require('../database');
 const { requireRole } = require('../middleware/auth');
+const { createNotification } = require('../utils/notify');
 
 const router = express.Router();
 
@@ -44,11 +45,30 @@ function countPastFaults(equipmentId) {
 }
 
 // avg_load_factor için gerçek telemetri/SCADA verisi yok (bu bir staj
-// prototipi, bkz. ARCHITECTURE.md Bölüm 10); gerçekçi bir aralıkta (0.5-1.1)
-// rastgele üretilir. Gerçek üretimde bu, sayaç/SCADA verisinden hesaplanmış
-// gerçek bir ortalama yük faktörü olurdu.
-function randomLoadFactor() {
-  return Math.round((0.5 + Math.random() * 0.6) * 1000) / 1000;
+// prototipi, bkz. ARCHITECTURE.md Bölüm 10). ÖNCEDEN her hesaplamada
+// Math.random() ile üretiliyordu — bu, hiçbir gerçek durum değişmese bile
+// aynı ekipmanın skorunun her yeniden hesaplamada rastgele oynamasına ve
+// eşiğe yakın ekipmanların "yüksek" seviyeye anlamsızca girip çıkmasına
+// (dolayısıyla gereksiz/yanıltıcı tekrar bildirimlere) yol açıyordu.
+//
+// Bunun yerine ekipman TİPİNE göre SABİT, deterministik bir tipik yük
+// faktörü kullanılır (elektrik mühendisliği açısından makul bir varsayım:
+// trafo ve kesici sürekli daha yüksek elektriksel yük altında çalışır,
+// direk/sayaç görece daha az yüklüdür — bkz. arassaha-ml/generate_training_data.py
+// TYPE_BASE_RISK ile aynı mantık). Aynı ekipman için her hesaplamada TAM
+// OLARAK aynı değeri döner; skordaki tek gerçek değişken artık gerçekten
+// değişen veriler (yaş, son bakımdan geçen süre, geçmiş arıza sayısı) olur.
+// Gerçek üretimde bu, sayaç/SCADA verisinden hesaplanmış gerçek bir ortalama
+// yük faktörüyle değiştirilir; model/servis mimarisinde değişiklik gerekmez.
+const TYPICAL_LOAD_FACTOR = {
+  trafo: 0.75,
+  kesici: 0.7,
+  direk: 0.6,
+  sayac: 0.55,
+};
+
+function typicalLoadFactor(equipmentType) {
+  return TYPICAL_LOAD_FACTOR[equipmentType] ?? 0.65;
 }
 
 function buildFeatures(equipment) {
@@ -58,7 +78,7 @@ function buildFeatures(equipment) {
       Math.round(calculateMonthsSinceMaintenance(equipment.last_maintenance_date, equipment.install_date) * 10) / 10,
     past_fault_count: countPastFaults(equipment.id),
     equipment_type: equipment.equipment_type,
-    avg_load_factor: randomLoadFactor(),
+    avg_load_factor: typicalLoadFactor(equipment.equipment_type),
   };
 }
 
@@ -86,10 +106,31 @@ const upsertRiskScore = db.prepare(`
     computed_at = excluded.computed_at
 `);
 
+// Bildirim Sistemi (Modül 6) — bir ekipmanın riski İLK KEZ 'yuksek' seviyeye
+// geçtiğinde tüm yöneticilere bildirim gönderir. "İlk kez" şartı (eski değer
+// zaten 'yuksek' değilse) kasıtlıdır: aksi halde her yeniden hesaplamada
+// (örn. günlük otomatik refresh) aynı ekipman için tekrar tekrar bildirim
+// gider ve bildirim listesi anlamsızca şişer.
+function notifyManagersIfRiskBecameHigh(equipment, oldRiskLevel, newRiskLevel) {
+  if (oldRiskLevel === 'yuksek' || newRiskLevel !== 'yuksek') return;
+
+  const managers = db.prepare("SELECT id FROM users WHERE role = 'yonetici' AND is_active = 1").all();
+  for (const manager of managers) {
+    createNotification(
+      manager.id,
+      `${equipment.qr_code} (${equipment.location_name}) için arıza riski YÜKSEK seviyeye çıktı`,
+      'equipment',
+      equipment.id
+    );
+  }
+}
+
 async function computeAndSaveRisk(equipment) {
   const features = buildFeatures(equipment);
   const prediction = await callMlService(features);
   const computed_at = new Date().toISOString();
+
+  const previous = db.prepare('SELECT risk_level FROM equipment_risk_scores WHERE equipment_id = ?').get(equipment.id);
 
   upsertRiskScore.run({
     equipment_id: equipment.id,
@@ -97,6 +138,8 @@ async function computeAndSaveRisk(equipment) {
     risk_level: prediction.risk_level,
     computed_at,
   });
+
+  notifyManagersIfRiskBecameHigh(equipment, previous?.risk_level, prediction.risk_level);
 
   return { equipment_id: equipment.id, risk_score: prediction.risk_score, risk_level: prediction.risk_level, computed_at };
 }

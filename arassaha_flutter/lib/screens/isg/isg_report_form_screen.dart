@@ -4,10 +4,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../models/isg_report.dart';
-import '../../models/work_order.dart' show AssignedUser;
 import '../../providers/isg_provider.dart';
 import '../../providers/theme_provider.dart';
-import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
@@ -38,36 +36,10 @@ class _IsgReportFormScreenState extends State<IsgReportFormScreen> {
   bool _locationPermanentlyDenied = false;
   bool _locationServiceDisabled = false;
 
-  List<AssignedUser> _personnel = [];
-  AssignedUser? _selectedReporter;
-  bool _isLoadingPersonnel = true;
-  String? _personnelError;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadPersonnel();
-  }
-
   @override
   void dispose() {
     _descriptionController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadPersonnel() async {
-    setState(() {
-      _isLoadingPersonnel = true;
-      _personnelError = null;
-    });
-    try {
-      final users = await ApiService().getUsers();
-      setState(() => _personnel = users);
-    } catch (e) {
-      setState(() => _personnelError = e.toString());
-    } finally {
-      setState(() => _isLoadingPersonnel = false);
-    }
   }
 
   Future<void> _pickPhoto(ImageSource source) async {
@@ -157,7 +129,6 @@ class _IsgReportFormScreenState extends State<IsgReportFormScreen> {
   bool get _canSubmit =>
       _selectedCategory != null &&
       _descriptionController.text.trim().isNotEmpty &&
-      _selectedReporter != null &&
       _photoFile != null &&
       _lat != null &&
       _lng != null;
@@ -170,7 +141,6 @@ class _IsgReportFormScreenState extends State<IsgReportFormScreen> {
     final navigator = Navigator.of(context);
 
     final success = await provider.submitReport(
-      reportedByUserId: _selectedReporter!.id,
       description: _descriptionController.text.trim(),
       category: _selectedCategory!,
       lat: _lat!,
@@ -260,11 +230,6 @@ class _IsgReportFormScreenState extends State<IsgReportFormScreen> {
           ),
           const SizedBox(height: AppSpacing.lg),
 
-          Text('Bildiren Personel', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: AppSpacing.sm),
-          _buildPersonnelField(scheme),
-          const SizedBox(height: AppSpacing.lg),
-
           Text('Fotoğraf', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: AppSpacing.sm),
           _buildPhotoField(scheme),
@@ -286,36 +251,6 @@ class _IsgReportFormScreenState extends State<IsgReportFormScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildPersonnelField(ColorScheme scheme) {
-    if (_isLoadingPersonnel) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
-        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      );
-    }
-
-    if (_personnelError != null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(_personnelError!, style: TextStyle(color: scheme.error, fontSize: 13)),
-          const SizedBox(height: AppSpacing.sm),
-          AppButton(label: 'Tekrar Dene', variant: AppButtonVariant.secondary, onPressed: _loadPersonnel),
-        ],
-      );
-    }
-
-    return DropdownButtonFormField<AssignedUser>(
-      initialValue: _selectedReporter,
-      isExpanded: true,
-      decoration: const InputDecoration(hintText: 'Personel seçin', isDense: true),
-      items: _personnel
-          .map((user) => DropdownMenuItem(value: user, child: Text('${user.name} · ${user.role}')))
-          .toList(),
-      onChanged: (user) => setState(() => _selectedReporter = user),
     );
   }
 

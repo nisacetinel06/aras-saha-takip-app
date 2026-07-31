@@ -111,6 +111,11 @@ function monthsAgoIsoDate(months) {
 // user_action_logs, users tablosuna FK ile bağlı (Modül 8 devamı — bkz.
 // database.js) — users'ı silmeden ÖNCE bu tablo temizlenmeli, aksi halde
 // FOREIGN KEY constraint failed hatası alınır.
+// notifications, work_orders/isg_reports/users'a FK ile bağlı (Modül 6 — bkz.
+// database.js) — bu kayıtlar silinip yeniden oluşturulunca (yeni id'lerle)
+// eski bildirim satırları YANLIŞ/var olmayan kayıtlara işaret eder hale
+// gelir; bu yüzden diğerleriyle birlikte temizlenir.
+db.exec('DELETE FROM notifications');
 db.exec('DELETE FROM user_action_logs');
 db.exec('DELETE FROM device_action_logs');
 db.exec('DELETE FROM managed_devices');
@@ -121,7 +126,7 @@ db.exec('DELETE FROM equipment');
 db.exec('DELETE FROM isg_reports');
 db.exec('DELETE FROM users');
 db.exec(
-  "DELETE FROM sqlite_sequence WHERE name IN ('work_orders', 'work_order_photos', 'users', 'managed_devices', 'device_action_logs', 'equipment', 'isg_reports', 'equipment_risk_scores', 'user_action_logs')"
+  "DELETE FROM sqlite_sequence WHERE name IN ('work_orders', 'work_order_photos', 'users', 'managed_devices', 'device_action_logs', 'equipment', 'isg_reports', 'equipment_risk_scores', 'user_action_logs', 'notifications')"
 );
 
 const insertUser = db.prepare(`

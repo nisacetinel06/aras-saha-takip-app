@@ -13,6 +13,12 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Bildirim Sistemi (Modül 6): flutter_local_notifications kendi Android
+        // tarafında core library desugaring gerektiriyor (java.time API kullanımı) —
+        // bu, kullanan uygulama modülünde de AÇIKÇA etkinleştirilmek zorunda,
+        // aksi halde Gradle "requires core library desugaring to be enabled" hatasıyla
+        // derlemeyi durdurur.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -41,4 +47,10 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // flutter_local_notifications'ın gerektirdiği core library desugaring
+    // (isCoreLibraryDesugaringEnabled = true, yukarıda) için gerekli kütüphane.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

@@ -1,4 +1,4 @@
-# ArasSaha ML Servisi — Arıza Risk Tahmini (Modül 9)
+# ArasSaha ML Servisi — Arıza Risk Tahmini (Modül 9) + Arıza Açıklaması Otomatik Sınıflandırma (Modül 10)
 
 Bu klasör, Node.js/Express backend'inden HTTP ile çağrılan bağımsız bir
 Python (FastAPI) servisidir. `arassaha-backend`'e hiçbir şekilde import
@@ -53,7 +53,29 @@ uvicorn app:app --reload --port 8000
 ```
 
 - `GET /health` — servis ve model yüklü mü kontrolü
-- `POST /predict` — tek bir ekipman için risk skoru
+- `POST /predict` — tek bir ekipman için risk skoru (Modül 9)
+- `POST /classify-text` — bir arıza açıklama metni için arıza tipi/öncelik önerisi (Modül 10)
 
 Node.js backend'i bu servise `ML_SERVICE_URL` ortam değişkeniyle
-(varsayılan `http://localhost:8000`) bağlanır (bkz. `arassaha-backend/routes/risk.js`).
+(varsayılan `http://localhost:8000`) bağlanır (bkz. `arassaha-backend/routes/risk.js`
+ve `arassaha-backend/routes/nlp.js`).
+
+## Modül 10 — Arıza Açıklaması Otomatik Sınıflandırma
+
+```bash
+python generate_text_training_data.py   # text_training_data.csv oluşturur
+python train_text_model.py              # models/tfidf_vectorizer.pkl, text_type_model.pkl, text_priority_model.pkl, text_model_metadata.json oluşturur
+```
+
+**İki farklı ML yaklaşımı, tek serviste:** Modül 9, SAYISAL/tablosal ekipman
+verisinden (yaş, bakım süresi, geçmiş arıza sayısı vb.) `RandomForestClassifier`
+ile risk skoru üretir. Modül 10 ise BİLİNÇLİ olarak farklı bir teknikle
+çalışır: serbest METİN arıza açıklamasını `TfidfVectorizer` ile sayısal bir
+vektöre çevirip iki ayrı `LogisticRegression` modeliyle (biri arıza tipi,
+biri öncelik için) sınıflandırır. İki teknik de aynı `arassaha-ml` FastAPI
+servisinde, tek bir `uvicorn` process'inde birlikte çalışır — ayrı bir servis
+kurulmadı. Aynı dürüstlük ilkesi burada da geçerlidir: eğitim verisi
+(`text_training_data.csv`) gerçek şirket arıza kayıtları değil, şablon tabanlı
+üretilmiş sentetik Türkçe metinlerdir (bkz. `generate_text_training_data.py`);
+gerçek üretim ortamında model, ArasSaha'nın gerçek arıza açıklama
+metinleriyle yeniden eğitilir.

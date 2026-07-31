@@ -5,6 +5,7 @@ const express = require('express');
 const multer = require('multer');
 const db = require('../database');
 const { requireRole } = require('../middleware/auth');
+const { createNotification } = require('../utils/notify');
 
 const router = express.Router();
 
@@ -194,6 +195,15 @@ router.post('/', requireRole('dispecer', 'yonetici'), (req, res) => {
       });
 
     const created = db.prepare(`${SELECT_WORK_ORDER_WITH_USER} WHERE wo.id = ?`).get(info.lastInsertRowid);
+
+    // Bildirim Sistemi (Modül 6) — atanan teknisyene yeni iş emrini bildir.
+    createNotification(
+      assignedUserId,
+      `Size yeni bir iş emri atandı: "${title.trim()}"`,
+      'work_order',
+      info.lastInsertRowid
+    );
+
     res.status(201).json(mapWorkOrderRow(created));
   } catch (err) {
     console.error(err);
@@ -272,9 +282,12 @@ router.get('/:id', (req, res) => {
   }
 });
 
-// PATCH /api/workorders/:id/status
+// PATCH /api/workorders/:id/status — yalnızca teknisyen/dispeçer.
 // Body: { "status": "yolda" }
-router.patch('/:id/status', (req, res) => {
+// Yönetici bu işi SAHADA yapmadığı için durumu bizzat değiştiremez; onun
+// rolü yalnızca takip/raporlamadır (Flutter tarafında da bu ekranda "Durum
+// Güncelle" aksiyonu yöneticiye hiç gösterilmez — bkz. work_order_detail_screen.dart).
+router.patch('/:id/status', requireRole('teknisyen', 'dispecer'), (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -349,6 +362,15 @@ router.patch('/:id/assign', requireRole('dispecer', 'yonetici'), (req, res) => {
     );
 
     const updated = db.prepare(`${SELECT_WORK_ORDER_WITH_USER} WHERE wo.id = ?`).get(id);
+
+    // Bildirim Sistemi (Modül 6) — yeniden atanan teknisyene bildir.
+    createNotification(
+      assignedUserId,
+      `Size yeni bir iş emri atandı: "${updated.title}"`,
+      'work_order',
+      id
+    );
+
     res.json(mapWorkOrderRow(updated));
   } catch (err) {
     console.error(err);

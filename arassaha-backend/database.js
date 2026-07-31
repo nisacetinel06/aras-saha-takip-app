@@ -27,7 +27,7 @@ db.exec(`
     role TEXT NOT NULL DEFAULT 'teknisyen',
     sicil_no TEXT UNIQUE,
     password_hash TEXT,
-    supervisor_id INTEGER REFERENCE S users (id),
+    supervisor_id INTEGER REFERENCES users (id),
     photo_path TEXT,
     phone TEXT,
     email TEXT,
@@ -164,6 +164,27 @@ db.exec(`
     risk_level TEXT NOT NULL,
     computed_at TEXT NOT NULL,
     FOREIGN KEY (equipment_id) REFERENCES equipment (id)
+  );
+
+  -- Bildirim Sistemi (Modül 6) — bkz. utils/notify.js ve routes/notifications.js.
+  -- Gerçek bir push (FCM vb.) altyapısı KURULMADI: bu tablo, Flutter tarafının
+  -- periyodik olarak (30 sn) yokladığı (polling) GET /api/notifications/unread-count
+  -- ile okunur ve artış tespit edilirse cihazda flutter_local_notifications ile
+  -- gerçek bir OS bildirimi gösterilir (bkz. lib/services/local_notification_service.dart).
+  -- Bir staj projesi için FCM'in gerektirdiği sunucu anahtarı/proje kurulumu
+  -- gereksiz karmaşıklık katar; polling + yerel bildirim aynı kullanıcı deneyimini
+  -- (cihazın bildirim çubuğunda gerçek bir bildirim) çok daha basit bir altyapıyla verir.
+  -- related_type: 'work_order' | 'isg_report' | 'equipment' — related_id bu tabloya
+  -- göre yorumlanır (uygulama tarafında ilgili detay ekranına yönlendirme için).
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    related_type TEXT NOT NULL,
+    related_id INTEGER NOT NULL,
+    is_read INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id)
   );
 `);
 

@@ -369,9 +369,22 @@ class _StatusUpdateSection extends StatelessWidget {
     final nextStatus = workOrder.status.nextStatus;
     final scheme = Theme.of(context).colorScheme;
 
+    // Yönetici sahada çalışmadığı için durumu bizzat değiştiremez, yalnızca
+    // takip eder — bu yüzden ona aksiyon butonu değil, sadece bilgilendirme
+    // metni gösterilir (backend de aynı kuralı PATCH /:id/status'ta
+    // requireRole ile zorunlu kılıyor, bkz. AuthProvider.canUpdateWorkOrderStatus).
+    final canUpdate = context.watch<AuthProvider>().canUpdateWorkOrderStatus;
+
     if (nextStatus == null) {
       return Text(
         'Bu iş emri çözülmüş durumda, daha ileri bir aşama yok.',
+        style: TextStyle(color: scheme.onSurfaceVariant),
+      );
+    }
+
+    if (!canUpdate) {
+      return Text(
+        'Mevcut durum: ${workOrder.status.label}',
         style: TextStyle(color: scheme.onSurfaceVariant),
       );
     }

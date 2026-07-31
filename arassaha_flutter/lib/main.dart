@@ -7,12 +7,14 @@ import 'providers/device_provider.dart';
 import 'providers/equipment_provider.dart';
 import 'providers/isg_provider.dart';
 import 'providers/map_provider.dart';
+import 'providers/notification_provider.dart';
 import 'providers/risk_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/user_provider.dart';
 import 'providers/work_order_list_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/main_shell.dart';
+import 'services/local_notification_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/app_logo.dart';
 
@@ -24,6 +26,11 @@ Future<void> main() async {
 
   final themeProvider = ThemeProvider();
   await themeProvider.load();
+
+  // Bildirim Sistemi (Modül 6): kanal/eklenti kurulumu uygulama açılışında
+  // bir kez yapılır — MainShell her sekme değişiminde yeniden inşa edildiği
+  // için bu adımın orada tekrarlanması gereksizdir.
+  await LocalNotificationService.instance.initialize();
 
   runApp(ArasSahaApp(themeProvider: themeProvider));
 }
@@ -56,6 +63,7 @@ class _ArasSahaAppState extends State<ArasSahaApp> {
         ChangeNotifierProvider(create: (_) => RiskProvider()),
         ChangeNotifierProvider(create: (_) => IsgProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider.value(value: widget.themeProvider),
       ],
       child: Consumer<ThemeProvider>(

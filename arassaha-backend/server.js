@@ -23,6 +23,8 @@ const devicesRouter = require('./routes/devices');
 const equipmentRouter = require('./routes/equipment');
 const riskRouter = require('./routes/risk');
 const isgRouter = require('./routes/isg');
+const notificationsRouter = require('./routes/notifications');
+const nlpRouter = require('./routes/nlp');
 const authRouter = require('./routes/auth');
 const { verifyToken } = require('./middleware/auth');
 
@@ -57,6 +59,10 @@ app.use('/api/equipment', verifyToken, equipmentRouter);
 // tanımlar (bkz. routes/risk.js); bu yüzden '/api' kökünde mount edilir.
 app.use('/api', verifyToken, riskRouter);
 app.use('/api/isg-reports', verifyToken, isgRouter);
+app.use('/api/notifications', verifyToken, notificationsRouter);
+// nlpRouter da riskRouter gibi '/api/ml/...' altında tam yol tanımlar
+// (bkz. routes/nlp.js) — bu yüzden '/api' kökünde mount edilir.
+app.use('/api', verifyToken, nlpRouter);
 
 app.get('/', (req, res) => {
   res.json({ message: 'ArasSaha backend çalışıyor.' });

@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
+import '../models/app_notification.dart';
 import '../models/app_user.dart';
 import '../models/dashboard_summary.dart';
+import '../models/description_classification.dart';
 import '../models/equipment.dart';
 import '../models/equipment_risk.dart';
 import '../models/isg_report.dart';
@@ -27,7 +29,10 @@ class ApiService {
   // - Android emulator:      http://10.0.2.2:3000/api
   // - Gerçek cihaz + USB kablo: http://localhost:3000/api (+ adb reverse tcp:3000 tcp:3000)
   // - Gerçek cihaz + aynı WiFi ağı: http://<bilgisayarın-yerel-IP'si>:3000/api
-  static const String host = 'https://arassaha-backend-production.up.railway.app';
+  // GEÇİCİ: Modül 6 (Bildirim Sistemi) yerel test için Railway yerine yerel
+  // backend'e yönlendirildi — Railway'de henüz bu modülün kodu yok. Test
+  // bitince yukarıdaki Railway URL'sine geri alınmalı.
+  static const String host = 'http://localhost:3000';
   static const String baseUrl = '$host/api';
 
   /// `work_order_photos.photo_path` backend'den `/uploads/...` şeklinde göreli
@@ -901,8 +906,12 @@ class ApiService {
   /// yüklenir (multipart/form-data); `lat`/`lng` cihazın gerçek GPS
   /// konumundan (geolocator) okunmuş olmalıdır — bu metod bunu zorunlu kılar
   /// ama gerçekliğini doğrulayamaz, o sorumluluk çağıran tarafındadır.
+  ///
+  /// NOT: "bildiren kişi" burada GÖNDERİLMEZ — backend bunu Authorization
+  /// header'ındaki token'dan (req.user.id) otomatik doldurur (bkz. routes/isg.js).
+  /// Zaten giriş yapmış kullanıcı bildirimi yaptığı için tekrar isim seçtirmeye
+  /// gerek yoktur (Modül 6 ile birlikte kaldırıldı, bkz. isg_report_form_screen.dart).
   Future<IsgReport> submitIsgReport({
-    required int reportedByUserId,
     required String description,
     required IsgCategory category,
     required double lat,
@@ -922,7 +931,6 @@ class ApiService {
 
       final request = http.MultipartRequest('POST', uri)
         ..headers.addAll(_headers())
-        ..fields['reported_by_user_id'] = '$reportedByUserId'
         ..fields['description'] = description
         ..fields['category'] = category.toJson()
         ..fields['lat'] = '$lat'
@@ -970,6 +978,108 @@ class ApiService {
       }
 
       return IsgReport.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  // --- Bildirim Sistemi — Modül 6 ---
+  // Gerçek bir push (FCM) altyapısı YOK: bu metodlar NotificationProvider
+  // tarafından hem periyodik yoklama (unread-count, her 30 sn) hem de
+  // Bildirimler ekranının tam listesi için kullanılır (bkz. ARCHITECTURE.md).
+
+  Future<List<AppNotification>> getNotifications({bool unreadOnly = false}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/notifications').replace(
+        queryParameters: unreadOnly ? {'unread_only': 'true'} : null,
+      );
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Bildirimler alınamadı.'));
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => AppNotification.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// Polling için hafif bir çağrı — tam listeyi çekmez, yalnızca sayıyı döner.
+  Future<int> getUnreadNotificationCount() async {
+    try {
+      final uri = Uri.parse('$baseUrl/notifications/unread-count');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Okunmamış bildirim sayısı alınamadı.'));
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['count'] as int;
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  Future<AppNotification> markNotificationRead(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/notifications/$id/read');
+      final response = await _patch(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Bildirim okundu olarak işaretlenemedi.'));
+      }
+
+      return AppNotification.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    try {
+      final uri = Uri.parse('$baseUrl/notifications/mark-all-read');
+      final response = await _patch(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Bildirimler okundu olarak işaretlenemedi.'));
+      }
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  // --- Arıza Açıklaması Otomatik Sınıflandırma — Modül 10 ---
+  // Bu, Node üzerinden Python (TF-IDF + LogisticRegression) ML servisine giden
+  // bir PROXY çağrısıdır — Modül 9'daki risk skoru çağrılarıyla aynı desen.
+
+  /// "Yeni İş Emri Oluştur" formundaki açıklama metninden arıza tipi/öncelik
+  /// önerisi ister (bkz. CreateWorkOrderScreen debounce mantığı). ML servisi
+  /// kapalıysa ya da metin çok kısaysa/güven düşükse backend zaten
+  /// `suggested_type: null` döner — bu durumda çağıran taraf öneri kutusunu
+  /// hiç göstermemelidir (bkz. DescriptionClassification.hasSuggestion).
+  Future<DescriptionClassification> classifyDescription(String description) async {
+    try {
+      final uri = Uri.parse('$baseUrl/ml/classify-description');
+      final response = await _post(uri, body: jsonEncode({'description': description}));
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Açıklama sınıflandırılamadı.'));
+      }
+
+      return DescriptionClassification.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
     } catch (e) {
