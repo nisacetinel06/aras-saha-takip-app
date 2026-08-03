@@ -42,10 +42,17 @@ db.exec(`
   -- özellikleri (feature) doğrudan bu alanlardan türetecektir — bugün sadece
   -- envanter görüntüleme için kullanılıyor olsalar da şema bu yüzden bu
   -- şekilde tasarlandı.
+  -- il/ilce/mahalle: konumun YAPISAL/gerçek kaynağı (bkz. utils/location.js).
+  -- location_name bu üçünün formatLocationName() ile üretilmiş, geriye dönük
+  -- uyumluluk için hâlâ tutulan insan-okunabilir birleşimidir — elle ayrıca
+  -- girilmez, her zaman il/ilce/mahalle yazılırken aynı fonksiyonla türetilir.
   CREATE TABLE IF NOT EXISTS equipment (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     qr_code TEXT NOT NULL UNIQUE,
     equipment_type TEXT NOT NULL,
+    il TEXT,
+    ilce TEXT,
+    mahalle TEXT,
     location_name TEXT,
     lat REAL,
     lng REAL,
@@ -57,12 +64,22 @@ db.exec(`
     created_at TEXT NOT NULL
   );
 
+  -- il/ilce/mahalle/location_name: bir iş emri OLUŞTURULDUĞU ANDA bağlı
+  -- olduğu equipment kaydından KOPYALANIR (bkz. routes/workOrders.js POST /) —
+  -- iş emrinin kendi konumu asla elle girilmez/değiştirilemez. Bu alanların
+  -- ekipmandan AYRICA bir kopyası olarak (ekipmana canlı bir JOIN yerine)
+  -- saklanması bilinçlidir: ekipmanın konumu ileride değişse bile, bu iş
+  -- emrinin AÇILDIĞI ANDAKİ konum sabit kalır — geçmişe dönük raporlama
+  -- için doğru olan budur.
   CREATE TABLE IF NOT EXISTS work_orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     description TEXT,
     status TEXT NOT NULL DEFAULT 'acik',
     priority TEXT NOT NULL DEFAULT 'normal',
+    il TEXT,
+    ilce TEXT,
+    mahalle TEXT,
     location_name TEXT,
     lat REAL,
     lng REAL,
@@ -166,6 +183,38 @@ db.exec(`
     FOREIGN KEY (equipment_id) REFERENCES equipment (id)
   );
 
+  -- Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) — bkz. routes/anomaly.js
+  -- ve arassaha-ml/. Her sayaç (equipment_type='sayac') ekipmanının son 12
+  -- aylık HAM aylık tüketim geçmişini tutar; diğer ekipman tipleri için
+  -- anlamsızdır. Bu veri, gerçek bir AMI/akıllı sayaç okuma sistemi elimizde
+  -- olmadığı için SENTETİK olarak arassaha-ml/generate_consumption_data.py
+  -- tarafından üretilip hem bu tabloya hem de model eğitimi için
+  -- consumption_training_data.csv'ye yazılır (bkz. arassaha-ml/README.md
+  -- Modül 11 "Dürüstlük Notu").
+  CREATE TABLE IF NOT EXISTS meter_consumption (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    equipment_id INTEGER NOT NULL,
+    year_month TEXT NOT NULL,
+    consumption_kwh REAL NOT NULL,
+    FOREIGN KEY (equipment_id) REFERENCES equipment (id)
+  );
+
+  -- equipment_risk_scores (Modül 9) ile AYNI desen: her sayacın EN GÜNCEL
+  -- anomali skorunu tutar (equipment_id UNIQUE'tir, yeni bir hesaplama geçmiş
+  -- kaydı biriktirmez). Skoru üreten IsolationForest modeli kara kutu olduğu
+  -- için detected_reason, tahmin anında (routes/anomaly.js) hesaplanan kural
+  -- tabanlı, insan tarafından okunabilir bir açıklama taşır — "neden şüpheli"
+  -- sorusuna somut bir yanıt vermek için.
+  CREATE TABLE IF NOT EXISTS meter_anomaly_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    equipment_id INTEGER NOT NULL UNIQUE,
+    anomaly_score INTEGER NOT NULL,
+    is_suspicious INTEGER NOT NULL,
+    detected_reason TEXT,
+    computed_at TEXT NOT NULL,
+    FOREIGN KEY (equipment_id) REFERENCES equipment (id)
+  );
+
   -- Bildirim Sistemi (Modül 6) — bkz. utils/notify.js ve routes/notifications.js.
   -- Gerçek bir push (FCM vb.) altyapısı KURULMADI: bu tablo, Flutter tarafının
   -- periyodik olarak (30 sn) yokladığı (polling) GET /api/notifications/unread-count
@@ -217,6 +266,25 @@ const userColumnAdditions = {
 for (const [column, type] of Object.entries(userColumnAdditions)) {
   if (!userColumns.some((col) => col.name === column)) {
     db.exec(`ALTER TABLE users ADD COLUMN ${column} ${type}`);
+  }
+}
+
+// Migrasyon: Konum Tutarlılığı (il/ilçe/mahalle yapısal alanları) — hem
+// equipment hem work_orders için sonradan eklendi (bkz. utils/location.js).
+// Eskiden bu tablolarda yalnızca serbest metin location_name vardı.
+const equipmentColumns = db.prepare('PRAGMA table_info(equipment)').all();
+const equipmentColumnAdditions = { il: 'TEXT', ilce: 'TEXT', mahalle: 'TEXT' };
+for (const [column, type] of Object.entries(equipmentColumnAdditions)) {
+  if (!equipmentColumns.some((col) => col.name === column)) {
+    db.exec(`ALTER TABLE equipment ADD COLUMN ${column} ${type}`);
+  }
+}
+
+const workOrderColumns = db.prepare('PRAGMA table_info(work_orders)').all();
+const workOrderColumnAdditions = { il: 'TEXT', ilce: 'TEXT', mahalle: 'TEXT' };
+for (const [column, type] of Object.entries(workOrderColumnAdditions)) {
+  if (!workOrderColumns.some((col) => col.name === column)) {
+    db.exec(`ALTER TABLE work_orders ADD COLUMN ${column} ${type}`);
   }
 }
 

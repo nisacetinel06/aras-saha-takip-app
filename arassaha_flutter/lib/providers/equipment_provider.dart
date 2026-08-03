@@ -14,6 +14,7 @@ class EquipmentProvider extends ChangeNotifier {
   String? _listErrorMessage;
   EquipmentType? _typeFilter;
   EquipmentStatus? _statusFilter;
+  String? _ilFilter;
 
   Equipment? _selectedEquipment;
   bool _isDetailLoading = false;
@@ -26,11 +27,24 @@ class EquipmentProvider extends ChangeNotifier {
   bool _isQrLookupLoading = false;
   String? _qrLookupErrorMessage;
 
+  // Ekipman Seçici (EquipmentPickerField — bkz. Yeni İş Emri Oluştur formu)
+  // için AYRI bir state seti: Ekipman Listesi ekranının filtrelenmiş
+  // `_equipmentList`'ini ARAMA sonuçlarıyla ezmemek için bilinçli olarak
+  // ayrı tutulur — ikisi aynı anda, birbirinden bağımsız açık olabilir.
+  List<Equipment> _searchResults = [];
+  bool _isSearching = false;
+  String? _searchErrorMessage;
+
   List<Equipment> get equipmentList => _equipmentList;
   bool get isListLoading => _isListLoading;
   String? get listErrorMessage => _listErrorMessage;
   EquipmentType? get typeFilter => _typeFilter;
   EquipmentStatus? get statusFilter => _statusFilter;
+  String? get ilFilter => _ilFilter;
+
+  List<Equipment> get searchResults => _searchResults;
+  bool get isSearching => _isSearching;
+  String? get searchErrorMessage => _searchErrorMessage;
 
   Equipment? get selectedEquipment => _selectedEquipment;
   bool get isDetailLoading => _isDetailLoading;
@@ -52,6 +66,7 @@ class EquipmentProvider extends ChangeNotifier {
       _equipmentList = await _apiService.getEquipmentList(
         typeFilter: _typeFilter?.name,
         statusFilter: _statusFilter?.apiValue,
+        ilFilter: _ilFilter,
       );
     } catch (e) {
       _listErrorMessage = e.toString();
@@ -69,6 +84,36 @@ class EquipmentProvider extends ChangeNotifier {
   Future<void> setStatusFilter(EquipmentStatus? status) async {
     _statusFilter = status;
     await fetchEquipmentList();
+  }
+
+  Future<void> setIlFilter(String? il) async {
+    _ilFilter = il;
+    await fetchEquipmentList();
+  }
+
+  /// EquipmentPickerField tarafından, kullanıcı yazmayı bıraktıktan ~400ms
+  /// sonra (debounce widget içinde bir Timer ile yönetilir) çağrılır — bu
+  /// metod yalnızca API çağrısını yapar, debounce mantığını taşımaz.
+  Future<void> searchEquipment(String query) async {
+    _isSearching = true;
+    _searchErrorMessage = null;
+    notifyListeners();
+
+    try {
+      _searchResults = await _apiService.getEquipmentList(search: query);
+    } catch (e) {
+      _searchErrorMessage = e.toString();
+    } finally {
+      _isSearching = false;
+      notifyListeners();
+    }
+  }
+
+  void clearSearch() {
+    _searchResults = [];
+    _isSearching = false;
+    _searchErrorMessage = null;
+    notifyListeners();
   }
 
   /// QR tarama ya da manuel kod girişi sonrası çağrılır. Başarılıysa

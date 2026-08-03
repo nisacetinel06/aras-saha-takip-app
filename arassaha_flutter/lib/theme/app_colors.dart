@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/equipment.dart';
 import '../models/work_order.dart';
 
 /// Uygulamanın tek renk kaynağı. Tüm ekranlar (liste, detay, harita pin'i,
@@ -123,3 +124,19 @@ Color roleColor(BuildContext context, String role) {
 /// Rol rengi zemininin üzerine gelecek metin/ikon rengi — üç rol rengi de
 /// yeterince koyu/doygun olduğu için her zaman beyaz.
 Color onRoleColor(BuildContext context, String role) => Colors.white;
+
+/// Ekipman durumu rengi: aktif=success, bakımda=warning, devreDışı=textSecondary.
+/// Önceden equipment_list_screen.dart ve equipment_detail_screen.dart bu eşlemeyi
+/// birbirinden bağımsız olarak kopyalıyordu (equipment_picker_field.dart bunu
+/// bir ÜÇÜNCÜ yerde tekrarlayacaktı) — statusColor/priorityColor ile AYNI
+/// "tek gerçek kaynak" ilkesiyle buraya taşındı.
+Color equipmentStatusColor(BuildContext context, EquipmentStatus status) {
+  switch (status) {
+    case EquipmentStatus.aktif:
+      return AppColors.success(context);
+    case EquipmentStatus.bakimda:
+      return AppColors.warning(context);
+    case EquipmentStatus.devreDisi:
+      return AppColors.textSecondary(context);
+  }
+}

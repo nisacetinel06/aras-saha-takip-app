@@ -123,6 +123,14 @@ class Equipment {
   final int id;
   final String qrCode;
   final EquipmentType equipmentType;
+  // Konum Tutarlılığı — il/ilce/mahalle YAPISAL alanlardır (bkz. backend
+  // utils/location.js); locationName bunların insan-okunabilir birleşimidir
+  // ve backend'de her zaman bu üçünden türetilir. "Yeni İş Emri Oluştur"
+  // formundaki salt okunur Konum Bilgisi kartı bu yapısal alanları ayrı ayrı
+  // gösterir (bkz. widgets/equipment_picker_field.dart).
+  final String il;
+  final String ilce;
+  final String mahalle;
   final String locationName;
   final double lat;
   final double lng;
@@ -143,6 +151,9 @@ class Equipment {
     required this.id,
     required this.qrCode,
     required this.equipmentType,
+    required this.il,
+    required this.ilce,
+    required this.mahalle,
     required this.locationName,
     required this.lat,
     required this.lng,
@@ -161,6 +172,9 @@ class Equipment {
       id: json['id'] as int,
       qrCode: json['qr_code'] as String,
       equipmentType: EquipmentType.fromJson(json['equipment_type'] as String),
+      il: json['il'] as String? ?? '',
+      ilce: json['ilce'] as String? ?? '',
+      mahalle: json['mahalle'] as String? ?? '',
       locationName: json['location_name'] as String? ?? '',
       lat: (json['lat'] as num?)?.toDouble() ?? 0.0,
       lng: (json['lng'] as num?)?.toDouble() ?? 0.0,

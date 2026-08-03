@@ -17,6 +17,7 @@ import '../admin/user_management_list_screen.dart';
 import '../devices/device_list_screen.dart';
 import '../equipment/equipment_home_screen.dart';
 import '../equipment/qr_scanner_screen.dart';
+import '../equipment/suspicious_meters_screen.dart';
 import '../isg/isg_report_list_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../work_order_detail_screen.dart';
@@ -208,6 +209,21 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: roleColor(context, 'yonetici'),
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(builder: (_) => const UserManagementListScreen()),
+                        ),
+                      ),
+                    // Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) — bir
+                    // yönetim raporudur (backend GET /api/meters/suspicious
+                    // giriş yapmış herkese açık olsa da, kaçak/kayıp takibi
+                    // yönetimsel bir sorumluluktur) — Cihaz/Kullanıcı Yönetimi
+                    // ile AYNI RBAC deseniyle yalnızca yöneticiye gösterilir.
+                    if (auth.isYonetici)
+                      _ModuleCard(
+                        icon: Icons.search,
+                        title: 'Şüpheli Sayaçlar',
+                        subtitle: 'Kayıp-kaçak / anomali tespiti',
+                        color: AppColors.danger(context),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const SuspiciousMetersScreen()),
                         ),
                       ),
                     _ModuleCard(

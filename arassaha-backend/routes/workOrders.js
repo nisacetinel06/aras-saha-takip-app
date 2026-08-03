@@ -37,23 +37,33 @@ const upload = multer({
 });
 
 // İş emri satırlarına atanan kullanıcının ad/rol bilgisini ve (varsa) bağlı
-// ekipmanın QR kodunu gömen ortak SELECT. `equipment_id` iş emri Modül 4'e
-// gerçek bir FK ile bağlıdır (bkz. database.js); ekranda gösterilen
-// `equipment_ref` ise bu FK üzerinden JOIN edilen ekipmanın qr_code'udur.
+// ekipmanın QR kodu + tipini gömen ortak SELECT. `equipment_id` iş emri
+// Modül 4'e gerçek bir FK ile bağlıdır (bkz. database.js); ekranda gösterilen
+// `equipment_ref`/`equipment_type` ise bu FK üzerinden JOIN edilen ekipmanın
+// alanlarıdır — iş emri detayından ekipmana giden (Modül 4'ün ekipman
+// detayından iş emrine giden bağlantısının tersi) iki yönlü bağlantı için.
 const SELECT_WORK_ORDER_WITH_USER = `
   SELECT
     wo.*,
     u.id AS assigned_user_id_join,
     u.name AS assigned_user_name,
     u.role AS assigned_user_role,
-    e.qr_code AS equipment_qr_code
+    e.qr_code AS equipment_qr_code,
+    e.equipment_type AS equipment_type_join
   FROM work_orders wo
   LEFT JOIN users u ON u.id = wo.assigned_user_id
   LEFT JOIN equipment e ON e.id = wo.equipment_id
 `;
 
 function mapWorkOrderRow(row) {
-  const { assigned_user_id_join, assigned_user_name, assigned_user_role, equipment_qr_code, ...workOrder } = row;
+  const {
+    assigned_user_id_join,
+    assigned_user_name,
+    assigned_user_role,
+    equipment_qr_code,
+    equipment_type_join,
+    ...workOrder
+  } = row;
   return {
     ...workOrder,
     assigned_user: assigned_user_id_join
@@ -63,6 +73,7 @@ function mapWorkOrderRow(row) {
     // QR kodu göstermek için okur; `equipment_id` ise Ekipman Detayı'na
     // gitmek için ayrıca üstte (workOrder spread'i içinde) yer alır.
     equipment_ref: equipment_qr_code || '',
+    equipment_type: equipment_type_join || null,
   };
 }
 
@@ -122,15 +133,26 @@ router.get('/', (req, res) => {
 
 // POST /api/workorders
 // Yeni iş emri oluşturur (yalnızca dispeçer/yönetici — bkz. requireRole).
-// Body: { title, description, priority, location_name, lat, lng, assigned_user_id, equipment_id? }
+// Body: { title, description, priority, assigned_user_id, equipment_id }
 // Oluşturulan kaydın status'ü her zaman 'acik'tir.
+//
+// KONUM TUTARLILIĞI (bilinçli tasarım kararı): location_name/lat/lng/il/
+// ilce/mahalle artık bu endpoint'e HİÇ parametre olarak alınmaz. Konumun
+// TEK gerçek kaynağı (single source of truth) equipment kaydıdır — iş emri
+// yalnızca equipment_id'yi taşır, konumu HER ZAMAN o kayıttan türetir/kopyalar.
+// İstemciden (Flutter'dan) bir konum değeri gelse bile BİLEREK YOK SAYILIR:
+// aksi halde (1) istemci tarafında bir hata/eski state, iş emrinin ekipmanla
+// tutarsız görünmesine yol açabilirdi ("iş emri X mahallesinde ama bağlı
+// olduğu trafo Y mahallesinde görünüyor" — tam da bu sorunu daha önce
+// seed verisinde yaşadık, bkz. seed.js), (2) istemci taraflı manipülasyona
+// karşı veri bütünlüğünü de garanti altına alır. Konumu değiştirmenin tek
+// yolu, iş emrinin equipment_id'sini (dolayısıyla hangi ekipmana bağlı
+// olduğunu) değiştirmektir.
 router.post('/', requireRole('dispecer', 'yonetici'), (req, res) => {
   try {
-    const { title, description, priority, location_name, assigned_user_id, equipment_id } = req.body;
-    const lat = Number(req.body.lat);
-    const lng = Number(req.body.lng);
+    const { title, description, priority, assigned_user_id, equipment_id } = req.body;
     const assignedUserId = Number(assigned_user_id);
-    const equipmentId = equipment_id != null && equipment_id !== '' ? Number(equipment_id) : null;
+    const equipmentId = Number(equipment_id);
 
     if (!title || !title.trim()) {
       return res.status(400).json({ error: 'title alanı zorunludur.' });
@@ -140,14 +162,11 @@ router.post('/', requireRole('dispecer', 'yonetici'), (req, res) => {
         error: `Geçersiz priority değeri. Geçerli değerler: ${VALID_PRIORITIES.join(', ')}`,
       });
     }
-    if (!location_name || !location_name.trim()) {
-      return res.status(400).json({ error: 'location_name alanı zorunludur.' });
-    }
-    if (Number.isNaN(lat) || Number.isNaN(lng)) {
-      return res.status(400).json({ error: 'lat ve lng alanları zorunludur.' });
-    }
     if (!Number.isInteger(assignedUserId)) {
       return res.status(400).json({ error: 'assigned_user_id alanı zorunludur.' });
+    }
+    if (!equipment_id || !Number.isInteger(equipmentId)) {
+      return res.status(400).json({ error: 'Bir ekipman seçilmeli.' });
     }
 
     const assignedUser = db
@@ -166,28 +185,30 @@ router.post('/', requireRole('dispecer', 'yonetici'), (req, res) => {
       return res.status(403).json({ error: 'assigned_user_id sizin ekibinizdeki bir teknisyene ait olmalı.' });
     }
 
-    if (equipmentId != null) {
-      const equipment = db.prepare('SELECT id FROM equipment WHERE id = ?').get(equipmentId);
-      if (!equipment) {
-        return res.status(400).json({ error: 'equipment_id geçerli bir ekipmana ait değil.' });
-      }
+    const equipment = db.prepare('SELECT * FROM equipment WHERE id = ?').get(equipmentId);
+    if (!equipment) {
+      return res.status(404).json({ error: 'Seçilen ekipman bulunamadı.' });
     }
 
     const now = new Date().toISOString();
     const info = db
       .prepare(
         `INSERT INTO work_orders
-           (title, description, status, priority, location_name, lat, lng, assigned_user_id, equipment_id, created_at, updated_at)
+           (title, description, status, priority, il, ilce, mahalle, location_name, lat, lng, assigned_user_id, equipment_id, created_at, updated_at)
          VALUES
-           (@title, @description, 'acik', @priority, @location_name, @lat, @lng, @assigned_user_id, @equipment_id, @created_at, @updated_at)`
+           (@title, @description, 'acik', @priority, @il, @ilce, @mahalle, @location_name, @lat, @lng, @assigned_user_id, @equipment_id, @created_at, @updated_at)`
       )
       .run({
         title: title.trim(),
         description: description ? description.trim() : '',
         priority,
-        location_name: location_name.trim(),
-        lat,
-        lng,
+        // Konum, İSTEMCİDEN DEĞİL doğrudan equipment kaydından — bkz. yukarıdaki not.
+        il: equipment.il,
+        ilce: equipment.ilce,
+        mahalle: equipment.mahalle,
+        location_name: equipment.location_name,
+        lat: equipment.lat,
+        lng: equipment.lng,
         assigned_user_id: assignedUserId,
         equipment_id: equipmentId,
         created_at: now,
@@ -301,13 +322,36 @@ router.patch('/:id/status', requireRole('teknisyen', 'dispecer'), (req, res) => 
       });
     }
 
-    const existing = db.prepare('SELECT id FROM work_orders WHERE id = ?').get(id);
+    const existing = db.prepare('SELECT id, equipment_id FROM work_orders WHERE id = ?').get(id);
     if (!existing) {
       return res.status(404).json({ error: 'İş emri bulunamadı.' });
     }
 
     const updatedAt = new Date().toISOString();
     db.prepare('UPDATE work_orders SET status = ?, updated_at = ? WHERE id = ?').run(status, updatedAt, id);
+
+    // Bir arızaya sahada müdahale edip 'cozuldu' durumuna getirmek, fiilen bir
+    // bakım/onarım işlemidir — bu yüzden bağlı ekipmanın last_maintenance_date'i
+    // bu tarihe güncellenir. Önceden bu alan yalnızca seed sırasında bir kez
+    // yazılıp bir daha hiç değişmiyordu; Arıza Risk Tahmini (Modül 9) de
+    // "son bakımdan bu yana geçen süre" özelliğini bu alandan türettiği için
+    // (bkz. routes/risk.js calculateMonthsSinceMaintenance) bu güncelleme
+    // olmadan risk skoru, gerçekte çözülmüş arızalardan habersiz kalıyordu.
+    //
+    // TAM zaman damgası (yalnızca YYYY-MM-DD DEĞİL) yazılır: seed.js'teki
+    // diğer last_maintenance_date değerleri (yıllar/aylar önceki bakımlar)
+    // yalnızca tarih hassasiyetinde yeterliyken, BURADA gerçek zamanlı bir
+    // olay kaydediliyor. Yalnızca tarih (saat 00:00 kabul edilerek) yazılırsa
+    // Flutter'daki formatRelativeTime (bkz. widgets/work_order_card.dart),
+    // günün başlangıcından bu yana geçen süreyi hesaplar — örn. saat 10:00'da
+    // çözülen bir arıza "Az önce" yerine yanıltıcı biçimde "10 saat önce"
+    // gösterilirdi.
+    if (status === 'cozuldu' && existing.equipment_id) {
+      db.prepare('UPDATE equipment SET last_maintenance_date = ? WHERE id = ?').run(
+        updatedAt,
+        existing.equipment_id
+      );
+    }
 
     const updated = db.prepare(`${SELECT_WORK_ORDER_WITH_USER} WHERE wo.id = ?`).get(id);
     res.json(mapWorkOrderRow(updated));

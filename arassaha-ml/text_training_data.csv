@@ -1,276 +1,276 @@
 text,ariza_tipi,oncelik
-"trafo soğutma sıvısı azalmış, vatandaşlar şikayet ediyor",trafo_arizasi,normal
-"kablo kanalı açılmış, tel dışarıda kalmış, vatandaşlar şikayet ediyor",kablo_kopmasi,normal
-"kablo bağlantı kutusu hasar görmüş, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,dusuk
-"uzun süredir devam eden bir sorun: direk paslanmış, zayıflamış görünüyor",direk_hasari,dusuk
-"sayaçtan sürekli hata sinyali geliyor, uzun süredir bu şekilde",sayac_arizasi,dusuk
-"sayaç bağlantısı gevşemiş, hafif bir arıza olabilir",sayac_arizasi,dusuk
-"sayaç ekranında hatalı rakamlar var, lütfen ekip gönderin",sayac_arizasi,normal
-"hat koptu, bölgede elektrik yok, hemen kontrol edilmeli",kablo_kopmasi,acil
-"sayaç eski, dijital göstergesi bozuk, lütfen ekip gönderin",sayac_arizasi,normal
-"hat kopuk, kıvılcım saçıyor, durum tehlikeli görünüyor",kablo_kopmasi,acil
-"direk tepesindeki bağlantı gevşemiş, küçük çaplı bir sorun gibi duruyor",direk_hasari,dusuk
-"dikkat: kablo izolasyonu yırtılmış, çıplak tel görünüyor",kablo_kopmasi,normal
-"sayaç kutusu içi nem almış, acil müdahale gerekiyor",sayac_arizasi,acil
-"sayaç bağlantısı gevşemiş, vatandaşlar şikayet ediyor",sayac_arizasi,normal
-"acil durum: sayaç suya maruz kalmış, arızalanmış",sayac_arizasi,acil
-"kablo izolasyonu yırtılmış, çıplak tel görünüyor, hafif bir arıza olabilir",kablo_kopmasi,dusuk
-dikkat: kablo bir araç tarafından koparılmış,kablo_kopmasi,normal
-"trafo devre dışı kaldı, gerilim düştü, küçük çaplı bir sorun gibi duruyor",trafo_arizasi,dusuk
-"direk aracın çarpmasıyla eğrildi, vatandaşlar şikayet ediyor",direk_hasari,normal
-acil durum: sayaç kutusunun kapağı kopmuş,sayac_arizasi,acil
-uzun süredir devam eden bir sorun: trafo sigortası sürekli atıyor,trafo_arizasi,dusuk
-"direk elektrik hattını taşıyamıyor gibi görünüyor, hafif bir arıza olabilir",direk_hasari,dusuk
-uzun süredir devam eden bir sorun: elektrik kablosu yolun ortasına düşmüş,kablo_kopmasi,dusuk
-"sayaç ekranında hatalı rakamlar var, acil müdahale gerekiyor",sayac_arizasi,acil
-"kablo kanalı açılmış, tel dışarıda kalmış, lütfen ekip gönderin",kablo_kopmasi,normal
-"sayaç yanlış tüketim gösteriyor, acil müdahale gerekiyor",sayac_arizasi,acil
-"kablo bağlantı kutusu hasar görmüş, hemen kontrol edilmeli",kablo_kopmasi,acil
-"trafo üzerinde pas ve korozyon var, durum tehlikeli görünüyor",trafo_arizasi,acil
-"trafo yağı sızıntısı var, hemen kontrol edilmeli",trafo_arizasi,acil
-direk tepesindeki bağlantı gevşemiş,direk_hasari,normal
-"trafo aşırı yük altında çalışıyor, küçük çaplı bir sorun gibi duruyor",trafo_arizasi,dusuk
-uzun süredir devam eden bir sorun: direk dibindeki toprak çökmüş,direk_hasari,dusuk
-"trafodan duman çıkıyor, uzun süredir bu şekilde",trafo_arizasi,acil
-uzun süredir devam eden bir sorun: direk gövdesinde derin çatlaklar var,direk_hasari,dusuk
-"direk dibindeki toprak çökmüş, durum tehlikeli görünüyor",direk_hasari,acil
-"direk kırılmış, yola yakın duruyor, lütfen ekip gönderin",direk_hasari,normal
-"sayaçta ısınma tespit edildi, uzun süredir bu şekilde",sayac_arizasi,dusuk
-"sayaç hiç veri göstermiyor, lütfen ekip gönderin",sayac_arizasi,normal
-acil durum: trafo gövdesinde şişme var,trafo_arizasi,acil
-dikkat: direk rüzgarda ciddi şekilde sallanıyor,direk_hasari,normal
-"trafo kutusu su almış, lütfen ekip gönderin",trafo_arizasi,normal
-"direk devrilmek üzere, hemen kontrol edilmeli",direk_hasari,acil
-"direk kırılmış, yola yakın duruyor, acil müdahale gerekiyor",direk_hasari,acil
-dikkat: trafo sigortası sürekli atıyor,trafo_arizasi,normal
-"direk zemin kayması nedeniyle sallanıyor, hafif bir arıza olabilir",direk_hasari,dusuk
-"direk kırılmış, yola yakın duruyor, hemen kontrol edilmeli",direk_hasari,acil
-"trafoda kıvılcım oluşuyor, vatandaşlar şikayet ediyor",trafo_arizasi,acil
-"sayaç panodan sökülmüş, hemen kontrol edilmeli",sayac_arizasi,acil
-acil durum: sayaçtan sürekli hata sinyali geliyor,sayac_arizasi,acil
-"direk paslanmış, zayıflamış görünüyor, acil müdahale gerekiyor",direk_hasari,acil
-"direk eğilmiş, devrilme riski var",direk_hasari,acil
-"yüksek gerilim hattı kopmuş, çevre tehlikeli, vatandaşlar şikayet ediyor",kablo_kopmasi,acil
-"iletken hat gerginliğini kaybetmiş, sarkmış, durum tehlikeli görünüyor",kablo_kopmasi,acil
-"trafodan duman çıkıyor, durum tehlikeli görünüyor",trafo_arizasi,acil
-hat kopukluğu nedeniyle bölge karanlıkta kaldı,kablo_kopmasi,normal
-"trafo soğutma sıvısı azalmış, hemen kontrol edilmeli",trafo_arizasi,acil
-dikkat: sayaç hiç veri göstermiyor,sayac_arizasi,normal
-"sayaç yanlış tüketim gösteriyor, hemen kontrol edilmeli",sayac_arizasi,acil
-"trafo sigortası sürekli atıyor, acil müdahale gerekiyor",trafo_arizasi,acil
-"sayaç kutusu içi nem almış, lütfen ekip gönderin",sayac_arizasi,normal
-uzun süredir devam eden bir sorun: hat kopukluğu nedeniyle bölge karanlıkta kaldı,kablo_kopmasi,dusuk
-"direk kırılmış, yola yakın duruyor, uzun süredir bu şekilde",direk_hasari,dusuk
-"trafo devre dışı kaldı, gerilim düştü, vatandaşlar şikayet ediyor",trafo_arizasi,normal
-sayaç yanlış tüketim gösteriyor,sayac_arizasi,normal
-"trafo çok fazla titreşim yapıyor, uzun süredir bu şekilde",trafo_arizasi,dusuk
-"hat kopuk, kıvılcım saçıyor, lütfen ekip gönderin",kablo_kopmasi,acil
-dikkat: sayaç yanlış tüketim gösteriyor,sayac_arizasi,normal
-"direk paslanmış, zayıflamış görünüyor, küçük çaplı bir sorun gibi duruyor",direk_hasari,dusuk
-acil durum: sayaç kutusu içi nem almış,sayac_arizasi,acil
-"direk devrilmek üzere, lütfen ekip gönderin",direk_hasari,normal
-"direk üzerindeki izolatör kırık, hemen kontrol edilmeli",direk_hasari,acil
-"kablo yere düşmüş, tehlikeli durum, durum tehlikeli görünüyor",kablo_kopmasi,acil
-"sayaç panodan sökülmüş, acil müdahale gerekiyor",sayac_arizasi,acil
-"direk beton kaide kısmı parçalanmış, acil müdahale gerekiyor",direk_hasari,acil
-"trafo aşırı yük altında çalışıyor, hafif bir arıza olabilir",trafo_arizasi,dusuk
-"direk devrilmek üzere, vatandaşlar şikayet ediyor",direk_hasari,normal
-"iletken tel kopmuş sarkıyor, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,dusuk
-uzun süredir devam eden bir sorun: direk aracın çarpmasıyla eğrildi,direk_hasari,dusuk
-"direk paslanmış, zayıflamış görünüyor, durum tehlikeli görünüyor",direk_hasari,acil
-"direk dibindeki toprak çökmüş, lütfen ekip gönderin",direk_hasari,normal
-"trafo bağlantı kablosu gevşemiş, küçük çaplı bir sorun gibi duruyor",trafo_arizasi,dusuk
-"uzun süredir devam eden bir sorun: kablo bağlantısı gevşemiş, kıvılcım çıkıyor",kablo_kopmasi,acil
-"sayaç bağlantısı gevşemiş, durum tehlikeli görünüyor",sayac_arizasi,acil
-"trafo aşırı ısınıyor, durum tehlikeli görünüyor",trafo_arizasi,acil
-dikkat: elektrik kablosu yolun ortasına düşmüş,kablo_kopmasi,normal
-direk dibindeki toprak çökmüş,direk_hasari,normal
-"trafo kapağı açılmış, içerisi görünüyor",trafo_arizasi,normal
-"direk temelinde çatlak oluşmuş, hemen kontrol edilmeli",direk_hasari,acil
-uzun süredir devam eden bir sorun: yer altı kablosu hasar görmüş,kablo_kopmasi,dusuk
-"hat kopuk, kıvılcım saçıyor, hemen kontrol edilmeli",kablo_kopmasi,acil
-uzun süredir devam eden bir sorun: trafo gövdesinde şişme var,trafo_arizasi,dusuk
-"sayaçtan sürekli hata sinyali geliyor, vatandaşlar şikayet ediyor",sayac_arizasi,normal
-"direk rüzgarda ciddi şekilde sallanıyor, küçük çaplı bir sorun gibi duruyor",direk_hasari,dusuk
-"hat koptu, bölgede elektrik yok, durum tehlikeli görünüyor",kablo_kopmasi,acil
-acil durum: direk temelinde çatlak oluşmuş,direk_hasari,acil
-"sayaç suya maruz kalmış, arızalanmış",sayac_arizasi,normal
-"kablo yere düşmüş, tehlikeli durum, acil müdahale gerekiyor",kablo_kopmasi,acil
-"yer altı kablosu hasar görmüş, acil müdahale gerekiyor",kablo_kopmasi,acil
-"kablo direkten ayrılmış, sarkıyor",kablo_kopmasi,normal
-"sayaç ekranında hatalı rakamlar var, hafif bir arıza olabilir",sayac_arizasi,dusuk
-"sayaç yanlış tüketim gösteriyor, durum tehlikeli görünüyor",sayac_arizasi,acil
-"direk üzerindeki kablo askısı kopmuş, lütfen ekip gönderin",direk_hasari,normal
-"sayaç suya maruz kalmış, arızalanmış, hemen kontrol edilmeli",sayac_arizasi,acil
-"trafo etrafında elektrik kokusu var, durum tehlikeli görünüyor",trafo_arizasi,acil
-"direk rüzgarda ciddi şekilde sallanıyor, hemen kontrol edilmeli",direk_hasari,acil
-"direk devrilmek üzere, acil müdahale gerekiyor",direk_hasari,acil
-elektrik kablosu yolun ortasına düşmüş,kablo_kopmasi,normal
-"hat kopuk, kıvılcım saçıyor, uzun süredir bu şekilde",kablo_kopmasi,acil
-"direk tepesindeki bağlantı gevşemiş, hafif bir arıza olabilir",direk_hasari,dusuk
-"direk rüzgarda ciddi şekilde sallanıyor, lütfen ekip gönderin",direk_hasari,normal
-"kablo bir araç tarafından koparılmış, hemen kontrol edilmeli",kablo_kopmasi,acil
-"kablo bir araç tarafından koparılmış, hafif bir arıza olabilir",kablo_kopmasi,dusuk
-"sayaçta yanlış ölçüm var, vatandaşlar şikayet ediyor",sayac_arizasi,normal
-"direk rüzgarda ciddi şekilde sallanıyor, hafif bir arıza olabilir",direk_hasari,dusuk
-"direk beton kaide kısmı parçalanmış, durum tehlikeli görünüyor",direk_hasari,acil
-dikkat: trafo çok fazla titreşim yapıyor,trafo_arizasi,normal
-"sayaçta ısınma tespit edildi, küçük çaplı bir sorun gibi duruyor",sayac_arizasi,dusuk
-"sayaç eski, dijital göstergesi bozuk, durum tehlikeli görünüyor",sayac_arizasi,acil
-"sayaç suya maruz kalmış, arızalanmış, lütfen ekip gönderin",sayac_arizasi,normal
-"direk tepesindeki bağlantı gevşemiş, acil müdahale gerekiyor",direk_hasari,acil
-sayaç panodan sökülmüş,sayac_arizasi,normal
-"trafo gövdesinde şişme var, uzun süredir bu şekilde",trafo_arizasi,dusuk
-"direk eğilmiş, devrilme riski var, vatandaşlar şikayet ediyor",direk_hasari,acil
-"trafoda kıvılcım oluşuyor, durum tehlikeli görünüyor",trafo_arizasi,acil
-"iletken hat gerginliğini kaybetmiş, sarkmış, lütfen ekip gönderin",kablo_kopmasi,normal
-"iletken tel kopmuş sarkıyor, lütfen ekip gönderin",kablo_kopmasi,normal
-"hat kopuk, kıvılcım saçıyor",kablo_kopmasi,acil
-"direk yıllardır bakım görmemiş, çürümüş, uzun süredir bu şekilde",direk_hasari,dusuk
-"kablo bağlantı kutusu hasar görmüş, uzun süredir bu şekilde",kablo_kopmasi,dusuk
-"dikkat: direk kırılmış, yola yakın duruyor",direk_hasari,normal
-"kablo bağlantı kutusu hasar görmüş, hafif bir arıza olabilir",kablo_kopmasi,dusuk
-"trafo bağlantı kablosu gevşemiş, hemen kontrol edilmeli",trafo_arizasi,acil
-uzun süredir devam eden bir sorun: trafo yağı sızıntısı var,trafo_arizasi,dusuk
-"trafo aşırı ısınıyor, uzun süredir bu şekilde",trafo_arizasi,dusuk
-"sayaç ekranında hatalı rakamlar var, uzun süredir bu şekilde",sayac_arizasi,dusuk
-"direk elektrik hattını taşıyamıyor gibi görünüyor, uzun süredir bu şekilde",direk_hasari,dusuk
-"trafo etrafında elektrik kokusu var, uzun süredir bu şekilde",trafo_arizasi,dusuk
-"direk devrilmek üzere, hafif bir arıza olabilir",direk_hasari,dusuk
-"dikkat: iletken hat gerginliğini kaybetmiş, sarkmış",kablo_kopmasi,normal
-"dikkat: kablo kanalı açılmış, tel dışarıda kalmış",kablo_kopmasi,normal
-"trafo ses çıkarıyor, uğultu var, uzun süredir bu şekilde",trafo_arizasi,dusuk
-"sayaç kutusunun kapağı kopmuş, acil müdahale gerekiyor",sayac_arizasi,acil
-"elektrik kablosu yolun ortasına düşmüş, lütfen ekip gönderin",kablo_kopmasi,normal
-"direk kırılmış, yola yakın duruyor",direk_hasari,normal
-"trafo ses çıkarıyor, uğultu var, durum tehlikeli görünüyor",trafo_arizasi,acil
-acil durum: sayaç ekranında hatalı rakamlar var,sayac_arizasi,acil
-"kablo kanalı açılmış, tel dışarıda kalmış, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,dusuk
-"kablo kanalı açılmış, tel dışarıda kalmış, uzun süredir bu şekilde",kablo_kopmasi,dusuk
-"trafodan duman çıkıyor, hemen kontrol edilmeli",trafo_arizasi,acil
-sayaç kutusunun kapağı kopmuş,sayac_arizasi,normal
-"direk zemin kayması nedeniyle sallanıyor, uzun süredir bu şekilde",direk_hasari,dusuk
-"sayaç panodan sökülmüş, durum tehlikeli görünüyor",sayac_arizasi,acil
-"sayaç bağlantısı gevşemiş, acil müdahale gerekiyor",sayac_arizasi,acil
-direk aracın çarpmasıyla eğrildi,direk_hasari,normal
-"trafo aşırı ısınıyor, küçük çaplı bir sorun gibi duruyor",trafo_arizasi,dusuk
-"trafo bağlantı noktası kararmış, uzun süredir bu şekilde",trafo_arizasi,dusuk
-acil durum: elektrik kablosu yolun ortasına düşmüş,kablo_kopmasi,acil
-"kablo bağlantısı gevşemiş, kıvılcım çıkıyor, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,acil
-dikkat: sayaçtan sürekli hata sinyali geliyor,sayac_arizasi,normal
-"trafo aşırı ısınıyor, vatandaşlar şikayet ediyor",trafo_arizasi,normal
-"uzun süredir devam eden bir sorun: sayaç suya maruz kalmış, arızalanmış",sayac_arizasi,dusuk
-"sayaç kutusu hasarlı, hemen kontrol edilmeli",sayac_arizasi,acil
-"trafoda kıvılcım oluşuyor, lütfen ekip gönderin",trafo_arizasi,acil
-"kablo bir araç tarafından koparılmış, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,dusuk
-"trafo devre dışı kaldı, gerilim düştü, hafif bir arıza olabilir",trafo_arizasi,dusuk
-acil durum: direk devrilmek üzere,direk_hasari,acil
-"trafo devre dışı kaldı, gerilim düştü, uzun süredir bu şekilde",trafo_arizasi,dusuk
-"hat ağaç dalına takılıp kopmuş, vatandaşlar şikayet ediyor",kablo_kopmasi,normal
-"kablo kanalı açılmış, tel dışarıda kalmış, hafif bir arıza olabilir",kablo_kopmasi,dusuk
-"kablo bağlantı kutusu hasar görmüş, lütfen ekip gönderin",kablo_kopmasi,normal
-"sayaç suya maruz kalmış, arızalanmış, acil müdahale gerekiyor",sayac_arizasi,acil
-"direk fırtınada hasar gördü, uzun süredir bu şekilde",direk_hasari,dusuk
-"direk eğilmiş, devrilme riski var, durum tehlikeli görünüyor",direk_hasari,acil
-"direk yıllardır bakım görmemiş, çürümüş, hemen kontrol edilmeli",direk_hasari,acil
-"direk üzerindeki izolatör kırık, küçük çaplı bir sorun gibi duruyor",direk_hasari,dusuk
-dikkat: sayaç panodan sökülmüş,sayac_arizasi,normal
-"sayaçta ısınma tespit edildi, acil müdahale gerekiyor",sayac_arizasi,acil
-"direk dibindeki toprak çökmüş, hemen kontrol edilmeli",direk_hasari,acil
-"sayaç bağlantısı gevşemiş, uzun süredir bu şekilde",sayac_arizasi,dusuk
-"direk üzerindeki izolatör kırık, uzun süredir bu şekilde",direk_hasari,dusuk
-"trafo soğutma sıvısı azalmış, uzun süredir bu şekilde",trafo_arizasi,dusuk
-"yüksek gerilim hattı kopmuş, çevre tehlikeli, uzun süredir bu şekilde",kablo_kopmasi,acil
-"acil durum: kablo yere düşmüş, tehlikeli durum",kablo_kopmasi,acil
-"trafo yağı sızıntısı var, hafif bir arıza olabilir",trafo_arizasi,dusuk
-"direk tepesindeki bağlantı gevşemiş, vatandaşlar şikayet ediyor",direk_hasari,normal
-"kablo izolasyonu yırtılmış, çıplak tel görünüyor, acil müdahale gerekiyor",kablo_kopmasi,acil
-"trafo yağı sızıntısı var, durum tehlikeli görünüyor",trafo_arizasi,acil
-dikkat: sayaç ekranı çalışmıyor,sayac_arizasi,normal
-"sayaç kutusu içi nem almış, uzun süredir bu şekilde",sayac_arizasi,dusuk
-"direk kırılmış, yola yakın duruyor, küçük çaplı bir sorun gibi duruyor",direk_hasari,dusuk
-trafo kutusu su almış,trafo_arizasi,normal
-"kablo izolasyonu yırtılmış, çıplak tel görünüyor, vatandaşlar şikayet ediyor",kablo_kopmasi,normal
-"sayaç ekranında hatalı rakamlar var, durum tehlikeli görünüyor",sayac_arizasi,acil
-uzun süredir devam eden bir sorun: trafo kutusu su almış,trafo_arizasi,dusuk
-acil durum: direk rüzgarda ciddi şekilde sallanıyor,direk_hasari,acil
-"sayaç mühürü kırılmış, uzun süredir bu şekilde",sayac_arizasi,dusuk
-"sayaçta ısınma tespit edildi, hemen kontrol edilmeli",sayac_arizasi,acil
-"hat kopuk, kıvılcım saçıyor, vatandaşlar şikayet ediyor",kablo_kopmasi,acil
-"trafoda kıvılcım oluşuyor, uzun süredir bu şekilde",trafo_arizasi,acil
-"kablo kanalı açılmış, tel dışarıda kalmış, durum tehlikeli görünüyor",kablo_kopmasi,acil
-"dikkat: kablo yere düşmüş, tehlikeli durum",kablo_kopmasi,acil
-acil durum: sayaç yanlış tüketim gösteriyor,sayac_arizasi,acil
-"trafo bağlantı kablosu gevşemiş, durum tehlikeli görünüyor",trafo_arizasi,acil
-"direk beton kaide kısmı parçalanmış, lütfen ekip gönderin",direk_hasari,normal
-"trafodan yanık kokusu geliyor, vatandaşlar şikayet ediyor",trafo_arizasi,acil
-"direk yıllardır bakım görmemiş, çürümüş, vatandaşlar şikayet ediyor",direk_hasari,normal
-"trafo devre dışı kaldı, gerilim düştü, durum tehlikeli görünüyor",trafo_arizasi,acil
-"sayaç bağlantısı gevşemiş, lütfen ekip gönderin",sayac_arizasi,normal
-dikkat: direk temelinde çatlak oluşmuş,direk_hasari,normal
-"trafo kapağı açılmış, içerisi görünüyor, acil müdahale gerekiyor",trafo_arizasi,acil
-"uzun süredir devam eden bir sorun: hat kopuk, kıvılcım saçıyor",kablo_kopmasi,acil
-"direk üzerindeki izolatör kırık, acil müdahale gerekiyor",direk_hasari,acil
-"sayaç camı kırılmış, hemen kontrol edilmeli",sayac_arizasi,acil
-"trafo yağı sızıntısı var, lütfen ekip gönderin",trafo_arizasi,normal
-"sayaç mühürü kırılmış, hafif bir arıza olabilir",sayac_arizasi,dusuk
-"trafo çok fazla titreşim yapıyor, durum tehlikeli görünüyor",trafo_arizasi,acil
-"hat kopukluğu nedeniyle bölge karanlıkta kaldı, acil müdahale gerekiyor",kablo_kopmasi,acil
-"hat kopuk, kıvılcım saçıyor, acil müdahale gerekiyor",kablo_kopmasi,acil
-uzun süredir devam eden bir sorun: sayaç hiç veri göstermiyor,sayac_arizasi,dusuk
-"direk tepesindeki bağlantı gevşemiş, uzun süredir bu şekilde",direk_hasari,dusuk
-"direk devrilmek üzere, durum tehlikeli görünüyor",direk_hasari,acil
-"direk temelinde çatlak oluşmuş, hafif bir arıza olabilir",direk_hasari,dusuk
-"direk kırılmış, yola yakın duruyor, durum tehlikeli görünüyor",direk_hasari,acil
-"trafo etrafında elektrik kokusu var, acil müdahale gerekiyor",trafo_arizasi,acil
-"direk elektrik hattını taşıyamıyor gibi görünüyor, lütfen ekip gönderin",direk_hasari,normal
-"trafo kutusu su almış, durum tehlikeli görünüyor",trafo_arizasi,acil
-"trafo gövdesinde şişme var, durum tehlikeli görünüyor",trafo_arizasi,acil
-"trafodan yanık kokusu geliyor, hafif bir arıza olabilir",trafo_arizasi,acil
-"sayaç kutusu hasarlı, uzun süredir bu şekilde",sayac_arizasi,dusuk
-acil durum: direk gövdesinde derin çatlaklar var,direk_hasari,acil
-trafo üzerinde pas ve korozyon var,trafo_arizasi,normal
-"hat kopukluğu nedeniyle bölge karanlıkta kaldı, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,dusuk
-"direk eğilmiş, devrilme riski var, uzun süredir bu şekilde",direk_hasari,acil
-sayaçta ısınma tespit edildi,sayac_arizasi,normal
-uzun süredir devam eden bir sorun: direk üzerindeki kablo askısı kopmuş,direk_hasari,dusuk
-acil durum: sayaç camı kırılmış,sayac_arizasi,acil
-"sayaç kutusunun kapağı kopmuş, küçük çaplı bir sorun gibi duruyor",sayac_arizasi,dusuk
-"sayaç bağlantısı gevşemiş, küçük çaplı bir sorun gibi duruyor",sayac_arizasi,dusuk
-acil durum: direk zemin kayması nedeniyle sallanıyor,direk_hasari,acil
-acil durum: trafo çok fazla titreşim yapıyor,trafo_arizasi,acil
-"direk gövdesinde derin çatlaklar var, hafif bir arıza olabilir",direk_hasari,dusuk
-acil durum: trafo üzerinde pas ve korozyon var,trafo_arizasi,acil
-uzun süredir devam eden bir sorun: sayaçta ısınma tespit edildi,sayac_arizasi,dusuk
-"kablo direkten ayrılmış, sarkıyor, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,dusuk
-"sayaç eski, dijital göstergesi bozuk, küçük çaplı bir sorun gibi duruyor",sayac_arizasi,dusuk
-"yüksek gerilim hattı kopmuş, çevre tehlikeli, hemen kontrol edilmeli",kablo_kopmasi,acil
 "trafo üzerinde pas ve korozyon var, acil müdahale gerekiyor",trafo_arizasi,acil
-"sayaç mühürü kırılmış, acil müdahale gerekiyor",sayac_arizasi,acil
-"hat ağaç dalına takılıp kopmuş, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,dusuk
-"sayaç panodan sökülmüş, hafif bir arıza olabilir",sayac_arizasi,dusuk
-"kablo bir araç tarafından koparılmış, durum tehlikeli görünüyor",kablo_kopmasi,acil
-"trafo aşırı yük altında çalışıyor, durum tehlikeli görünüyor",trafo_arizasi,acil
-uzun süredir devam eden bir sorun: sayaçtan sürekli hata sinyali geliyor,sayac_arizasi,dusuk
+"kablo kanalı açılmış, tel dışarıda kalmış, uzun süredir bu şekilde",kablo_kopmasi,dusuk
+"acil durum: kablo kanalı açılmış, tel dışarıda kalmış",kablo_kopmasi,acil
+"direk rüzgarda ciddi şekilde sallanıyor, acil müdahale gerekiyor",direk_hasari,acil
+"sayaç kutusu içi nem almış, vatandaşlar şikayet ediyor",sayac_arizasi,normal
+"sayaç ekranı çalışmıyor, hemen kontrol edilmeli",sayac_arizasi,acil
+sayaç camı kırılmış,sayac_arizasi,normal
+"hat kopuk, kıvılcım saçıyor, acil müdahale gerekiyor",kablo_kopmasi,acil
+"sayaç yanlış tüketim gösteriyor, hemen kontrol edilmeli",sayac_arizasi,acil
+"dikkat: hat koptu, bölgede elektrik yok",kablo_kopmasi,normal
+dikkat: direk tepesindeki bağlantı gevşemiş,direk_hasari,normal
+"kablo direkten ayrılmış, sarkıyor",kablo_kopmasi,normal
+"sayaç camı kırılmış, durum tehlikeli görünüyor",sayac_arizasi,acil
+sayaç ekranı çalışmıyor,sayac_arizasi,normal
+"sayaç mühürü kırılmış, hafif bir arıza olabilir",sayac_arizasi,dusuk
+"acil durum: hat koptu, bölgede elektrik yok",kablo_kopmasi,acil
+hat ağaç dalına takılıp kopmuş,kablo_kopmasi,normal
+"trafo kapağı açılmış, içerisi görünüyor, lütfen ekip gönderin",trafo_arizasi,normal
+"direk üzerindeki kablo askısı kopmuş, küçük çaplı bir sorun gibi duruyor",direk_hasari,dusuk
+dikkat: sayaç kutusu hasarlı,sayac_arizasi,normal
+"trafo yağı sızıntısı var, vatandaşlar şikayet ediyor",trafo_arizasi,normal
+"direk beton kaide kısmı parçalanmış, acil müdahale gerekiyor",direk_hasari,acil
+dikkat: kablo bağlantı kutusu hasar görmüş,kablo_kopmasi,normal
+"sayaç bağlantısı gevşemiş, durum tehlikeli görünüyor",sayac_arizasi,acil
+"yüksek gerilim hattı kopmuş, çevre tehlikeli, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,acil
+"sayaç ekranında hatalı rakamlar var, hemen kontrol edilmeli",sayac_arizasi,acil
+"iletken tel kopmuş sarkıyor, hemen kontrol edilmeli",kablo_kopmasi,acil
+"trafo ses çıkarıyor, uğultu var, vatandaşlar şikayet ediyor",trafo_arizasi,normal
 "trafo sigortası sürekli atıyor, hemen kontrol edilmeli",trafo_arizasi,acil
-direk elektrik hattını taşıyamıyor gibi görünüyor,direk_hasari,normal
-dikkat: sayaç bağlantısı gevşemiş,sayac_arizasi,normal
-"sayaç suya maruz kalmış, arızalanmış, uzun süredir bu şekilde",sayac_arizasi,dusuk
-trafo aşırı yük altında çalışıyor,trafo_arizasi,normal
-uzun süredir devam eden bir sorun: kablo bağlantı kutusu hasar görmüş,kablo_kopmasi,dusuk
-acil durum: iletken tel kopmuş sarkıyor,kablo_kopmasi,acil
-acil durum: sayaçta ısınma tespit edildi,sayac_arizasi,acil
-"hat kopukluğu nedeniyle bölge karanlıkta kaldı, uzun süredir bu şekilde",kablo_kopmasi,dusuk
-direk üzerindeki izolatör kırık,direk_hasari,normal
-"iletken hat gerginliğini kaybetmiş, sarkmış, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,dusuk
-"acil durum: direk eğilmiş, devrilme riski var",direk_hasari,acil
-"direk eğilmiş, devrilme riski var, hafif bir arıza olabilir",direk_hasari,acil
-dikkat: sayaç mühürü kırılmış,sayac_arizasi,normal
-direk temelinde çatlak oluşmuş,direk_hasari,normal
-acil durum: sayaç kutusu hasarlı,sayac_arizasi,acil
-"trafodan duman çıkıyor, vatandaşlar şikayet ediyor",trafo_arizasi,acil
-"kablo direkten ayrılmış, sarkıyor, acil müdahale gerekiyor",kablo_kopmasi,acil
 "direk üzerindeki kablo askısı kopmuş, hemen kontrol edilmeli",direk_hasari,acil
+"trafo aşırı yük altında çalışıyor, acil müdahale gerekiyor",trafo_arizasi,acil
+uzun süredir devam eden bir sorun: direk gövdesinde derin çatlaklar var,direk_hasari,dusuk
+"trafo soğutma sıvısı azalmış, hafif bir arıza olabilir",trafo_arizasi,dusuk
+"direk aracın çarpmasıyla eğrildi, vatandaşlar şikayet ediyor",direk_hasari,normal
+direk dibindeki toprak çökmüş,direk_hasari,normal
+"direk üzerindeki kablo askısı kopmuş, lütfen ekip gönderin",direk_hasari,normal
+"sayaç ekranında hatalı rakamlar var, lütfen ekip gönderin",sayac_arizasi,normal
+"sayaç kutusu hasarlı, acil müdahale gerekiyor",sayac_arizasi,acil
+"trafo etrafında elektrik kokusu var, lütfen ekip gönderin",trafo_arizasi,normal
+"uzun süredir devam eden bir sorun: direk eğilmiş, devrilme riski var",direk_hasari,acil
+"trafo üzerinde pas ve korozyon var, durum tehlikeli görünüyor",trafo_arizasi,acil
+"direk temelinde çatlak oluşmuş, uzun süredir bu şekilde",direk_hasari,dusuk
+"acil durum: direk paslanmış, zayıflamış görünüyor",direk_hasari,acil
+acil durum: trafo kutusu su almış,trafo_arizasi,acil
+uzun süredir devam eden bir sorun: direk aracın çarpmasıyla eğrildi,direk_hasari,dusuk
+"direk fırtınada hasar gördü, hemen kontrol edilmeli",direk_hasari,acil
+acil durum: trafo bağlantı kablosu gevşemiş,trafo_arizasi,acil
+acil durum: sayaç ekranında hatalı rakamlar var,sayac_arizasi,acil
+"sayaç suya maruz kalmış, arızalanmış",sayac_arizasi,normal
+"direk dibindeki toprak çökmüş, durum tehlikeli görünüyor",direk_hasari,acil
+"direk fırtınada hasar gördü, acil müdahale gerekiyor",direk_hasari,acil
+"hat kopuk, kıvılcım saçıyor, hemen kontrol edilmeli",kablo_kopmasi,acil
+"kablo kanalı açılmış, tel dışarıda kalmış, hafif bir arıza olabilir",kablo_kopmasi,dusuk
+"trafo soğutma sıvısı azalmış, küçük çaplı bir sorun gibi duruyor",trafo_arizasi,dusuk
+"kablo yere düşmüş, tehlikeli durum",kablo_kopmasi,acil
+"acil durum: trafo ses çıkarıyor, uğultu var",trafo_arizasi,acil
+"sayaç mühürü kırılmış, acil müdahale gerekiyor",sayac_arizasi,acil
+"sayaç kutusu içi nem almış, acil müdahale gerekiyor",sayac_arizasi,acil
+"trafo ses çıkarıyor, uğultu var, hafif bir arıza olabilir",trafo_arizasi,dusuk
+"sayaç hiç veri göstermiyor, hafif bir arıza olabilir",sayac_arizasi,dusuk
+"kablo bağlantı kutusu hasar görmüş, durum tehlikeli görünüyor",kablo_kopmasi,acil
+"direk üzerindeki kablo askısı kopmuş, vatandaşlar şikayet ediyor",direk_hasari,normal
+"uzun süredir devam eden bir sorun: trafo kapağı açılmış, içerisi görünüyor",trafo_arizasi,dusuk
+"sayaçtan sürekli hata sinyali geliyor, küçük çaplı bir sorun gibi duruyor",sayac_arizasi,dusuk
+"trafo kapağı açılmış, içerisi görünüyor, durum tehlikeli görünüyor",trafo_arizasi,acil
+"iletken tel kopmuş sarkıyor, lütfen ekip gönderin",kablo_kopmasi,normal
+"sayaçta ısınma tespit edildi, acil müdahale gerekiyor",sayac_arizasi,acil
+direk devrilmek üzere,direk_hasari,normal
+"sayaç camı kırılmış, küçük çaplı bir sorun gibi duruyor",sayac_arizasi,dusuk
+"direk tepesindeki bağlantı gevşemiş, hemen kontrol edilmeli",direk_hasari,acil
+"direk devrilmek üzere, durum tehlikeli görünüyor",direk_hasari,acil
+"iletken tel kopmuş sarkıyor, durum tehlikeli görünüyor",kablo_kopmasi,acil
+"sayaç kutusu içi nem almış, küçük çaplı bir sorun gibi duruyor",sayac_arizasi,dusuk
+dikkat: direk üzerindeki izolatör kırık,direk_hasari,normal
+"trafo aşırı ısınıyor, vatandaşlar şikayet ediyor",trafo_arizasi,normal
+"direk üzerindeki izolatör kırık, vatandaşlar şikayet ediyor",direk_hasari,normal
+"hat koptu, bölgede elektrik yok, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,dusuk
+"direk aracın çarpmasıyla eğrildi, hafif bir arıza olabilir",direk_hasari,dusuk
+"dikkat: direk paslanmış, zayıflamış görünüyor",direk_hasari,normal
+uzun süredir devam eden bir sorun: direk rüzgarda ciddi şekilde sallanıyor,direk_hasari,dusuk
+"trafo soğutma sıvısı azalmış, uzun süredir bu şekilde",trafo_arizasi,dusuk
+"kablo yere düşmüş, tehlikeli durum, durum tehlikeli görünüyor",kablo_kopmasi,acil
+"sayaç eski, dijital göstergesi bozuk, vatandaşlar şikayet ediyor",sayac_arizasi,normal
+"trafo ses çıkarıyor, uğultu var, acil müdahale gerekiyor",trafo_arizasi,acil
+"kablo direkten ayrılmış, sarkıyor, uzun süredir bu şekilde",kablo_kopmasi,dusuk
+"direk kırılmış, yola yakın duruyor, lütfen ekip gönderin",direk_hasari,normal
+"acil durum: trafo kapağı açılmış, içerisi görünüyor",trafo_arizasi,acil
+"direk gövdesinde derin çatlaklar var, hafif bir arıza olabilir",direk_hasari,dusuk
+"hat ağaç dalına takılıp kopmuş, vatandaşlar şikayet ediyor",kablo_kopmasi,normal
+"kablo bağlantı kutusu hasar görmüş, uzun süredir bu şekilde",kablo_kopmasi,dusuk
+"trafo çok fazla titreşim yapıyor, küçük çaplı bir sorun gibi duruyor",trafo_arizasi,dusuk
+"sayaç bağlantısı gevşemiş, lütfen ekip gönderin",sayac_arizasi,normal
+"direk tepesindeki bağlantı gevşemiş, hafif bir arıza olabilir",direk_hasari,dusuk
+"dikkat: kablo kanalı açılmış, tel dışarıda kalmış",kablo_kopmasi,normal
+"direk tepesindeki bağlantı gevşemiş, vatandaşlar şikayet ediyor",direk_hasari,normal
+"sayaç panodan sökülmüş, hemen kontrol edilmeli",sayac_arizasi,acil
+"acil durum: hat kopuk, kıvılcım saçıyor",kablo_kopmasi,acil
+"kablo izolasyonu yırtılmış, çıplak tel görünüyor, durum tehlikeli görünüyor",kablo_kopmasi,acil
+"yüksek gerilim hattı kopmuş, çevre tehlikeli, hemen kontrol edilmeli",kablo_kopmasi,acil
+"sayaç kutusu içi nem almış, lütfen ekip gönderin",sayac_arizasi,normal
+"sayaç kutusu içi nem almış, hafif bir arıza olabilir",sayac_arizasi,dusuk
+"direk tepesindeki bağlantı gevşemiş, uzun süredir bu şekilde",direk_hasari,dusuk
+"sayaç kutusunun kapağı kopmuş, hafif bir arıza olabilir",sayac_arizasi,dusuk
+acil durum: trafo sigortası sürekli atıyor,trafo_arizasi,acil
+"direk gövdesinde derin çatlaklar var, küçük çaplı bir sorun gibi duruyor",direk_hasari,dusuk
+"direk üzerindeki kablo askısı kopmuş, durum tehlikeli görünüyor",direk_hasari,acil
+uzun süredir devam eden bir sorun: kablo bir araç tarafından koparılmış,kablo_kopmasi,dusuk
+"yer altı kablosu hasar görmüş, hemen kontrol edilmeli",kablo_kopmasi,acil
+"acil durum: direk yıllardır bakım görmemiş, çürümüş",direk_hasari,acil
+"direk devrilmek üzere, uzun süredir bu şekilde",direk_hasari,dusuk
+"yer altı kablosu hasar görmüş, uzun süredir bu şekilde",kablo_kopmasi,dusuk
+"hat koptu, bölgede elektrik yok, acil müdahale gerekiyor",kablo_kopmasi,acil
+"sayaç ekranında hatalı rakamlar var, uzun süredir bu şekilde",sayac_arizasi,dusuk
+"direk aracın çarpmasıyla eğrildi, uzun süredir bu şekilde",direk_hasari,dusuk
+"direk dibindeki toprak çökmüş, uzun süredir bu şekilde",direk_hasari,dusuk
+"trafo soğutma sıvısı azalmış, durum tehlikeli görünüyor",trafo_arizasi,acil
+"sayaçta yanlış ölçüm var, lütfen ekip gönderin",sayac_arizasi,normal
+"sayaçta ısınma tespit edildi, hemen kontrol edilmeli",sayac_arizasi,acil
+"sayaçta ısınma tespit edildi, küçük çaplı bir sorun gibi duruyor",sayac_arizasi,dusuk
+uzun süredir devam eden bir sorun: direk üzerindeki kablo askısı kopmuş,direk_hasari,dusuk
+"sayaç kutusunun kapağı kopmuş, durum tehlikeli görünüyor",sayac_arizasi,acil
+acil durum: trafo bağlantı noktası kararmış,trafo_arizasi,acil
 "direk gövdesinde derin çatlaklar var, hemen kontrol edilmeli",direk_hasari,acil
+"trafo devre dışı kaldı, gerilim düştü, hemen kontrol edilmeli",trafo_arizasi,acil
+uzun süredir devam eden bir sorun: yer altı kablosu hasar görmüş,kablo_kopmasi,dusuk
+kablo bir araç tarafından koparılmış,kablo_kopmasi,normal
+"kablo direkten ayrılmış, sarkıyor, durum tehlikeli görünüyor",kablo_kopmasi,acil
+"direk devrilmek üzere, hafif bir arıza olabilir",direk_hasari,dusuk
+"iletken hat gerginliğini kaybetmiş, sarkmış, durum tehlikeli görünüyor",kablo_kopmasi,acil
+"direk aracın çarpmasıyla eğrildi, durum tehlikeli görünüyor",direk_hasari,acil
+"kablo bir araç tarafından koparılmış, lütfen ekip gönderin",kablo_kopmasi,normal
+"trafo yağı sızıntısı var, durum tehlikeli görünüyor",trafo_arizasi,acil
+trafodan duman çıkıyor,trafo_arizasi,acil
+trafo sigortası sürekli atıyor,trafo_arizasi,normal
+"sayaç eski, dijital göstergesi bozuk, hafif bir arıza olabilir",sayac_arizasi,dusuk
+"direk paslanmış, zayıflamış görünüyor, lütfen ekip gönderin",direk_hasari,normal
+"trafo devre dışı kaldı, gerilim düştü",trafo_arizasi,normal
+"direk yıllardır bakım görmemiş, çürümüş, lütfen ekip gönderin",direk_hasari,normal
+"yer altı kablosu hasar görmüş, acil müdahale gerekiyor",kablo_kopmasi,acil
+"kablo bir araç tarafından koparılmış, hemen kontrol edilmeli",kablo_kopmasi,acil
+dikkat: trafo aşırı yük altında çalışıyor,trafo_arizasi,normal
+"sayaç suya maruz kalmış, arızalanmış, uzun süredir bu şekilde",sayac_arizasi,dusuk
+"iletken tel kopmuş sarkıyor, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,dusuk
+"direk eğilmiş, devrilme riski var",direk_hasari,acil
+uzun süredir devam eden bir sorun: trafo sigortası sürekli atıyor,trafo_arizasi,dusuk
+acil durum: sayaç kutusu hasarlı,sayac_arizasi,acil
+"kablo bağlantısı gevşemiş, kıvılcım çıkıyor, acil müdahale gerekiyor",kablo_kopmasi,acil
+"hat koptu, bölgede elektrik yok",kablo_kopmasi,normal
+"trafo bağlantı noktası kararmış, vatandaşlar şikayet ediyor",trafo_arizasi,normal
+"sayaçtan sürekli hata sinyali geliyor, hafif bir arıza olabilir",sayac_arizasi,dusuk
+"direk aracın çarpmasıyla eğrildi, lütfen ekip gönderin",direk_hasari,normal
 "sayaç hiç veri göstermiyor, durum tehlikeli görünüyor",sayac_arizasi,acil
-"direk elektrik hattını taşıyamıyor gibi görünüyor, durum tehlikeli görünüyor",direk_hasari,acil
+"acil durum: sayaç eski, dijital göstergesi bozuk",sayac_arizasi,acil
+direk beton kaide kısmı parçalanmış,direk_hasari,normal
+"trafo devre dışı kaldı, gerilim düştü, uzun süredir bu şekilde",trafo_arizasi,dusuk
+"trafo kutusu su almış, durum tehlikeli görünüyor",trafo_arizasi,acil
+"kablo direkten ayrılmış, sarkıyor, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,dusuk
+"iletken hat gerginliğini kaybetmiş, sarkmış, uzun süredir bu şekilde",kablo_kopmasi,dusuk
+"sayaç panodan sökülmüş, lütfen ekip gönderin",sayac_arizasi,normal
+trafodan yanık kokusu geliyor,trafo_arizasi,acil
+"sayaç mühürü kırılmış, lütfen ekip gönderin",sayac_arizasi,normal
+"sayaç kutusu hasarlı, küçük çaplı bir sorun gibi duruyor",sayac_arizasi,dusuk
+"trafoda kıvılcım oluşuyor, vatandaşlar şikayet ediyor",trafo_arizasi,acil
+"hat ağaç dalına takılıp kopmuş, hafif bir arıza olabilir",kablo_kopmasi,dusuk
+uzun süredir devam eden bir sorun: trafo bağlantı noktası kararmış,trafo_arizasi,dusuk
+"direk eğilmiş, devrilme riski var, durum tehlikeli görünüyor",direk_hasari,acil
+"trafo sigortası sürekli atıyor, uzun süredir bu şekilde",trafo_arizasi,dusuk
+"yüksek gerilim hattı kopmuş, çevre tehlikeli, hafif bir arıza olabilir",kablo_kopmasi,acil
+"hat kopuk, kıvılcım saçıyor, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,acil
+"kablo kanalı açılmış, tel dışarıda kalmış",kablo_kopmasi,normal
+dikkat: sayaç camı kırılmış,sayac_arizasi,normal
+"direk yıllardır bakım görmemiş, çürümüş",direk_hasari,normal
+"direk beton kaide kısmı parçalanmış, küçük çaplı bir sorun gibi duruyor",direk_hasari,dusuk
+"direk elektrik hattını taşıyamıyor gibi görünüyor, küçük çaplı bir sorun gibi duruyor",direk_hasari,dusuk
+"uzun süredir devam eden bir sorun: direk yıllardır bakım görmemiş, çürümüş",direk_hasari,dusuk
+"sayaçta ısınma tespit edildi, durum tehlikeli görünüyor",sayac_arizasi,acil
+"sayaç camı kırılmış, acil müdahale gerekiyor",sayac_arizasi,acil
+dikkat: direk temelinde çatlak oluşmuş,direk_hasari,normal
+sayaçta yanlış ölçüm var,sayac_arizasi,normal
+"direk rüzgarda ciddi şekilde sallanıyor, hafif bir arıza olabilir",direk_hasari,dusuk
+"uzun süredir devam eden bir sorun: trafo devre dışı kaldı, gerilim düştü",trafo_arizasi,dusuk
+"iletken hat gerginliğini kaybetmiş, sarkmış, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,dusuk
+"hat ağaç dalına takılıp kopmuş, durum tehlikeli görünüyor",kablo_kopmasi,acil
+"trafodan duman çıkıyor, acil müdahale gerekiyor",trafo_arizasi,acil
+dikkat: direk dibindeki toprak çökmüş,direk_hasari,normal
+dikkat: kablo bir araç tarafından koparılmış,kablo_kopmasi,normal
+"dikkat: trafo devre dışı kaldı, gerilim düştü",trafo_arizasi,normal
+"sayaçta ısınma tespit edildi, vatandaşlar şikayet ediyor",sayac_arizasi,normal
+"sayaçta ısınma tespit edildi, lütfen ekip gönderin",sayac_arizasi,normal
+"direk beton kaide kısmı parçalanmış, hafif bir arıza olabilir",direk_hasari,dusuk
+"trafo bağlantı kablosu gevşemiş, hemen kontrol edilmeli",trafo_arizasi,acil
+"acil durum: kablo bağlantısı gevşemiş, kıvılcım çıkıyor",kablo_kopmasi,acil
+"sayaç bağlantısı gevşemiş, vatandaşlar şikayet ediyor",sayac_arizasi,normal
+acil durum: trafo aşırı yük altında çalışıyor,trafo_arizasi,acil
+"direk gövdesinde derin çatlaklar var, vatandaşlar şikayet ediyor",direk_hasari,normal
+"sayaç hiç veri göstermiyor, lütfen ekip gönderin",sayac_arizasi,normal
+"sayaç yanlış tüketim gösteriyor, uzun süredir bu şekilde",sayac_arizasi,dusuk
+"elektrik kablosu yolun ortasına düşmüş, vatandaşlar şikayet ediyor",kablo_kopmasi,normal
+"trafo çok fazla titreşim yapıyor, lütfen ekip gönderin",trafo_arizasi,normal
+uzun süredir devam eden bir sorun: hat kopukluğu nedeniyle bölge karanlıkta kaldı,kablo_kopmasi,dusuk
+"hat koptu, bölgede elektrik yok, uzun süredir bu şekilde",kablo_kopmasi,dusuk
+"sayaç ekranı çalışmıyor, acil müdahale gerekiyor",sayac_arizasi,acil
+"trafoda kıvılcım oluşuyor, lütfen ekip gönderin",trafo_arizasi,acil
+"direk paslanmış, zayıflamış görünüyor, hemen kontrol edilmeli",direk_hasari,acil
+"trafo bağlantı noktası kararmış, hafif bir arıza olabilir",trafo_arizasi,dusuk
+"direk eğilmiş, devrilme riski var, acil müdahale gerekiyor",direk_hasari,acil
+"trafo etrafında elektrik kokusu var, küçük çaplı bir sorun gibi duruyor",trafo_arizasi,dusuk
+acil durum: sayaçta yanlış ölçüm var,sayac_arizasi,acil
+"direk temelinde çatlak oluşmuş, hemen kontrol edilmeli",direk_hasari,acil
+acil durum: trafo soğutma sıvısı azalmış,trafo_arizasi,acil
+iletken tel kopmuş sarkıyor,kablo_kopmasi,normal
+acil durum: direk üzerindeki kablo askısı kopmuş,direk_hasari,acil
+"sayaçta yanlış ölçüm var, acil müdahale gerekiyor",sayac_arizasi,acil
+"dikkat: trafo ses çıkarıyor, uğultu var",trafo_arizasi,normal
+"sayaç yanlış tüketim gösteriyor, acil müdahale gerekiyor",sayac_arizasi,acil
+"trafo sigortası sürekli atıyor, acil müdahale gerekiyor",trafo_arizasi,acil
+"kablo yere düşmüş, tehlikeli durum, hemen kontrol edilmeli",kablo_kopmasi,acil
+"hat koptu, bölgede elektrik yok, lütfen ekip gönderin",kablo_kopmasi,normal
+"uzun süredir devam eden bir sorun: sayaç suya maruz kalmış, arızalanmış",sayac_arizasi,dusuk
+"direk fırtınada hasar gördü, uzun süredir bu şekilde",direk_hasari,dusuk
+"acil durum: direk kırılmış, yola yakın duruyor",direk_hasari,acil
+"direk aracın çarpmasıyla eğrildi, küçük çaplı bir sorun gibi duruyor",direk_hasari,dusuk
+direk üzerindeki izolatör kırık,direk_hasari,normal
+"trafo aşırı yük altında çalışıyor, durum tehlikeli görünüyor",trafo_arizasi,acil
+"direk dibindeki toprak çökmüş, lütfen ekip gönderin",direk_hasari,normal
+"trafo üzerinde pas ve korozyon var, hemen kontrol edilmeli",trafo_arizasi,acil
+acil durum: trafodan duman çıkıyor,trafo_arizasi,acil
+dikkat: trafo üzerinde pas ve korozyon var,trafo_arizasi,normal
+"sayaç hiç veri göstermiyor, acil müdahale gerekiyor",sayac_arizasi,acil
+uzun süredir devam eden bir sorun: direk temelinde çatlak oluşmuş,direk_hasari,dusuk
+uzun süredir devam eden bir sorun: trafo etrafında elektrik kokusu var,trafo_arizasi,dusuk
+"uzun süredir devam eden bir sorun: kablo yere düşmüş, tehlikeli durum",kablo_kopmasi,acil
+"direk aracın çarpmasıyla eğrildi, acil müdahale gerekiyor",direk_hasari,acil
+"sayaçtan sürekli hata sinyali geliyor, uzun süredir bu şekilde",sayac_arizasi,dusuk
+"acil durum: direk eğilmiş, devrilme riski var",direk_hasari,acil
+"sayaç suya maruz kalmış, arızalanmış, acil müdahale gerekiyor",sayac_arizasi,acil
+uzun süredir devam eden bir sorun: sayaç kutusu içi nem almış,sayac_arizasi,dusuk
+"sayaç kutusu içi nem almış, uzun süredir bu şekilde",sayac_arizasi,dusuk
+"direk tepesindeki bağlantı gevşemiş, küçük çaplı bir sorun gibi duruyor",direk_hasari,dusuk
+uzun süredir devam eden bir sorun: trafo kutusu su almış,trafo_arizasi,dusuk
+"direk kırılmış, yola yakın duruyor, küçük çaplı bir sorun gibi duruyor",direk_hasari,dusuk
+"trafo bağlantı noktası kararmış, lütfen ekip gönderin",trafo_arizasi,normal
+"sayaç panodan sökülmüş, uzun süredir bu şekilde",sayac_arizasi,dusuk
+"kablo yere düşmüş, tehlikeli durum, lütfen ekip gönderin",kablo_kopmasi,acil
+"sayaç eski, dijital göstergesi bozuk",sayac_arizasi,normal
+"hat ağaç dalına takılıp kopmuş, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,dusuk
+"trafo soğutma sıvısı azalmış, acil müdahale gerekiyor",trafo_arizasi,acil
+"sayaç eski, dijital göstergesi bozuk, uzun süredir bu şekilde",sayac_arizasi,dusuk
+"kablo direkten ayrılmış, sarkıyor, acil müdahale gerekiyor",kablo_kopmasi,acil
+"sayaç suya maruz kalmış, arızalanmış, durum tehlikeli görünüyor",sayac_arizasi,acil
+"uzun süredir devam eden bir sorun: yüksek gerilim hattı kopmuş, çevre tehlikeli",kablo_kopmasi,acil
+"trafo kutusu su almış, hemen kontrol edilmeli",trafo_arizasi,acil
+sayaç hiç veri göstermiyor,sayac_arizasi,normal
+"trafo etrafında elektrik kokusu var, acil müdahale gerekiyor",trafo_arizasi,acil
+"direk zemin kayması nedeniyle sallanıyor, uzun süredir bu şekilde",direk_hasari,dusuk
+acil durum: sayaç ekranı çalışmıyor,sayac_arizasi,acil
+uzun süredir devam eden bir sorun: sayaçtan sürekli hata sinyali geliyor,sayac_arizasi,dusuk
+acil durum: trafo çok fazla titreşim yapıyor,trafo_arizasi,acil
+"kablo kanalı açılmış, tel dışarıda kalmış, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,dusuk
+"kablo bağlantı kutusu hasar görmüş, küçük çaplı bir sorun gibi duruyor",kablo_kopmasi,dusuk
+"sayaç suya maruz kalmış, arızalanmış, hemen kontrol edilmeli",sayac_arizasi,acil
+"hat ağaç dalına takılıp kopmuş, uzun süredir bu şekilde",kablo_kopmasi,dusuk
+"direk eğilmiş, devrilme riski var, vatandaşlar şikayet ediyor",direk_hasari,acil
+uzun süredir devam eden bir sorun: elektrik kablosu yolun ortasına düşmüş,kablo_kopmasi,dusuk
+"direk beton kaide kısmı parçalanmış, hemen kontrol edilmeli",direk_hasari,acil
+"direk zemin kayması nedeniyle sallanıyor, lütfen ekip gönderin",direk_hasari,normal
+dikkat: sayaç mühürü kırılmış,sayac_arizasi,normal
+"direk fırtınada hasar gördü, vatandaşlar şikayet ediyor",direk_hasari,normal
+"sayaç kutusunun kapağı kopmuş, lütfen ekip gönderin",sayac_arizasi,normal
+"trafo aşırı ısınıyor, küçük çaplı bir sorun gibi duruyor",trafo_arizasi,dusuk
+acil durum: elektrik kablosu yolun ortasına düşmüş,kablo_kopmasi,acil
+"direk üzerindeki izolatör kırık, acil müdahale gerekiyor",direk_hasari,acil
+"dikkat: direk eğilmiş, devrilme riski var",direk_hasari,acil
+dikkat: sayaçta ısınma tespit edildi,sayac_arizasi,normal
+direk tepesindeki bağlantı gevşemiş,direk_hasari,normal

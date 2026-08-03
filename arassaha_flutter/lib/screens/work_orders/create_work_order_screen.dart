@@ -2,50 +2,30 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/description_classification.dart';
+import '../../models/equipment.dart';
 import '../../models/work_order.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
+import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
-
-/// Bölge seçici için sabit bir konum listesi. Bu, `ARCHITECTURE.md` Bölüm
-/// 11.1'deki "kişiler hiçbir yerde sabit kodlanmaz" kuralını İHLAL ETMEZ —
-/// burada sabitlenen bir kişi/personel değil, coğrafi referans verisidir
-/// (backend seed.js'teki bölge listesiyle aynı sahte-ama-gerçekçi bölgeler).
-/// Atanacak TEKNİSYEN listesi ise her zaman GET /api/users?role=teknisyen
-/// üzerinden gerçek zamanlı çekilir (bkz. _loadTechnicians).
-class _RegionOption {
-  final String label;
-  final double lat;
-  final double lng;
-  const _RegionOption(this.label, this.lat, this.lng);
-}
-
-const _regionOptions = [
-  _RegionOption('Erzurum / Yakutiye / Merkez Mah.', 39.9086, 41.2769),
-  _RegionOption('Erzurum / Palandöken / Kültür Mah.', 39.8600, 41.2600),
-  _RegionOption('Erzurum / Aziziye / Ilıca Mah.', 39.9700, 41.1900),
-  _RegionOption('Erzincan / Merkez / Fatih Mah.', 39.7500, 39.4900),
-  _RegionOption('Erzincan / Üzümlü / Bahçeler Mah.', 39.6800, 39.5300),
-  _RegionOption('Ağrı / Merkez / Cumhuriyet Mah.', 39.7191, 43.0503),
-  _RegionOption('Ağrı / Doğubayazıt / İshakpaşa Mah.', 39.5500, 44.0900),
-  _RegionOption('Kars / Merkez / Ortakapı Mah.', 40.6013, 43.0975),
-  _RegionOption('Kars / Sarıkamış / Fevzipaşa Mah.', 40.3300, 42.5900),
-  _RegionOption('Iğdır / Merkez / Aras Mah.', 39.9167, 44.0448),
-  _RegionOption('Iğdır / Tuzluca / Cumhuriyet Mah.', 40.0200, 43.6700),
-  _RegionOption('Ardahan / Merkez / Yenidoğan Mah.', 41.1105, 42.7022),
-  _RegionOption('Ardahan / Göle / Merkez Mah.', 40.7900, 42.6100),
-  _RegionOption('Bayburt / Merkez / Dede Korkut Mah.', 40.2552, 40.2249),
-  _RegionOption('Bayburt / Demirözü / Merkez Mah.', 40.1900, 39.9600),
-];
+import '../../widgets/equipment_picker_field.dart';
 
 /// Yeni İş Emri Oluştur/Ata ekranı (Modül 7 — RBAC). Yalnızca dispeçer/yönetici
 /// rolündeki kullanıcılar erişebilir; backend zaten requireRole('dispecer',
 /// 'yonetici') ile bunu engeller, ama teknisyen bir şekilde (örn. deep link)
 /// bu ekrana gelirse burada da ikinci bir koruma katmanı vardır (bkz. build).
+///
+/// KONUM TUTARLILIĞI: Bu formda artık serbest bir "Konum/Bölge" alanı YOKTUR.
+/// Konumun tek gerçek kaynağı (single source of truth) her zaman seçilen
+/// EKİPMANDIR — kullanıcı önce [EquipmentPickerField] ile bir ekipman arayıp
+/// seçer, konum bilgisi (il/ilçe/mahalle) bu seçimden OTOMATİK gelir ve salt
+/// okunurdur. Backend de zaten location_name/lat/lng'i istemciden hiç kabul
+/// etmez, equipment_id'den türetir (bkz. routes/workOrders.js) — bu form
+/// yalnızca aynı ilkeyi UI tarafında da yansıtır; asıl garanti backend'dedir.
 class CreateWorkOrderScreen extends StatefulWidget {
   const CreateWorkOrderScreen({super.key});
 
@@ -58,7 +38,7 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
   final _descriptionController = TextEditingController();
 
   WorkOrderPriority _priority = WorkOrderPriority.normal;
-  _RegionOption? _selectedRegion;
+  Equipment? _selectedEquipment;
 
   List<AssignedUser> _technicians = [];
   AssignedUser? _selectedTechnician;
@@ -164,7 +144,7 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
 
   bool get _canSubmit =>
       _titleController.text.trim().isNotEmpty &&
-      _selectedRegion != null &&
+      _selectedEquipment != null &&
       _selectedTechnician != null &&
       !_isSubmitting;
 
@@ -181,10 +161,8 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
         title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
         priority: _priority,
-        locationName: _selectedRegion!.label,
-        lat: _selectedRegion!.lat,
-        lng: _selectedRegion!.lng,
         assignedUserId: _selectedTechnician!.id,
+        equipmentId: _selectedEquipment!.id,
       );
 
       if (!mounted) return;
@@ -226,6 +204,20 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xl),
         children: [
+          // Mantıksal sıra: önce "hangi ekipman" sorusu cevaplanır, sonra
+          // başlık/açıklama girilir — bkz. dosya üstündeki Konum Tutarlılığı notu.
+          Text('Ekipman', style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: AppSpacing.sm),
+          EquipmentPickerField(
+            initialValue: _selectedEquipment,
+            onSelected: (equipment) => setState(() => _selectedEquipment = equipment),
+          ),
+          if (_selectedEquipment != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _LocationInfoCard(equipment: _selectedEquipment!),
+          ],
+          const SizedBox(height: AppSpacing.lg),
+
           Text('Başlık', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: AppSpacing.sm),
           TextField(
@@ -281,19 +273,6 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
           ),
           const SizedBox(height: AppSpacing.lg),
 
-          Text('Konum / Bölge', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: AppSpacing.sm),
-          DropdownButtonFormField<_RegionOption>(
-            initialValue: _selectedRegion,
-            isExpanded: true,
-            decoration: const InputDecoration(hintText: 'Bölge seçin', isDense: true),
-            items: _regionOptions
-                .map((region) => DropdownMenuItem(value: region, child: Text(region.label)))
-                .toList(),
-            onChanged: (region) => setState(() => _selectedRegion = region),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
           Text('Atanacak Teknisyen', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: AppSpacing.sm),
           _buildTechnicianField(scheme),
@@ -306,6 +285,23 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
                 Icon(Icons.error_outline, size: 16, color: scheme.error),
                 const SizedBox(width: 6),
                 Expanded(child: Text(_submitError!, style: TextStyle(color: scheme.error, fontSize: 13))),
+              ],
+            ),
+          ],
+
+          if (_selectedEquipment == null) ...[
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline, size: 16, color: scheme.onSurfaceVariant),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Lütfen önce bir ekipman seçin.',
+                    style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+                  ),
+                ),
               ],
             ),
           ],
@@ -352,6 +348,41 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
           .map((user) => DropdownMenuItem(value: user, child: Text(user.name)))
           .toList(),
       onChanged: (user) => setState(() => _selectedTechnician = user),
+    );
+  }
+}
+
+/// Seçilen ekipmandan OTOMATİK gelen, salt okunur konum özeti. Kullanıcı bu
+/// bilgiyi elle değiştiremez — açıklayıcı not, "neden değiştiremiyorum"
+/// sorusuna baştan yanıt verir (bkz. dosya üstündeki Konum Tutarlılığı notu).
+class _LocationInfoCard extends StatelessWidget {
+  final Equipment equipment;
+  const _LocationInfoCard({required this.equipment});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm + 4, vertical: AppSpacing.sm + 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.location_on_outlined, size: 16, color: scheme.primary),
+              const SizedBox(width: 6),
+              Text('Konum Bilgisi', style: TextStyle(fontWeight: FontWeight.w700, color: scheme.onSurface)),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text('${equipment.il} / ${equipment.ilce} / ${equipment.mahalle}', style: TextStyle(color: scheme.onSurface)),
+          const SizedBox(height: 6),
+          Text(
+            'Bu bilgi seçilen ekipmandan otomatik alınıyor.',
+            style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -41,6 +41,7 @@ class _EquipmentListScreenState extends State<EquipmentListScreen> {
         children: [
           _TypeFilterBar(provider: provider),
           _StatusFilterBar(provider: provider),
+          _IlFilterBar(provider: provider),
           Expanded(
             child: Builder(
               builder: (context) {
@@ -122,17 +123,6 @@ class _EquipmentListScreenState extends State<EquipmentListScreen> {
   }
 }
 
-Color _statusStripeColor(BuildContext context, EquipmentStatus status) {
-  switch (status) {
-    case EquipmentStatus.aktif:
-      return AppColors.success(context);
-    case EquipmentStatus.bakimda:
-      return AppColors.warning(context);
-    case EquipmentStatus.devreDisi:
-      return AppColors.textSecondary(context);
-  }
-}
-
 class _TypeFilterBar extends StatelessWidget {
   final EquipmentProvider provider;
   const _TypeFilterBar({required this.provider});
@@ -208,6 +198,45 @@ class _StatusFilterBar extends StatelessWidget {
   }
 }
 
+/// Backend'deki utils/location.js VALID_ILLER ile BİREBİR aynı 7 hizmet ili
+/// (bkz. database.js/seed.js Modül 11 sonrası konum tutarlılığı değişikliği).
+/// Bu, ARCHITECTURE.md'nin "kişiler sabit kodlanmaz" kuralını ihlal etmez —
+/// coğrafi referans verisidir, personel değil (bkz. create_work_order_screen.dart
+/// üstündeki aynı gerekçe notu).
+const _ilOptions = ['Erzurum', 'Erzincan', 'Ağrı', 'Kars', 'Iğdır', 'Ardahan', 'Bayburt'];
+
+class _IlFilterBar extends StatelessWidget {
+  final EquipmentProvider provider;
+  const _IlFilterBar({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final filters = <String, String?>{'Tümü': null, for (final il in _ilOptions) il: il};
+
+    return SizedBox(
+      height: 48,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: filters.entries.map((entry) {
+          final isSelected = provider.ilFilter == entry.value;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: ChoiceChip(
+              label: Text(entry.key),
+              selected: isSelected,
+              showCheckmark: false,
+              labelStyle: TextStyle(color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant, fontSize: 12),
+              onSelected: (_) => provider.setIlFilter(entry.value),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
 class _EquipmentCard extends StatelessWidget {
   final Equipment equipment;
   final VoidCallback onTap;
@@ -219,7 +248,7 @@ class _EquipmentCard extends StatelessWidget {
 
     return AppCard(
       onTap: onTap,
-      statusStripeColor: _statusStripeColor(context, equipment.status),
+      statusStripeColor: equipmentStatusColor(context, equipment.status),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -249,7 +278,7 @@ class _EquipmentCard extends StatelessWidget {
                     Text(
                       equipment.status.label,
                       style: TextStyle(
-                        color: _statusStripeColor(context, equipment.status),
+                        color: equipmentStatusColor(context, equipment.status),
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),

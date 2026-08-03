@@ -2,6 +2,7 @@
 // Bu script tekrar çalıştırılabilir olsun diye önce mevcut kayıtları temizler.
 const bcrypt = require('bcrypt');
 const db = require('./database');
+const { formatLocationName } = require('./utils/location');
 
 // Tüm demo kullanıcılar aynı basit şifreyi kullanır — staj sunumu için
 // kolay hatırlanır olması önemli, gerçek üretimde bu asla yapılmaz
@@ -84,18 +85,6 @@ function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-// Fisher-Yates: locations dizisini karıştırır. statusPlan ile aynı uzunlukta
-// (15) olduğu için her konum tam olarak bir kez kullanılır — bu sayede harita
-// ekranında pinler 7 ile de dağılır, tek bir noktada üst üste binmez.
-function shuffle(arr) {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
 function yearsAgoIsoDate(years) {
   // `years` çeyrek yıl (1.5, 2.5 vb.) olabilir; setFullYear tam sayı olmayan
   // değerlerde yanlış sonuç ürettiği için gün bazlı milisaniye hesabı kullanılır.
@@ -122,11 +111,18 @@ db.exec('DELETE FROM managed_devices');
 db.exec('DELETE FROM work_order_photos');
 db.exec('DELETE FROM work_orders');
 db.exec('DELETE FROM equipment_risk_scores');
+// meter_consumption/meter_anomaly_scores (Modül 11) equipment_id'ye FK'lidir —
+// equipment yeniden oluşturulunca (yeni id'lerle) eski satırlar yanlış/var
+// olmayan kayıtlara işaret eder hale gelir; equipment_risk_scores ile AYNI
+// sebepten burada da temizleniyor. Gerçek tüketim verisi, seed'den SONRA
+// arassaha-ml/generate_consumption_data.py ile ayrıca üretilir.
+db.exec('DELETE FROM meter_anomaly_scores');
+db.exec('DELETE FROM meter_consumption');
 db.exec('DELETE FROM equipment');
 db.exec('DELETE FROM isg_reports');
 db.exec('DELETE FROM users');
 db.exec(
-  "DELETE FROM sqlite_sequence WHERE name IN ('work_orders', 'work_order_photos', 'users', 'managed_devices', 'device_action_logs', 'equipment', 'isg_reports', 'equipment_risk_scores', 'user_action_logs', 'notifications')"
+  "DELETE FROM sqlite_sequence WHERE name IN ('work_orders', 'work_order_photos', 'users', 'managed_devices', 'device_action_logs', 'equipment', 'isg_reports', 'equipment_risk_scores', 'user_action_logs', 'notifications', 'meter_consumption', 'meter_anomaly_scores')"
 );
 
 const insertUser = db.prepare(`
@@ -186,27 +182,69 @@ const equipmentSeed = [
   { qr_code: 'SY-2013-0902', equipment_type: 'sayac', location: locations[14], installYears: 12, maintenanceMonths: 24, manufacturer: 'ABB', capacity_info: null, status: 'aktif', hasHistory: false },
   { qr_code: 'SY-2025-0044', equipment_type: 'sayac', location: locations[6], installYears: 0.5, maintenanceMonths: 1, manufacturer: 'ABB', capacity_info: null, status: 'aktif', hasHistory: false },
   { qr_code: 'SY-2011-0367', equipment_type: 'sayac', location: locations[7], installYears: 14.5, maintenanceMonths: 48, manufacturer: 'Siemens', capacity_info: null, status: 'devre_disi', hasHistory: true },
+  // Aşağıdaki 15 kayıt, Modül 11 (Kayıp-Kaçak / Anormal Tüketim Tespiti) için
+  // eklendi: arassaha-ml/generate_consumption_data.py, IsolationForest modelini
+  // anlamlı bir eğitim seti üretebilmek için en az 15-20 sayaç ekipmanı okumayı
+  // bekler (bkz. arassaha-ml/README.md Modül 11 bölümü). Diğer alanlar (yaş,
+  // bakım, üretici) yukarıdaki 4 kayıtla aynı çeşitlilik mantığıyla dağıtıldı.
+  { qr_code: 'SY-2021-0118', equipment_type: 'sayac', location: locations[1], installYears: 4, maintenanceMonths: 8, manufacturer: 'ABB', capacity_info: null, status: 'aktif', hasHistory: false },
+  { qr_code: 'SY-2019-0273', equipment_type: 'sayac', location: locations[2], installYears: 6, maintenanceMonths: 12, manufacturer: 'Siemens', capacity_info: null, status: 'aktif', hasHistory: true },
+  { qr_code: 'SY-2023-0561', equipment_type: 'sayac', location: locations[3], installYears: 2, maintenanceMonths: 3, manufacturer: 'ABB', capacity_info: null, status: 'aktif', hasHistory: false },
+  { qr_code: 'SY-2016-0730', equipment_type: 'sayac', location: locations[4], installYears: 9, maintenanceMonths: 18, manufacturer: 'Schneider Electric', capacity_info: null, status: 'aktif', hasHistory: false },
+  { qr_code: 'SY-2024-0089', equipment_type: 'sayac', location: locations[5], installYears: 1, maintenanceMonths: 2, manufacturer: 'ABB', capacity_info: null, status: 'aktif', hasHistory: false },
+  { qr_code: 'SY-2014-0405', equipment_type: 'sayac', location: locations[8], installYears: 11, maintenanceMonths: 30, manufacturer: 'Siemens', capacity_info: null, status: 'aktif', hasHistory: true },
+  { qr_code: 'SY-2020-0192', equipment_type: 'sayac', location: locations[9], installYears: 5, maintenanceMonths: 10, manufacturer: 'ABB', capacity_info: null, status: 'aktif', hasHistory: false },
+  { qr_code: 'SY-2012-0847', equipment_type: 'sayac', location: locations[10], installYears: 13, maintenanceMonths: 40, manufacturer: 'Schneider Electric', capacity_info: null, status: 'aktif', hasHistory: false },
+  { qr_code: 'SY-2022-0316', equipment_type: 'sayac', location: locations[11], installYears: 3.5, maintenanceMonths: 6, manufacturer: 'Siemens', capacity_info: null, status: 'aktif', hasHistory: false },
+  { qr_code: 'SY-2018-0654', equipment_type: 'sayac', location: locations[12], installYears: 7, maintenanceMonths: 15, manufacturer: 'ABB', capacity_info: null, status: 'aktif', hasHistory: true },
+  { qr_code: 'SY-2010-0021', equipment_type: 'sayac', location: locations[13], installYears: 15.5, maintenanceMonths: 44, manufacturer: 'Siemens', capacity_info: null, status: 'aktif', hasHistory: false },
+  { qr_code: 'SY-2023-0740', equipment_type: 'sayac', location: locations[0], installYears: 2.5, maintenanceMonths: 4, manufacturer: 'ABB', capacity_info: null, status: 'aktif', hasHistory: false },
+  { qr_code: 'SY-2017-0508', equipment_type: 'sayac', location: locations[2], installYears: 8, maintenanceMonths: 20, manufacturer: 'Schneider Electric', capacity_info: null, status: 'aktif', hasHistory: false },
+  { qr_code: 'SY-2015-0362', equipment_type: 'sayac', location: locations[5], installYears: 10, maintenanceMonths: 26, manufacturer: 'Siemens', capacity_info: null, status: 'bakimda', hasHistory: false },
+  { qr_code: 'SY-2021-0904', equipment_type: 'sayac', location: locations[9], installYears: 4.5, maintenanceMonths: 9, manufacturer: 'ABB', capacity_info: null, status: 'aktif', hasHistory: false },
 ];
 
 const insertEquipment = db.prepare(`
   INSERT INTO equipment
-    (qr_code, equipment_type, location_name, lat, lng, install_date, last_maintenance_date, manufacturer, capacity_info, status, created_at)
+    (qr_code, equipment_type, il, ilce, mahalle, location_name, lat, lng, install_date, last_maintenance_date, manufacturer, capacity_info, status, created_at)
   VALUES
-    (@qr_code, @equipment_type, @location_name, @lat, @lng, @install_date, @last_maintenance_date, @manufacturer, @capacity_info, @status, @created_at)
+    (@qr_code, @equipment_type, @il, @ilce, @mahalle, @location_name, @lat, @lng, @install_date, @last_maintenance_date, @manufacturer, @capacity_info, @status, @created_at)
 `);
 
 const equipmentIds = [];
 const equipmentIdsWithHistory = [];
 
+// equipmentIdToLocation: her eklenen ekipmanın GERÇEKTEN veritabanına
+// yazılan (jitter uygulanmış) konum alanlarının bir kopyası. Aşağıda iş
+// emirleri üretilirken bir iş emrinin KONUMU artık rastgele değil,
+// BAĞLANDIĞI ekipmanın konumuyla BİREBİR aynıdır (aynı formatLocationName()
+// çıktısı, aynı lat/lng) — gerçek hayatta bir arıza her zaman kendi
+// ekipmanının bulunduğu yerde olur. Önceden konum ve equipment_id
+// birbirinden bağımsız rastgele seçiliyordu, bu da örn. Erzurum'daki bir
+// trafonun geçmişinde Bayburt'ta bildirilmiş bir arıza görünmesi gibi
+// tutarsız bir sonuca yol açıyordu. Bu, POST /api/workorders'ın (canlı akış)
+// equipment kaydından konum türetmesiyle AYNI ilkedir (bkz. routes/workOrders.js).
+const equipmentIdToLocation = {};
+
 db.exec('BEGIN');
 try {
   for (const eq of equipmentSeed) {
+    const il = eq.location.il;
+    const ilce = eq.location.ilce;
+    const mahalle = eq.location.mah;
+    const location_name = formatLocationName({ il, ilce, mahalle });
+    const lat = eq.location.lat + randomJitter();
+    const lng = eq.location.lng + randomJitter();
+
     const info = insertEquipment.run({
       qr_code: eq.qr_code,
       equipment_type: eq.equipment_type,
-      location_name: `${eq.location.il} / ${eq.location.ilce} / ${eq.location.mah}`,
-      lat: eq.location.lat + randomJitter(),
-      lng: eq.location.lng + randomJitter(),
+      il,
+      ilce,
+      mahalle,
+      location_name,
+      lat,
+      lng,
       install_date: yearsAgoIsoDate(eq.installYears),
       last_maintenance_date: eq.maintenanceMonths == null ? null : monthsAgoIsoDate(eq.maintenanceMonths),
       manufacturer: eq.manufacturer,
@@ -216,6 +254,7 @@ try {
     });
     equipmentIds.push(info.lastInsertRowid);
     if (eq.hasHistory) equipmentIdsWithHistory.push(info.lastInsertRowid);
+    equipmentIdToLocation[info.lastInsertRowid] = { il, ilce, mahalle, location_name, lat, lng };
   }
   db.exec('COMMIT');
 } catch (err) {
@@ -225,9 +264,9 @@ try {
 
 const insertWorkOrder = db.prepare(`
   INSERT INTO work_orders
-    (title, description, status, priority, location_name, lat, lng, assigned_user_id, equipment_id, created_at, updated_at)
+    (title, description, status, priority, il, ilce, mahalle, location_name, lat, lng, assigned_user_id, equipment_id, created_at, updated_at)
   VALUES
-    (@title, @description, @status, @priority, @location_name, @lat, @lng, @assigned_user_id, @equipment_id, @created_at, @updated_at)
+    (@title, @description, @status, @priority, @il, @ilce, @mahalle, @location_name, @lat, @lng, @assigned_user_id, @equipment_id, @created_at, @updated_at)
 `);
 
 // node:sqlite'ın better-sqlite3'teki gibi bir db.transaction() sarmalayıcısı yok;
@@ -249,10 +288,13 @@ function insertMany(rows) {
 }
 
 const firstCozulduIndex = statusPlan.indexOf('cozuldu');
-const shuffledLocations = shuffle(locations);
 
 const rows = statusPlan.map((status, index) => {
-  const location = shuffledLocations[index];
+  // Konum artık iş emrinin bağlandığı ekipmandan türetilir (bkz. yukarıdaki
+  // equipmentIdToLocation notu) — rastgele bir konum ile rastgele bir
+  // ekipman ayrı ayrı seçilmiyor.
+  const equipmentId = pick(equipmentIdsWithHistory);
+  const location = equipmentIdToLocation[equipmentId];
   const title = pick(titles);
 
   let createdAt;
@@ -272,18 +314,24 @@ const rows = statusPlan.map((status, index) => {
   }
 
   return {
-    title: `${title} - ${location.mah}`,
+    title: `${title} - ${location.mahalle}`,
     description: `${location.il} / ${location.ilce} bölgesinde ${title.toLowerCase()} bildirildi. Sahada inceleme ve müdahale gerekiyor. (Kayıt #${index + 1})`,
     status,
     priority: pick(priorities),
-    location_name: `${location.il} / ${location.ilce} / ${location.mah}`,
-    lat: location.lat + randomJitter(),
-    lng: location.lng + randomJitter(),
+    // il/ilce/mahalle/location_name/lat/lng — BAĞLANDIĞI equipment kaydından
+    // BİREBİR kopyalanır (ayrıca jitter uygulanmaz); POST /api/workorders'ın
+    // canlı akışta yapacağıyla aynı davranış (bkz. routes/workOrders.js).
+    il: location.il,
+    ilce: location.ilce,
+    mahalle: location.mahalle,
+    location_name: location.location_name,
+    lat: location.lat,
+    lng: location.lng,
     assigned_user_id: pick(technicianIds),
     // equipment.id'ye giden gerçek bir FK — yalnızca "geçmiş arıza kaydı
-    // olsun" diye işaretlenmiş ekipmanlardan seçilir; bu sayede bazı
-    // ekipmanların gerçek geçmişi olur, bazılarınınsa hiç olmaz (bkz. yukarı).
-    equipment_id: pick(equipmentIdsWithHistory),
+    // olsun" diye işaretlenmiş ekipmanlardan seçilir (yukarıda); bu sayede
+    // bazı ekipmanların gerçek geçmişi olur, bazılarınınsa hiç olmaz.
+    equipment_id: equipmentId,
     created_at: createdAt.toISOString(),
     updated_at: updatedAt.toISOString(),
   };

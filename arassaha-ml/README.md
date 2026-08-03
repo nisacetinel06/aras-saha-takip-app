@@ -1,4 +1,4 @@
-# ArasSaha ML Servisi — Arıza Risk Tahmini (Modül 9) + Arıza Açıklaması Otomatik Sınıflandırma (Modül 10)
+# ArasSaha ML Servisi — Arıza Risk Tahmini (Modül 9) + Arıza Açıklaması Otomatik Sınıflandırma (Modül 10) + Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11)
 
 Bu klasör, Node.js/Express backend'inden HTTP ile çağrılan bağımsız bir
 Python (FastAPI) servisidir. `arassaha-backend`'e hiçbir şekilde import
@@ -55,6 +55,7 @@ uvicorn app:app --reload --port 8000
 - `GET /health` — servis ve model yüklü mü kontrolü
 - `POST /predict` — tek bir ekipman için risk skoru (Modül 9)
 - `POST /classify-text` — bir arıza açıklama metni için arıza tipi/öncelik önerisi (Modül 10)
+- `POST /detect-anomaly` — bir sayacın tüketim özelliklerinden anomali skoru (Modül 11)
 
 Node.js backend'i bu servise `ML_SERVICE_URL` ortam değişkeniyle
 (varsayılan `http://localhost:8000`) bağlanır (bkz. `arassaha-backend/routes/risk.js`
@@ -79,3 +80,48 @@ kurulmadı. Aynı dürüstlük ilkesi burada da geçerlidir: eğitim verisi
 üretilmiş sentetik Türkçe metinlerdir (bkz. `generate_text_training_data.py`);
 gerçek üretim ortamında model, ArasSaha'nın gerçek arıza açıklama
 metinleriyle yeniden eğitilir.
+
+## Modül 11 — Kayıp-Kaçak / Anormal Tüketim Tespiti
+
+**EDAŞ için gerçek finansal değer:** Kayıp-kaçak oranı (dağıtılan enerji ile
+faturalandırılan enerji arasındaki fark), elektrik dağıtım şirketleri için
+doğrudan bir gelir kaybı kalemidir. Kaçak kullanım veya arızalı/kurcalanmış
+sayaçların erken tespiti, sahaya rastgele değil HEDEFLİ ekip gönderilmesini
+sağlayarak hem kayıpları azaltır hem de denetim maliyetini düşürür — bu modül
+bu ihtiyacı doğrudan karşılamayı amaçlar.
+
+```bash
+python generate_consumption_data.py   # meter_consumption tablosunu + consumption_training_data.csv'yi oluşturur
+python train_anomaly_model.py         # models/anomaly_model.pkl ve anomaly_model_metadata.json oluşturur
+```
+
+`generate_consumption_data.py`, DİĞER `generate_*.py` scriptlerinden farklı
+olarak yalnızca bir CSV üretmez — `arassaha-backend/aras_saha.db` dosyasını
+(Node.js'in kullandığı SQLite dosyasının aynısı) doğrudan okuyup/yazar: önce
+`equipment_type='sayac'` olan ekipmanları okur, sonra ürettiği 12 aylık ham
+tüketim verisini `meter_consumption` tablosuna yazar. Bu yüzden ÖNCE
+`arassaha-backend` içinde `node seed.js` çalıştırılmış olmalı (en az 15-20
+sayaç ekipmanı için).
+
+**Üçüncü ML tekniği, aynı serviste:** Modül 9 (RandomForest, sayısal risk
+tahmini) ve Modül 10 (TF-IDF+LogisticRegression, metin sınıflandırma) hem
+DENETİMLİ (supervised) tekniklerdir — "doğru cevap" (will_fail, arıza
+tipi/öncelik) eğitim verisinde zaten etiketli. Modül 11 BİLİNÇLİ olarak
+DENETİMSİZ (unsupervised) bir teknikle çalışır: `IsolationForest`,
+"anormal" etiketi olmadan, yalnızca özniteliklerin (ortalama tüketim, düşüş
+oranı, ay-ay değişim, sıfıra yakın ay sayısı vb.) dağılımına bakarak ayrık
+duran noktaları tespit eder. Isolation Forest kara kutu olduğu için, kullanıcıya
+"neden şüpheli" sorusuna somut bir yanıt verebilmek amacıyla `app.py`'deki
+`/detect-anomaly` endpoint'i, model skorunun YANINDA basit, açıklanabilir
+kurallar da değerlendirir (örn. "Son 3 ayda tüketim %73 azaldı").
+
+**Dürüstlük Notu:** ArasSaha'nın elinde gerçek bir AMI/akıllı sayaç okuma
+sistemi yok; `consumption_training_data.csv` ve `meter_consumption` verisi,
+`generate_consumption_data.py` içinde tanımlı kural tabanlı bir üreticiyle
+(çoğu sayaç mevsimsel/düşük varyanslı normal bir örüntü izler, küçük bir kısmı
+BİLEREK ani düşüş / sıfıra yakın tüketim / düzensiz dalgalanma örüntülerinden
+biriyle üretilir) sentetiktir. Model eğitimi, servis mimarisi ve Node.js/
+Flutter entegrasyonu gerçektir; gerçek üretim ortamında tek yapılması gereken,
+`generate_consumption_data.py` yerine ArasSaha'nın gerçek AMI/sayaç okuma
+sisteminden türetilmiş bir tüketim geçmişi vermek ve `train_anomaly_model.py`'yi
+bununla yeniden çalıştırmaktır.

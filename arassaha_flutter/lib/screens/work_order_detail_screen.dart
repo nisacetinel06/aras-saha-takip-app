@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../models/equipment.dart' show EquipmentType;
 import '../models/work_order.dart';
 import '../providers/auth_provider.dart';
 import '../providers/work_order_detail_provider.dart';
@@ -136,9 +137,11 @@ class _WorkOrderDetailBody extends StatelessWidget {
                               ),
                             if (workOrder.equipmentRef.isNotEmpty) ...[
                               const SizedBox(height: 8),
-                              // Modül 4 (Ekipman) ile gerçek bağlantı: equipmentId
-                              // doluysa kod, Ekipman Detay ekranına giden bir
-                              // bağlantı olarak gösterilir.
+                              // Modül 4 (Ekipman) ile gerçek, İKİ YÖNLÜ bağlantı:
+                              // Ekipman Detayı geçmiş arızalarını gösterirken
+                              // (Modül 4), burada da bu iş emrinin bağlı olduğu
+                              // ekipmanın tipi + QR kodu gösterilip dokununca
+                              // doğrudan Ekipman Detayı'na gidilir.
                               workOrder.equipmentId != null
                                   ? InkWell(
                                       borderRadius: BorderRadius.circular(6),
@@ -147,9 +150,12 @@ class _WorkOrderDetailBody extends StatelessWidget {
                                           builder: (_) => EquipmentDetailScreen(equipmentId: workOrder.equipmentId!),
                                         ),
                                       ),
-                                      child: _EquipmentChip(code: workOrder.equipmentRef),
+                                      child: _EquipmentChip(
+                                        code: workOrder.equipmentRef,
+                                        type: workOrder.equipmentType,
+                                      ),
                                     )
-                                  : _EquipmentChip(code: workOrder.equipmentRef),
+                                  : _EquipmentChip(code: workOrder.equipmentRef, type: workOrder.equipmentType),
                             ],
                           ],
                         ),
@@ -265,7 +271,8 @@ class _QuoteBox extends StatelessWidget {
 
 class _EquipmentChip extends StatelessWidget {
   final String code;
-  const _EquipmentChip({required this.code});
+  final EquipmentType? type;
+  const _EquipmentChip({required this.code, this.type});
 
   @override
   Widget build(BuildContext context) {
@@ -280,8 +287,14 @@ class _EquipmentChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.qr_code_2_outlined, size: 14, color: scheme.onSurfaceVariant),
+          Icon(type?.icon ?? Icons.qr_code_2_outlined, size: 14, color: scheme.onSurfaceVariant),
           const SizedBox(width: 4),
+          if (type != null) ...[
+            Text(type!.label, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(width: 4),
+            Text('·', style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+            const SizedBox(width: 4),
+          ],
           Text(code, style: AppTextStyles.dataMono(color: scheme.onSurfaceVariant).copyWith(fontSize: 12)),
         ],
       ),

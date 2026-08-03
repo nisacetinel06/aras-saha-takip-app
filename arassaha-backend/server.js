@@ -22,6 +22,7 @@ const dashboardRouter = require('./routes/dashboard');
 const devicesRouter = require('./routes/devices');
 const equipmentRouter = require('./routes/equipment');
 const riskRouter = require('./routes/risk');
+const anomalyRouter = require('./routes/anomaly');
 const isgRouter = require('./routes/isg');
 const notificationsRouter = require('./routes/notifications');
 const nlpRouter = require('./routes/nlp');
@@ -58,6 +59,10 @@ app.use('/api/equipment', verifyToken, equipmentRouter);
 // 'dashboard/risky-equipment' gibi farklı öneklere sahip tam yollar
 // tanımlar (bkz. routes/risk.js); bu yüzden '/api' kökünde mount edilir.
 app.use('/api', verifyToken, riskRouter);
+// anomalyRouter da riskRouter gibi 'ml/refresh-anomaly-scores',
+// 'meters/suspicious', 'equipment/:id/anomaly' gibi farklı öneklere sahip tam
+// yollar tanımlar (bkz. routes/anomaly.js) — bu yüzden '/api' kökünde mount edilir.
+app.use('/api', verifyToken, anomalyRouter);
 app.use('/api/isg-reports', verifyToken, isgRouter);
 app.use('/api/notifications', verifyToken, notificationsRouter);
 // nlpRouter da riskRouter gibi '/api/ml/...' altında tam yol tanımlar
@@ -83,5 +88,18 @@ app.listen(PORT, async () => {
     );
   } catch (err) {
     console.warn('Başlangıçta risk skorları güncellenemedi (ML servisi kapalı olabilir):', err.message);
+  }
+
+  // Modül 11 — riskRouter ile AYNI başlangıç deseni (bkz. yukarısı). Sayaçların
+  // meter_consumption verisi hiç üretilmediyse (generate_consumption_data.py
+  // çalıştırılmadıysa) her sayaç kendi try/catch'inde tek tek başarısız olur;
+  // bu, sunucunun başlamasını ENGELLEMEZ.
+  try {
+    const result = await anomalyRouter.refreshAllAnomalyScores();
+    console.log(
+      `Başlangıç anomali skorları güncellendi: ${result.updated} sayaç güncellendi, ${result.failed} hata.`
+    );
+  } catch (err) {
+    console.warn('Başlangıçta anomali skorları güncellenemedi (ML servisi kapalı olabilir):', err.message);
   }
 });

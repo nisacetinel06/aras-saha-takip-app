@@ -1,7 +1,10 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/equipment.dart';
 import '../../models/equipment_risk.dart';
+import '../../models/meter_anomaly.dart';
+import '../../providers/anomaly_provider.dart';
 import '../../providers/equipment_provider.dart';
 import '../../providers/risk_provider.dart';
 import '../../theme/app_colors.dart';
@@ -84,11 +87,16 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
           }
 
           final riskProvider = context.read<RiskProvider>();
+          final anomalyProvider = context.read<AnomalyProvider>();
           return RefreshIndicator(
             onRefresh: () async {
               await provider.fetchEquipmentDetail(widget.equipmentId);
               await provider.fetchEquipmentHistory(widget.equipmentId);
               await riskProvider.fetchEquipmentRisk(widget.equipmentId);
+              if (equipment.equipmentType == EquipmentType.sayac) {
+                await anomalyProvider.fetchEquipmentAnomaly(widget.equipmentId);
+                await anomalyProvider.fetchEquipmentConsumption(widget.equipmentId);
+              }
             },
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -160,6 +168,19 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                 ),
                 const SizedBox(height: AppSpacing.md),
 
+                // Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) — yalnızca
+                // sayaç tipi ekipmanlar için anlamlıdır (bkz. routes/anomaly.js
+                // equipment_type kontrolü). Farklı bir ikon (büyüteç) kullanılır
+                // ki Risk Analizi kartıyla (Icons.insights_outlined) karışmasın.
+                if (equipment.equipmentType == EquipmentType.sayac) ...[
+                  _SectionCard(
+                    title: 'Tüketim Analizi',
+                    icon: Icons.search,
+                    child: _ConsumptionAnalysisSection(equipmentId: widget.equipmentId),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
+
                 _SectionCard(
                   title: 'Geçmiş Arıza Kayıtları',
                   icon: Icons.history,
@@ -184,11 +205,7 @@ class _EquipmentStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (status) {
-      EquipmentStatus.aktif => AppColors.success(context),
-      EquipmentStatus.bakimda => AppColors.warning(context),
-      EquipmentStatus.devreDisi => AppColors.textSecondary(context),
-    };
+    final color = equipmentStatusColor(context, status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(AppRadius.pill)),
@@ -296,7 +313,7 @@ class _HistorySection extends StatelessWidget {
       children: [
         for (int i = 0; i < provider.history.length; i++) ...[
           if (i > 0) const Divider(height: 20),
-          _HistoryRow(entry: provider.history[i]),
+          _HistoryRow(entry: provider.history[i], equipmentId: equipmentId),
         ],
       ],
     );
@@ -394,21 +411,208 @@ class _RiskAnalysisSection extends StatelessWidget {
   }
 }
 
+/// Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) — anomali skoru + kural
+/// tabanlı gerekçe + son 12 aylık tüketim grafiği (fl_chart). Yalnızca
+/// equipment.equipmentType == sayac olduğunda oluşturulur (bkz. build); bu
+/// yüzden fetch'i initState'te KOŞULSUZ tetiklemek güvenlidir.
+///
+/// DÜRÜSTLÜK NOTU: Bu skoru üreten IsolationForest modeli, ArasSaha'nın
+/// henüz gerçek bir AMI/akıllı sayaç okuma sistemi olmaması nedeniyle
+/// SENTETİK bir tüketim geçmişiyle eğitildi (bkz. arassaha-ml/README.md).
+class _ConsumptionAnalysisSection extends StatefulWidget {
+  final int equipmentId;
+  const _ConsumptionAnalysisSection({required this.equipmentId});
+
+  @override
+  State<_ConsumptionAnalysisSection> createState() => _ConsumptionAnalysisSectionState();
+}
+
+class _ConsumptionAnalysisSectionState extends State<_ConsumptionAnalysisSection> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<AnomalyProvider>();
+      provider.fetchEquipmentAnomaly(widget.equipmentId);
+      provider.fetchEquipmentConsumption(widget.equipmentId);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<AnomalyProvider>();
+    final anomaly = provider.anomalyFor(widget.equipmentId);
+    final isAnomalyLoading = provider.isAnomalyLoading(widget.equipmentId);
+    final consumption = provider.consumptionFor(widget.equipmentId);
+    final isConsumptionLoading = provider.isConsumptionLoading(widget.equipmentId);
+    final scheme = Theme.of(context).colorScheme;
+
+    if (isAnomalyLoading && anomaly == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (anomaly == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            provider.anomalyErrorMessage ?? 'Tüketim analizi henüz hesaplanmadı.',
+            style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          AppButton(
+            label: 'Tüketim Analizini Hesapla',
+            icon: Icons.refresh,
+            variant: AppButtonVariant.secondary,
+            onPressed: () => provider.fetchEquipmentAnomaly(widget.equipmentId),
+          ),
+        ],
+      );
+    }
+
+    final color = anomaly.isSuspicious ? AppColors.danger(context) : AppColors.success(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              child: Text(
+                '${anomaly.anomalyScore}',
+                style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    anomaly.isSuspicious ? 'Şüpheli Tüketim' : 'Normal Tüketim',
+                    style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 16),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    anomaly.detectedReason ?? 'Tüketim örüntüsü, model tarafından normal aralıkta değerlendirildi.',
+                    style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        if (isConsumptionLoading && consumption == null)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (consumption != null && consumption.isNotEmpty)
+          _ConsumptionChart(entries: consumption, lineColor: color)
+        else if (provider.consumptionErrorMessage != null)
+          Text(provider.consumptionErrorMessage!, style: TextStyle(color: scheme.error)),
+      ],
+    );
+  }
+}
+
+/// Son 12 aylık tüketimi gösteren basit bir çizgi grafik — düşüşü/
+/// düzensizliği görsel olarak da kanıtlar (bkz. PROMPT Modül 11 7b).
+class _ConsumptionChart extends StatelessWidget {
+  final List<MeterConsumptionEntry> entries;
+  final Color lineColor;
+  const _ConsumptionChart({required this.entries, required this.lineColor});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final maxY = entries.map((e) => e.consumptionKwh).fold<double>(0, (max, v) => v > max ? v : max);
+
+    return SizedBox(
+      height: 160,
+      child: LineChart(
+        LineChartData(
+          minY: 0,
+          maxY: maxY <= 0 ? 10 : maxY * 1.2,
+          gridData: const FlGridData(show: false),
+          borderData: FlBorderData(show: false),
+          titlesData: FlTitlesData(
+            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                interval: 3,
+                getTitlesWidget: (value, meta) {
+                  final index = value.toInt();
+                  if (index < 0 || index >= entries.length) return const SizedBox.shrink();
+                  final parts = entries[index].yearMonth.split('-');
+                  final label = parts.length == 2 ? '${parts[1]}/${parts[0].substring(2)}' : entries[index].yearMonth;
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(label, style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant)),
+                  );
+                },
+              ),
+            ),
+          ),
+          lineBarsData: [
+            LineChartBarData(
+              spots: [
+                for (int i = 0; i < entries.length; i++) FlSpot(i.toDouble(), entries[i].consumptionKwh),
+              ],
+              isCurved: true,
+              color: lineColor,
+              barWidth: 3,
+              dotData: const FlDotData(show: true),
+              belowBarData: BarAreaData(show: true, color: lineColor.withValues(alpha: 0.12)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Modül 1'deki iş emri kartının küçültülmüş versiyonu: başlık, statü, tarih.
 /// Tıklanınca Modül 1'in (İş Emirleri) tam detay ekranına gider — modüller
 /// arası gerçek bağlantı.
 class _HistoryRow extends StatelessWidget {
   final EquipmentHistoryEntry entry;
-  const _HistoryRow({required this.entry});
+  final int equipmentId;
+  const _HistoryRow({required this.entry, required this.equipmentId});
+
+  /// İş emri detayında durum 'çözüldü'ye getirilirse backend bağlı
+  /// ekipmanın last_maintenance_date'ini otomatik günceller (bkz.
+  /// routes/workOrders.js PATCH /:id/status). Bu ekrana geri dönüldüğünde
+  /// (push'un Future'ı tamamlandığında) ekipman bilgisi ve geçmiş listesi
+  /// YENİDEN çekilmezse kullanıcı hâlâ ESKİ "Son Bakım" tarihini görür —
+  /// bu yüzden dönüşte açıkça yeniden fetch edilir.
+  Future<void> _openDetail(BuildContext context) async {
+    final equipmentProvider = context.read<EquipmentProvider>();
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => WorkOrderDetailScreen(workOrderId: entry.id)),
+    );
+    await equipmentProvider.fetchEquipmentDetail(equipmentId);
+    await equipmentProvider.fetchEquipmentHistory(equipmentId);
+  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return InkWell(
       borderRadius: BorderRadius.circular(AppRadius.chip),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => WorkOrderDetailScreen(workOrderId: entry.id)),
-      ),
+      onTap: () => _openDetail(context),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(

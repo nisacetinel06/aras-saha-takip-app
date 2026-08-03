@@ -1,3 +1,5 @@
+import 'equipment.dart' show EquipmentType;
+
 // İş emri statüsü. Backend'deki work_orders.status alanıyla birebir eşleşir.
 enum WorkOrderStatus {
   acik,
@@ -126,6 +128,10 @@ class WorkOrder {
   // Modül 4 (Ekipman) ile gerçek bağlantı: bu iş emri bir ekipmana bağlıysa
   // equipment.id'ye giden değer — Ekipman Detay ekranına gitmek için kullanılır.
   final int? equipmentId;
+  // Bağlı ekipmanın tipi (JOIN ile gelir, bkz. routes/workOrders.js
+  // SELECT_WORK_ORDER_WITH_USER) — iş emri detayında yalnızca QR kodu değil,
+  // ekipman tipini de göstermek için (Modül 4 <-> Modül 1 iki yönlü bağlantı).
+  final EquipmentType? equipmentType;
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<WorkOrderPhoto> photos;
@@ -142,6 +148,7 @@ class WorkOrder {
     required this.assignedUser,
     required this.equipmentRef,
     this.equipmentId,
+    this.equipmentType,
     required this.createdAt,
     required this.updatedAt,
     this.photos = const [],
@@ -162,6 +169,7 @@ class WorkOrder {
           : null,
       equipmentRef: json['equipment_ref'] as String? ?? '',
       equipmentId: json['equipment_id'] as int?,
+      equipmentType: json['equipment_type'] != null ? EquipmentType.fromJson(json['equipment_type'] as String) : null,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       photos: json['photos'] != null
@@ -185,6 +193,7 @@ class WorkOrder {
       'assigned_user': assignedUser?.toJson(),
       'equipment_ref': equipmentRef,
       'equipment_id': equipmentId,
+      'equipment_type': equipmentType?.name,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
@@ -203,6 +212,7 @@ class WorkOrder {
       assignedUser: assignedUser,
       equipmentRef: equipmentRef,
       equipmentId: equipmentId,
+      equipmentType: equipmentType,
       createdAt: createdAt,
       updatedAt: updatedAt,
       photos: photos ?? this.photos,

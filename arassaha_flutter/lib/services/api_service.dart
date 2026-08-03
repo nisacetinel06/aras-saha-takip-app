@@ -11,6 +11,7 @@ import '../models/equipment.dart';
 import '../models/equipment_risk.dart';
 import '../models/isg_report.dart';
 import '../models/managed_device.dart';
+import '../models/meter_anomaly.dart';
 import '../models/work_order.dart';
 import '../models/work_order_map_pin.dart';
 
@@ -241,16 +242,19 @@ class ApiService {
   }
 
   /// POST /api/workorders — yeni iş emri oluşturur (yalnızca dispeçer/yönetici,
-  /// backend requireRole ile korur). `equipmentId` opsiyoneldir.
+  /// backend requireRole ile korur).
+  ///
+  /// KONUM TUTARLILIĞI: `equipmentId` artık ZORUNLUDUR ve konum bilgisi
+  /// (location_name/lat/lng) burada HİÇ gönderilmez — backend bunu her zaman
+  /// equipment kaydından türetir (bkz. routes/workOrders.js POST /). Bu,
+  /// istemci tarafında yanlışlıkla/kasıtlı gönderilebilecek tutarsız bir
+  /// konumun veritabanına asla yazılamayacağını garanti eder.
   Future<WorkOrder> createWorkOrder({
     required String title,
     required String description,
     required WorkOrderPriority priority,
-    required String locationName,
-    required double lat,
-    required double lng,
     required int assignedUserId,
-    int? equipmentId,
+    required int equipmentId,
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/workorders');
@@ -260,9 +264,6 @@ class ApiService {
           'title': title,
           'description': description,
           'priority': priority.toJson(),
-          'location_name': locationName,
-          'lat': lat,
-          'lng': lng,
           'assigned_user_id': assignedUserId,
           'equipment_id': equipmentId,
         }),
@@ -732,14 +733,24 @@ class ApiService {
   // bilinçli olarak ileride eklenecek Arıza Risk Tahmini (ML) modülünün
   // girdisi olacak şekilde tasarlandı, bkz. lib/models/equipment.dart.
 
-  /// Ekipman listesi. `typeFilter`/`statusFilter` verilirse backend'e
-  /// ?type=.../&status=... query parametresi olarak gider.
-  Future<List<Equipment>> getEquipmentList({String? typeFilter, String? statusFilter}) async {
+  /// Ekipman listesi. `typeFilter`/`statusFilter`/`ilFilter` verilirse
+  /// backend'e ?type=.../&status=.../&il=... query parametresi olarak gider.
+  /// `search` verilirse (EquipmentPickerField — bkz. create_work_order_screen.dart)
+  /// backend qr_code/il/ilce/mahalle üzerinde arama yapıp sonucu sınırlı
+  /// sayıda (en fazla 20) kayıtla döner.
+  Future<List<Equipment>> getEquipmentList({
+    String? typeFilter,
+    String? statusFilter,
+    String? ilFilter,
+    String? search,
+  }) async {
     try {
       final uri = Uri.parse('$baseUrl/equipment').replace(
         queryParameters: {
           if (typeFilter != null) 'type': typeFilter,
           if (statusFilter != null) 'status': statusFilter,
+          if (ilFilter != null) 'il': ilFilter,
+          if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
         },
       );
       final response = await _get(uri);
@@ -853,6 +864,70 @@ class ApiService {
 
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => RiskyEquipmentSummary.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  // --- Kayıp-Kaçak / Anormal Tüketim Tespiti — Modül 11 ---
+  // DÜRÜSTLÜK NOTU: Bu skorları üreten IsolationForest modeli, ArasSaha'nın
+  // henüz gerçek bir AMI/akıllı sayaç okuma sistemi olmaması nedeniyle
+  // SENTETİK bir tüketim geçmişiyle eğitildi. Bkz. arassaha-ml/README.md.
+
+  /// GET /api/meters/suspicious — anomaly_score'a göre azalan sırayla tüm
+  /// şüpheli sayaçlar (yalnızca is_suspicious=1 olanlar).
+  Future<List<SuspiciousMeterSummary>> getSuspiciousMeters() async {
+    try {
+      final uri = Uri.parse('$baseUrl/meters/suspicious');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Şüpheli sayaç listesi alınamadı.'));
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => SuspiciousMeterSummary.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// Bir sayacın en güncel anomali skorunu getirir (yoksa backend anlık
+  /// hesaplayıp kaydeder — bkz. routes/anomaly.js).
+  Future<MeterAnomaly> getEquipmentAnomaly(int equipmentId) async {
+    try {
+      final uri = Uri.parse('$baseUrl/equipment/$equipmentId/anomaly');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Anomali skoru alınamadı.'));
+      }
+
+      return MeterAnomaly.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// Bir sayacın son 12 aylık ham tüketim geçmişini getirir (Ekipman
+  /// Detayı'ndaki fl_chart grafiği için).
+  Future<List<MeterConsumptionEntry>> getEquipmentConsumption(int equipmentId) async {
+    try {
+      final uri = Uri.parse('$baseUrl/equipment/$equipmentId/consumption');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Tüketim geçmişi alınamadı.'));
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => MeterConsumptionEntry.fromJson(json)).toList();
     } on ApiException {
       rethrow;
     } catch (e) {
