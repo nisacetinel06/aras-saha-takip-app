@@ -138,7 +138,11 @@ class WorkOrderCard extends StatelessWidget {
                 child: CircleAvatar(
                   radius: 12,
                   backgroundColor: AppColors.success(context),
-                  child: const Icon(Icons.build, size: 14, color: Colors.white),
+                  child: Icon(
+                    Icons.build,
+                    size: 14,
+                    color: accessibleOnColor(AppColors.success(context)),
+                  ),
                 ),
               ),
             ),

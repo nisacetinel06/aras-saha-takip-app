@@ -26,7 +26,8 @@ class RiskProvider extends ChangeNotifier {
   String? get riskErrorMessage => _riskErrorMessage;
 
   EquipmentRisk? riskFor(int equipmentId) => _riskByEquipmentId[equipmentId];
-  bool isRiskLoading(int equipmentId) => _loadingEquipmentIds.contains(equipmentId);
+  bool isRiskLoading(int equipmentId) =>
+      _loadingEquipmentIds.contains(equipmentId);
 
   Future<void> fetchRiskyEquipment({int limit = 5}) async {
     _isRiskyListLoading = true;
@@ -49,7 +50,9 @@ class RiskProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _riskByEquipmentId[equipmentId] = await _apiService.getEquipmentRisk(equipmentId);
+      _riskByEquipmentId[equipmentId] = await _apiService.getEquipmentRisk(
+        equipmentId,
+      );
     } catch (e) {
       _riskErrorMessage = e.toString();
     } finally {

@@ -80,7 +80,9 @@ class NotificationProvider extends ChangeNotifier {
   Future<void> markAllAsRead() async {
     try {
       await _apiService.markAllNotificationsRead();
-      _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
+      _notifications = _notifications
+          .map((n) => n.copyWith(isRead: true))
+          .toList();
       _unreadCount = 0;
       notifyListeners();
     } catch (e) {

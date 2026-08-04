@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/user_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
@@ -26,6 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('ProfileScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<UserProvider>().fetchMyProfile();
     });
@@ -44,7 +46,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text('Çıkış Yap', style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
+            child: Text(
+              'Çıkış Yap',
+              style: TextStyle(
+                color: Theme.of(dialogContext).colorScheme.error,
+              ),
+            ),
           ),
         ],
       ),
@@ -76,7 +83,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Icon(Icons.error_outline, size: 56, color: scheme.error),
               const SizedBox(height: AppSpacing.sm + 4),
-              Text(userProvider.profileErrorMessage!, textAlign: TextAlign.center),
+              Text(
+                userProvider.profileErrorMessage!,
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: AppSpacing.md),
               AppButton(
                 label: 'Tekrar Dene',
@@ -94,14 +104,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
       onRefresh: () => context.read<UserProvider>().fetchMyProfile(),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xl),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          AppSpacing.lg,
+          AppSpacing.md,
+          AppSpacing.xl,
+        ),
         children: [
           Center(
             child: Column(
               children: [
-                UserAvatar(photoPath: profile.photoPath, initials: profile.initials, role: profile.role, radius: 48),
+                UserAvatar(
+                  photoPath: profile.photoPath,
+                  initials: profile.initials,
+                  role: profile.role,
+                  radius: 48,
+                ),
                 const SizedBox(height: AppSpacing.md),
-                Text(profile.name, style: AppTextStyles.displayLarge(color: scheme.onSurface)),
+                Text(
+                  profile.name,
+                  style: AppTextStyles.displayLarge(color: scheme.onSurface),
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 RoleBadge(role: profile.role, label: auth.roleLabel),
               ],
@@ -112,11 +135,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
             padding: EdgeInsets.zero,
             child: Column(
               children: [
-                _InfoRow(icon: Icons.badge_outlined, label: 'Sicil No', value: profile.sicilNo),
+                _InfoRow(
+                  icon: Icons.badge_outlined,
+                  label: 'Sicil No',
+                  value: profile.sicilNo,
+                ),
                 const Divider(height: 1),
-                _InfoRow(icon: Icons.phone_outlined, label: 'Telefon', value: profile.phone),
+                _InfoRow(
+                  icon: Icons.phone_outlined,
+                  label: 'Telefon',
+                  value: profile.phone,
+                ),
                 const Divider(height: 1),
-                _InfoRow(icon: Icons.email_outlined, label: 'E-posta', value: profile.email),
+                _InfoRow(
+                  icon: Icons.email_outlined,
+                  label: 'E-posta',
+                  value: profile.email,
+                ),
               ],
             ),
           ),
@@ -128,7 +163,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 label: 'Kullanıcı Yönetimi Paneline Git',
                 icon: Icons.manage_accounts_outlined,
                 onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const UserManagementListScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const UserManagementListScreen(),
+                  ),
                 ),
               ),
             ),
@@ -162,7 +199,10 @@ class _InfoRow extends StatelessWidget {
     final hasValue = value != null && value!.trim().isNotEmpty;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm + 4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm + 4,
+      ),
       child: Row(
         children: [
           Icon(icon, size: 20, color: scheme.onSurfaceVariant),
@@ -171,12 +211,17 @@ class _InfoRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: AppTextStyles.caption(color: scheme.onSurfaceVariant)),
+                Text(
+                  label,
+                  style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   hasValue ? value! : 'Belirtilmemiş',
                   style: AppTextStyles.bodyMedium(
-                    color: hasValue ? scheme.onSurface : scheme.onSurfaceVariant,
+                    color: hasValue
+                        ? scheme.onSurface
+                        : scheme.onSurfaceVariant,
                   ),
                 ),
               ],

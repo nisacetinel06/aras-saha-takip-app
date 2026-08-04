@@ -94,17 +94,24 @@ class AppUser {
       // `logs` yalnızca GET /api/users/:id yanıtında gömülüdür (bkz.
       // routes/users.js) — liste/me yanıtlarında yoktur, boş kalır.
       logs: json['logs'] != null
-          ? (json['logs'] as List).map((l) => UserActionLog.fromJson(l as Map<String, dynamic>)).toList()
+          ? (json['logs'] as List)
+                .map((l) => UserActionLog.fromJson(l as Map<String, dynamic>))
+                .toList()
           : const [],
     );
   }
 
   /// Fotoğraf yokken avatar'da gösterilecek baş harfler (örn. "Ahmet Yılmaz" -> "AY").
   String get initials {
-    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return '?';
     if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return (parts.first.substring(0, 1) + parts.last.substring(0, 1)).toUpperCase();
+    return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+        .toUpperCase();
   }
 
   AppUser copyWith({

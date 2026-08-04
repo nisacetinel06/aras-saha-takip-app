@@ -28,6 +28,7 @@ const notificationsRouter = require('./routes/notifications');
 const nlpRouter = require('./routes/nlp');
 const maintenanceRouter = require('./routes/maintenance');
 const materialsRouter = require('./routes/materials');
+const analyticsRouter = require('./routes/analytics');
 const authRouter = require('./routes/auth');
 const { verifyToken } = require('./middleware/auth');
 
@@ -79,6 +80,7 @@ app.use('/api/maintenance', verifyToken, maintenanceRouter);
 // ve 'dashboard/low-stock-materials' gibi farklı öneklere sahip tam yollar
 // tanımlar (bkz. routes/materials.js) — bu yüzden '/api' kökünde mount edilir.
 app.use('/api', verifyToken, materialsRouter);
+app.use('/api/analytics', verifyToken, analyticsRouter);
 
 app.get('/', (req, res) => {
   res.json({ message: 'ArasSaha backend çalışıyor.' });

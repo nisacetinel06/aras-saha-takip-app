@@ -9,6 +9,7 @@ import '../providers/auth_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/material_provider.dart';
 import '../providers/risk_provider.dart';
+import '../services/analytics_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
@@ -39,6 +40,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('DashboardScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DashboardProvider>().fetchSummary();
       // "Riskli Ekipmanlar" bir yönetim raporudur; backend GET
@@ -233,15 +235,17 @@ class _SummaryCard extends StatelessWidget {
           ),
           // Modüller arası bağlantı: bu ikon, ilgili statü filtresi önceden
           // uygulanmış şekilde doğrudan Harita sekmesine götürür.
+          // B2 (dokunma alanı): tıklanabilir alan 48x48 dp'ye çıkarıldı
+          // (öncesi 30x30 dp'ydi) — görsel ikon küçük (16dp) kalmaya devam
+          // eder, yalnızca dokunma alanı büyüdü; konumlandırma buna göre
+          // (-8/-6 yerine -4/-2) hafifletildi ki kart dışına taşması artmasın.
           Positioned(
-            top: -8,
-            right: -6,
+            top: -4,
+            right: -2,
             child: IconButton(
               icon: const Icon(Icons.map_outlined),
               iconSize: 16,
               visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
               color: colorScheme.onSurfaceVariant,
               tooltip: 'Haritada Gör',
               onPressed: onMapTap,
@@ -521,8 +525,8 @@ class _RiskyEquipmentTile extends StatelessWidget {
         radius: 18,
         child: Text(
           '${item.riskScore}',
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: accessibleOnColor(color),
             fontSize: 12,
             fontWeight: FontWeight.w800,
           ),
@@ -627,7 +631,11 @@ class _LowStockMaterialTile extends StatelessWidget {
       leading: CircleAvatar(
         backgroundColor: color,
         radius: 18,
-        child: Icon(material.category.icon, size: 16, color: Colors.white),
+        child: Icon(
+          material.category.icon,
+          size: 16,
+          color: accessibleOnColor(color),
+        ),
       ),
       title: Text(material.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(

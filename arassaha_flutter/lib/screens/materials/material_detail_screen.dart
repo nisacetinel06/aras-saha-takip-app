@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/material.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/material_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
@@ -27,6 +28,7 @@ class _MaterialDetailScreenState extends State<MaterialDetailScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('MaterialDetailScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<MaterialProvider>().fetchMaterialDetail(widget.materialId);
     });
@@ -67,177 +69,180 @@ class _MaterialDetailScreenState extends State<MaterialDetailScreen> {
 
     return Scaffold(
       appBar: const AppTopBar(title: 'Malzeme Detayı'),
-      body: Builder(
-        builder: (context) {
-          if (detail == null && provider.detailErrorMessage != null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 56,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    const SizedBox(height: AppSpacing.sm + 4),
-                    Text(
-                      provider.detailErrorMessage!,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    AppButton(
-                      label: 'Tekrar Dene',
-                      onPressed: () => context
-                          .read<MaterialProvider>()
-                          .fetchMaterialDetail(widget.materialId),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          if (detail == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final material = detail.material;
-          final stripeColor = material.isLowStock
-              ? AppColors.danger(context)
-              : AppColors.success(context);
-
-          return RefreshIndicator(
-            onRefresh: () => context
-                .read<MaterialProvider>()
-                .fetchMaterialDetail(widget.materialId),
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(AppSpacing.md),
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      material.category.icon,
-                      size: 28,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        material.name,
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  material.category.label,
-                  style: AppTextStyles.caption(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-
-                AppCard(
-                  statusStripeColor: stripeColor,
+      body: SafeArea(
+        top: false,
+        child: Builder(
+          builder: (context) {
+            if (detail == null && provider.detailErrorMessage != null) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.inventory_2_outlined,
-                            size: 18,
-                            color: stripeColor,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Stok Bilgisi',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                        ],
+                      Icon(
+                        Icons.error_outline,
+                        size: 56,
+                        color: Theme.of(context).colorScheme.error,
                       ),
                       const SizedBox(height: AppSpacing.sm + 4),
-                      _InfoRow(
-                        icon: Icons.numbers,
-                        label: 'Mevcut Stok',
-                        value:
-                            '${formatMaterialQuantity(material.stockQuantity)} ${material.unit.label}',
-                        valueColor: stripeColor,
+                      Text(
+                        provider.detailErrorMessage!,
+                        textAlign: TextAlign.center,
                       ),
-                      _InfoRow(
-                        icon: Icons.warning_amber_rounded,
-                        label: 'Kritik Eşik',
-                        value:
-                            '${formatMaterialQuantity(material.minStockThreshold)} ${material.unit.label}',
+                      const SizedBox(height: AppSpacing.md),
+                      AppButton(
+                        label: 'Tekrar Dene',
+                        onPressed: () => context
+                            .read<MaterialProvider>()
+                            .fetchMaterialDetail(widget.materialId),
                       ),
-                      if (material.unitCost != null)
-                        _InfoRow(
-                          icon: Icons.sell_outlined,
-                          label: 'Birim Maliyet',
-                          value: '${material.unitCost!.toStringAsFixed(2)} ₺',
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            if (detail == null) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final material = detail.material;
+            final stripeColor = material.isLowStock
+                ? AppColors.danger(context)
+                : AppColors.success(context);
+
+            return RefreshIndicator(
+              onRefresh: () => context
+                  .read<MaterialProvider>()
+                  .fetchMaterialDetail(widget.materialId),
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(AppSpacing.md),
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        material.category.icon,
+                        size: 28,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          material.name,
+                          style: Theme.of(context).textTheme.headlineMedium,
                         ),
-                      _InfoRow(
-                        icon: Icons.electrical_services_outlined,
-                        label: 'Uyumlu Ekipman',
-                        value: material.compatibleEquipmentTypes.isEmpty
-                            ? '—'
-                            : material.compatibleEquipmentTypes
-                                  .map((t) => t.label)
-                                  .join(', '),
                       ),
-                      if (isYonetici) ...[
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    material.category.label,
+                    style: AppTextStyles.caption(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+
+                  AppCard(
+                    statusStripeColor: stripeColor,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.inventory_2_outlined,
+                              size: 18,
+                              color: stripeColor,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Stok Bilgisi',
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: AppSpacing.sm + 4),
-                        SizedBox(
-                          width: double.infinity,
-                          child: AppButton(
-                            label: 'Stok Ekle (İkmal)',
-                            icon: Icons.add_box_outlined,
-                            variant: AppButtonVariant.secondary,
-                            isLoading: provider.isSubmitting,
-                            onPressed: () =>
-                                _openRestockDialog(context, material),
+                        _InfoRow(
+                          icon: Icons.numbers,
+                          label: 'Mevcut Stok',
+                          value:
+                              '${formatMaterialQuantity(material.stockQuantity)} ${material.unit.label}',
+                          valueColor: stripeColor,
+                        ),
+                        _InfoRow(
+                          icon: Icons.warning_amber_rounded,
+                          label: 'Kritik Eşik',
+                          value:
+                              '${formatMaterialQuantity(material.minStockThreshold)} ${material.unit.label}',
+                        ),
+                        if (material.unitCost != null)
+                          _InfoRow(
+                            icon: Icons.sell_outlined,
+                            label: 'Birim Maliyet',
+                            value: '${material.unitCost!.toStringAsFixed(2)} ₺',
                           ),
+                        _InfoRow(
+                          icon: Icons.electrical_services_outlined,
+                          label: 'Uyumlu Ekipman',
+                          value: material.compatibleEquipmentTypes.isEmpty
+                              ? '—'
+                              : material.compatibleEquipmentTypes
+                                    .map((t) => t.label)
+                                    .join(', '),
+                        ),
+                        if (isYonetici) ...[
+                          const SizedBox(height: AppSpacing.sm + 4),
+                          SizedBox(
+                            width: double.infinity,
+                            child: AppButton(
+                              label: 'Stok Ekle (İkmal)',
+                              icon: Icons.add_box_outlined,
+                              variant: AppButtonVariant.secondary,
+                              isLoading: provider.isSubmitting,
+                              onPressed: () =>
+                                  _openRestockDialog(context, material),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+
+                  AppCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.history,
+                              size: 18,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'İşlem Geçmişi',
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.sm + 4),
+                        _MovementHistorySection(
+                          movements: detail.stockMovements,
+                          unit: material.unit,
                         ),
                       ],
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-
-                AppCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.history,
-                            size: 18,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'İşlem Geçmişi',
-                            style: Theme.of(context).textTheme.headlineSmall,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.sm + 4),
-                      _MovementHistorySection(
-                        movements: detail.stockMovements,
-                        unit: material.unit,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/meter_anomaly.dart';
 import '../../providers/anomaly_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
@@ -35,6 +36,7 @@ class _SuspiciousMetersScreenState extends State<SuspiciousMetersScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('SuspiciousMetersScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AnomalyProvider>().fetchSuspiciousMeters();
     });
@@ -46,71 +48,100 @@ class _SuspiciousMetersScreenState extends State<SuspiciousMetersScreen> {
 
     return Scaffold(
       appBar: const AppTopBar(title: 'Şüpheli Sayaçlar'),
-      body: Builder(
-        builder: (context) {
-          if (provider.isSuspiciousListLoading && provider.suspiciousMeters.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: SafeArea(
+        top: false,
+        child: Builder(
+          builder: (context) {
+            if (provider.isSuspiciousListLoading &&
+                provider.suspiciousMeters.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (provider.suspiciousListErrorMessage != null && provider.suspiciousMeters.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.error_outline, size: 56, color: Theme.of(context).colorScheme.error),
-                    const SizedBox(height: AppSpacing.sm + 4),
-                    Text(provider.suspiciousListErrorMessage!, textAlign: TextAlign.center),
-                    const SizedBox(height: AppSpacing.md),
-                    AppButton(label: 'Tekrar Dene', onPressed: provider.fetchSuspiciousMeters),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          if (provider.suspiciousMeters.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.search_off, size: 56, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    const SizedBox(height: AppSpacing.sm + 4),
-                    Text(
-                      'Şu anda şüpheli işaretlenmiş bir sayaç yok.',
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.bodyMedium(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: provider.fetchSuspiciousMeters,
-            child: ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.md),
-              itemCount: provider.suspiciousMeters.length,
-              itemBuilder: (context, index) {
-                final item = provider.suspiciousMeters[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: _SuspiciousMeterCard(
-                    item: item,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => EquipmentDetailScreen(equipmentId: item.id)),
-                    ),
+            if (provider.suspiciousListErrorMessage != null &&
+                provider.suspiciousMeters.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 56,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      const SizedBox(height: AppSpacing.sm + 4),
+                      Text(
+                        provider.suspiciousListErrorMessage!,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      AppButton(
+                        label: 'Tekrar Dene',
+                        onPressed: provider.fetchSuspiciousMeters,
+                      ),
+                    ],
                   ),
-                );
-              },
-            ),
-          );
-        },
+                ),
+              );
+            }
+
+            if (provider.suspiciousMeters.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.search_off,
+                        size: 56,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(height: AppSpacing.sm + 4),
+                      Text(
+                        'Şu anda şüpheli işaretlenmiş bir sayaç yok.',
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.bodyMedium(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return RefreshIndicator(
+              onRefresh: provider.fetchSuspiciousMeters,
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.sm,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                ),
+                itemCount: provider.suspiciousMeters.length,
+                itemBuilder: (context, index) {
+                  final item = provider.suspiciousMeters[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: _SuspiciousMeterCard(
+                      item: item,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              EquipmentDetailScreen(equipmentId: item.id),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -146,7 +177,11 @@ class _SuspiciousMeterCard extends StatelessWidget {
           CircleAvatar(
             radius: 22,
             backgroundColor: color,
-            child: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 24),
+            child: Icon(
+              Icons.warning_amber_rounded,
+              color: accessibleOnColor(color),
+              size: 24,
+            ),
           ),
           const SizedBox(width: AppSpacing.sm + 4),
           Expanded(
@@ -167,7 +202,11 @@ class _SuspiciousMeterCard extends StatelessWidget {
                     ),
                     Text(
                       '${item.anomalyScore}',
-                      style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.w800),
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ],
                 ),
@@ -185,14 +224,25 @@ class _SuspiciousMeterCard extends StatelessWidget {
                   // aksine "neden" sorusuna doğrudan yanıt verir.
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.18 : 0.10),
+                      color: color.withValues(
+                        alpha: Theme.of(context).brightness == Brightness.dark
+                            ? 0.18
+                            : 0.10,
+                      ),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       item.detectedReason!,
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: scheme.onSurface),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onSurface,
+                      ),
                     ),
                   ),
                 ],

@@ -27,7 +27,8 @@ class MeterAnomaly {
     return MeterAnomaly(
       equipmentId: json['equipment_id'] as int,
       anomalyScore: json['anomaly_score'] as int,
-      isSuspicious: (json['is_suspicious'] as num) == 1 || json['is_suspicious'] == true,
+      isSuspicious:
+          (json['is_suspicious'] as num) == 1 || json['is_suspicious'] == true,
       detectedReason: json['detected_reason'] as String?,
       computedAt: DateTime.parse(json['computed_at'] as String),
     );
@@ -68,7 +69,8 @@ class SuspiciousMeterSummary {
       locationName: json['location_name'] as String? ?? '',
       status: EquipmentStatus.fromJson(json['status'] as String),
       anomalyScore: json['anomaly_score'] as int,
-      isSuspicious: (json['is_suspicious'] as num) == 1 || json['is_suspicious'] == true,
+      isSuspicious:
+          (json['is_suspicious'] as num) == 1 || json['is_suspicious'] == true,
       detectedReason: json['detected_reason'] as String?,
     );
   }
@@ -80,7 +82,10 @@ class MeterConsumptionEntry {
   final String yearMonth;
   final double consumptionKwh;
 
-  MeterConsumptionEntry({required this.yearMonth, required this.consumptionKwh});
+  MeterConsumptionEntry({
+    required this.yearMonth,
+    required this.consumptionKwh,
+  });
 
   factory MeterConsumptionEntry.fromJson(Map<String, dynamic> json) {
     return MeterConsumptionEntry(

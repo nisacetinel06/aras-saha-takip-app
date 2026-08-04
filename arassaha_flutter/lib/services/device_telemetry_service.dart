@@ -16,7 +16,11 @@ class DeviceTelemetry {
   final String deviceModel;
   final String osVersion;
 
-  DeviceTelemetry({required this.batteryLevel, required this.deviceModel, required this.osVersion});
+  DeviceTelemetry({
+    required this.batteryLevel,
+    required this.deviceModel,
+    required this.osVersion,
+  });
 }
 
 class DeviceTelemetryService {
@@ -39,6 +43,10 @@ class DeviceTelemetryService {
       osVersion = '${info.systemName} ${info.systemVersion}';
     }
 
-    return DeviceTelemetry(batteryLevel: batteryLevel, deviceModel: model, osVersion: osVersion);
+    return DeviceTelemetry(
+      batteryLevel: batteryLevel,
+      deviceModel: model,
+      osVersion: osVersion,
+    );
   }
 }

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/managed_device.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/device_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
@@ -32,6 +33,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('DeviceListScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DeviceProvider>().fetchDevices();
     });
@@ -42,11 +44,19 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
       case _DeviceFilter.all:
         return devices;
       case _DeviceFilter.compliant:
-        return devices.where((d) => d.complianceStatus == DeviceComplianceStatus.uyumlu).toList();
+        return devices
+            .where((d) => d.complianceStatus == DeviceComplianceStatus.uyumlu)
+            .toList();
       case _DeviceFilter.nonCompliant:
-        return devices.where((d) => d.complianceStatus == DeviceComplianceStatus.uyumsuz).toList();
+        return devices
+            .where((d) => d.complianceStatus == DeviceComplianceStatus.uyumsuz)
+            .toList();
       case _DeviceFilter.pending:
-        return devices.where((d) => d.enrollmentStatus == DeviceEnrollmentStatus.beklemede).toList();
+        return devices
+            .where(
+              (d) => d.enrollmentStatus == DeviceEnrollmentStatus.beklemede,
+            )
+            .toList();
     }
   }
 
@@ -73,63 +83,79 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
 
     return Scaffold(
       appBar: const AppTopBar(title: 'Cihaz Yönetimi'),
-      body: Builder(
-        builder: (context) {
-          if (provider.isLoading && provider.devices.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: SafeArea(
+        top: false,
+        child: Builder(
+          builder: (context) {
+            if (provider.isLoading && provider.devices.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (provider.errorMessage != null && provider.devices.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.error_outline, size: 56, color: Theme.of(context).colorScheme.error),
-                    const SizedBox(height: AppSpacing.sm + 4),
-                    Text(provider.errorMessage!, textAlign: TextAlign.center),
-                    const SizedBox(height: AppSpacing.md),
-                    AppButton(label: 'Tekrar Dene', onPressed: provider.fetchDevices),
-                  ],
+            if (provider.errorMessage != null && provider.devices.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 56,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      const SizedBox(height: AppSpacing.sm + 4),
+                      Text(provider.errorMessage!, textAlign: TextAlign.center),
+                      const SizedBox(height: AppSpacing.md),
+                      AppButton(
+                        label: 'Tekrar Dene',
+                        onPressed: provider.fetchDevices,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          }
+              );
+            }
 
-          final visibleDevices = _applyFilter(provider.devices);
+            final visibleDevices = _applyFilter(provider.devices);
 
-          return RefreshIndicator(
-            onRefresh: provider.fetchDevices,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(AppSpacing.md),
-              children: [
-                _SummaryStrip(devices: provider.devices),
-                const SizedBox(height: AppSpacing.md),
-                _FilterBar(filter: _filter, onChanged: (f) => setState(() => _filter = f)),
-                const SizedBox(height: AppSpacing.sm),
-                if (visibleDevices.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: AppSpacing.xl),
-                    child: Center(child: Text('Bu filtreye uyan cihaz yok.')),
-                  )
-                else
-                  ...visibleDevices.map(
-                    (device) => Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: _DeviceCard(
-                        device: device,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => DeviceDetailScreen(deviceId: device.id)),
+            return RefreshIndicator(
+              onRefresh: provider.fetchDevices,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(AppSpacing.md),
+                children: [
+                  _SummaryStrip(devices: provider.devices),
+                  const SizedBox(height: AppSpacing.md),
+                  _FilterBar(
+                    filter: _filter,
+                    onChanged: (f) => setState(() => _filter = f),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  if (visibleDevices.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: AppSpacing.xl),
+                      child: Center(child: Text('Bu filtreye uyan cihaz yok.')),
+                    )
+                  else
+                    ...visibleDevices.map(
+                      (device) => Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        child: _DeviceCard(
+                          device: device,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  DeviceDetailScreen(deviceId: device.id),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-          );
-        },
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -143,20 +169,42 @@ class _SummaryStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final total = devices.length;
-    final nonCompliant = devices.where((d) => d.complianceStatus == DeviceComplianceStatus.uyumsuz).length;
-    final pending = devices.where((d) => d.enrollmentStatus == DeviceEnrollmentStatus.beklemede).length;
+    final nonCompliant = devices
+        .where((d) => d.complianceStatus == DeviceComplianceStatus.uyumsuz)
+        .length;
+    final pending = devices
+        .where((d) => d.enrollmentStatus == DeviceEnrollmentStatus.beklemede)
+        .length;
 
     return AppCard(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm + 4, horizontal: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+        vertical: AppSpacing.sm + 4,
+        horizontal: AppSpacing.sm,
+      ),
       child: Text.rich(
         TextSpan(
           style: AppTextStyles.bodyMedium(color: scheme.onSurface),
           children: [
-            TextSpan(text: '$total', style: AppTextStyles.headingMedium(color: AppColors.primary(context))),
+            TextSpan(
+              text: '$total',
+              style: AppTextStyles.headingMedium(
+                color: AppColors.primary(context),
+              ),
+            ),
             const TextSpan(text: ' cihaz kayıtlı, '),
-            TextSpan(text: '$nonCompliant', style: AppTextStyles.headingMedium(color: AppColors.danger(context))),
+            TextSpan(
+              text: '$nonCompliant',
+              style: AppTextStyles.headingMedium(
+                color: AppColors.danger(context),
+              ),
+            ),
             const TextSpan(text: ' uyumsuz, '),
-            TextSpan(text: '$pending', style: AppTextStyles.headingMedium(color: AppColors.warning(context))),
+            TextSpan(
+              text: '$pending',
+              style: AppTextStyles.headingMedium(
+                color: AppColors.warning(context),
+              ),
+            ),
             const TextSpan(text: ' beklemede'),
           ],
         ),
@@ -192,7 +240,9 @@ class _FilterBar extends StatelessWidget {
               label: Text(entry.key),
               selected: isSelected,
               showCheckmark: false,
-              labelStyle: TextStyle(color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant),
+              labelStyle: TextStyle(
+                color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant,
+              ),
               onSelected: (_) => onChanged(entry.value),
             ),
           );
@@ -203,9 +253,12 @@ class _FilterBar extends StatelessWidget {
 }
 
 Color _stripeColor(BuildContext context, ManagedDevice device) {
-  if (device.enrollmentStatus == DeviceEnrollmentStatus.kayitDisi) return AppColors.textSecondary(context);
-  if (device.enrollmentStatus == DeviceEnrollmentStatus.beklemede) return AppColors.warning(context);
-  if (device.complianceStatus == DeviceComplianceStatus.uyumsuz) return AppColors.danger(context);
+  if (device.enrollmentStatus == DeviceEnrollmentStatus.kayitDisi)
+    return AppColors.textSecondary(context);
+  if (device.enrollmentStatus == DeviceEnrollmentStatus.beklemede)
+    return AppColors.warning(context);
+  if (device.complianceStatus == DeviceComplianceStatus.uyumsuz)
+    return AppColors.danger(context);
   return AppColors.success(context);
 }
 
@@ -237,64 +290,85 @@ class _DeviceCard extends StatelessWidget {
         onTap: onTap,
         statusStripeColor: _stripeColor(context, device),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  device.deviceName,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    device.deviceName,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              if (isWiped)
-                const _EnrollmentBadge()
-              else
-                _ComplianceBadge(status: device.complianceStatus),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Row(
-            children: [
-              Icon(Icons.person_outline, size: 15, color: scheme.onSurfaceVariant),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  device.assignedUser?.name ?? 'Atanmamış',
-                  style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Icon(_batteryIcon(device.batteryLevel), size: 16, color: _batteryColor(context, device.batteryLevel)),
-              const SizedBox(width: 4),
-              Text('%${device.batteryLevel}', style: AppTextStyles.caption(color: scheme.onSurfaceVariant)),
-              const SizedBox(width: AppSpacing.sm + 4),
-              Icon(Icons.sync, size: 15, color: scheme.onSurfaceVariant),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  device.lastSyncAt != null ? formatRelativeTime(device.lastSyncAt!) : 'Hiç senkron olmadı',
-                  style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (device.isLocked) ...[
-                const SizedBox(width: 4),
-                Icon(Icons.lock_outline, size: 15, color: scheme.onSurfaceVariant),
+                const SizedBox(width: AppSpacing.sm),
+                if (isWiped)
+                  const _EnrollmentBadge()
+                else
+                  _ComplianceBadge(status: device.complianceStatus),
               ],
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Row(
+              children: [
+                Icon(
+                  Icons.person_outline,
+                  size: 15,
+                  color: scheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    device.assignedUser?.name ?? 'Atanmamış',
+                    style: AppTextStyles.caption(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Icon(
+                  _batteryIcon(device.batteryLevel),
+                  size: 16,
+                  color: _batteryColor(context, device.batteryLevel),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '%${device.batteryLevel}',
+                  style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                ),
+                const SizedBox(width: AppSpacing.sm + 4),
+                Icon(Icons.sync, size: 15, color: scheme.onSurfaceVariant),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    device.lastSyncAt != null
+                        ? formatRelativeTime(device.lastSyncAt!)
+                        : 'Hiç senkron olmadı',
+                    style: AppTextStyles.caption(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (device.isLocked) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.lock_outline,
+                    size: 15,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ],
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -309,10 +383,17 @@ class _EnrollmentBadge extends StatelessWidget {
     final color = AppColors.textSecondary(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(AppRadius.pill)),
-      child: const Text(
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Text(
         'Kayıt Dışı',
-        style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+        style: TextStyle(
+          color: accessibleOnColor(color),
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -324,13 +405,22 @@ class _ComplianceBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = status == DeviceComplianceStatus.uyumlu ? AppColors.success(context) : AppColors.danger(context);
+    final color = status == DeviceComplianceStatus.uyumlu
+        ? AppColors.success(context)
+        : AppColors.danger(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(AppRadius.pill)),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
       child: Text(
         status.label,
-        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+        style: TextStyle(
+          color: accessibleOnColor(color),
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

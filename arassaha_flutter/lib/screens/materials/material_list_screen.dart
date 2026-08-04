@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/material.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/material_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
@@ -30,6 +31,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('MaterialListScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) => _reload());
   }
 
@@ -57,89 +59,96 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
 
     return Scaffold(
       appBar: const AppTopBar(title: 'Stok / Malzeme'),
-      body: Column(
-        children: [
-          _CategoryFilterBar(
-            selected: _categoryFilter,
-            onSelected: _setCategory,
-          ),
-          _LowStockToggleBar(value: _onlyLowStock, onChanged: _setOnlyLowStock),
-          Expanded(
-            child: Builder(
-              builder: (context) {
-                if (provider.isLoadingList && provider.materials.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            _CategoryFilterBar(
+              selected: _categoryFilter,
+              onSelected: _setCategory,
+            ),
+            _LowStockToggleBar(
+              value: _onlyLowStock,
+              onChanged: _setOnlyLowStock,
+            ),
+            Expanded(
+              child: Builder(
+                builder: (context) {
+                  if (provider.isLoadingList && provider.materials.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                if (provider.listErrorMessage != null &&
-                    provider.materials.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 56,
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                          const SizedBox(height: AppSpacing.sm + 4),
-                          Text(
-                            provider.listErrorMessage!,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: AppSpacing.md),
-                          AppButton(label: 'Tekrar Dene', onPressed: _reload),
-                        ],
+                  if (provider.listErrorMessage != null &&
+                      provider.materials.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 56,
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                            const SizedBox(height: AppSpacing.sm + 4),
+                            Text(
+                              provider.listErrorMessage!,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            AppButton(label: 'Tekrar Dene', onPressed: _reload),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                }
+                    );
+                  }
 
-                if (provider.materials.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'Bu filtreye uyan malzeme yok.',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  if (provider.materials.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'Bu filtreye uyan malzeme yok.',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                  );
-                }
+                    );
+                  }
 
-                return RefreshIndicator(
-                  onRefresh: _reload,
-                  child: ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.md,
-                      AppSpacing.sm,
-                      AppSpacing.md,
-                      AppSpacing.xl + 56,
-                    ),
-                    itemCount: provider.materials.length,
-                    itemBuilder: (context, index) {
-                      final material = provider.materials[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: _MaterialListCard(
-                          material: material,
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  MaterialDetailScreen(materialId: material.id),
+                  return RefreshIndicator(
+                    onRefresh: _reload,
+                    child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.md,
+                        AppSpacing.sm,
+                        AppSpacing.md,
+                        AppSpacing.xl + 56,
+                      ),
+                      itemCount: provider.materials.length,
+                      itemBuilder: (context, index) {
+                        final material = provider.materials[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: _MaterialListCard(
+                            material: material,
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => MaterialDetailScreen(
+                                  materialId: material.id,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       floatingActionButton: isYonetici
           ? FloatingActionButton.extended(

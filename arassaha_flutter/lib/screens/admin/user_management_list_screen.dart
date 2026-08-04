@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/app_user.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/user_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
@@ -37,7 +38,8 @@ class UserManagementListScreen extends StatefulWidget {
   const UserManagementListScreen({super.key});
 
   @override
-  State<UserManagementListScreen> createState() => _UserManagementListScreenState();
+  State<UserManagementListScreen> createState() =>
+      _UserManagementListScreenState();
 }
 
 class _UserManagementListScreenState extends State<UserManagementListScreen> {
@@ -47,17 +49,20 @@ class _UserManagementListScreenState extends State<UserManagementListScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('UserManagementListScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<UserProvider>().fetchAllUsers();
     });
   }
 
   Future<void> _openCreate() async {
-    final created = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const UserEditScreen()),
-    );
+    final created = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const UserEditScreen()));
     if (created == true && mounted) {
-      context.read<UserProvider>().fetchAllUsers(roleFilter: _roleFilterValue(_filter));
+      context.read<UserProvider>().fetchAllUsers(
+        roleFilter: _roleFilterValue(_filter),
+      );
     }
   }
 
@@ -66,7 +71,9 @@ class _UserManagementListScreenState extends State<UserManagementListScreen> {
       MaterialPageRoute(builder: (_) => UserEditScreen(userId: userId)),
     );
     if (updated == true && mounted) {
-      context.read<UserProvider>().fetchAllUsers(roleFilter: _roleFilterValue(_filter));
+      context.read<UserProvider>().fetchAllUsers(
+        roleFilter: _roleFilterValue(_filter),
+      );
     }
   }
 
@@ -79,10 +86,15 @@ class _UserManagementListScreenState extends State<UserManagementListScreen> {
           '${user.name} pasifleştirilecek, iş emri ataması yapılamayacak. Emin misiniz?',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Vazgeç')),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Vazgeç'),
+          ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Theme.of(dialogContext).colorScheme.error),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
             child: const Text('Pasifleştir'),
           ),
         ],
@@ -96,7 +108,11 @@ class _UserManagementListScreenState extends State<UserManagementListScreen> {
     if (!mounted) return;
     messenger.showSnackBar(
       SnackBar(
-        content: Text(success ? '${user.name} pasifleştirildi.' : (provider.saveErrorMessage ?? 'İşlem başarısız oldu.')),
+        content: Text(
+          success
+              ? '${user.name} pasifleştirildi.'
+              : (provider.saveErrorMessage ?? 'İşlem başarısız oldu.'),
+        ),
       ),
     );
   }
@@ -110,7 +126,11 @@ class _UserManagementListScreenState extends State<UserManagementListScreen> {
     if (!mounted) return;
     messenger.showSnackBar(
       SnackBar(
-        content: Text(success ? '${user.name} aktifleştirildi.' : (provider.saveErrorMessage ?? 'İşlem başarısız oldu.')),
+        content: Text(
+          success
+              ? '${user.name} aktifleştirildi.'
+              : (provider.saveErrorMessage ?? 'İşlem başarısız oldu.'),
+        ),
       ),
     );
   }
@@ -134,80 +154,102 @@ class _UserManagementListScreenState extends State<UserManagementListScreen> {
 
     return Scaffold(
       appBar: const AppTopBar(title: 'Kullanıcı Yönetimi'),
-      body: Builder(
-        builder: (context) {
-          if (provider.isLoadingUsers && provider.users.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: SafeArea(
+        top: false,
+        child: Builder(
+          builder: (context) {
+            if (provider.isLoadingUsers && provider.users.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (provider.usersErrorMessage != null && provider.users.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.error_outline, size: 56, color: Theme.of(context).colorScheme.error),
-                    const SizedBox(height: AppSpacing.sm + 4),
-                    Text(provider.usersErrorMessage!, textAlign: TextAlign.center),
-                    const SizedBox(height: AppSpacing.md),
-                    AppButton(label: 'Tekrar Dene', onPressed: () => provider.fetchAllUsers()),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          final query = _searchQuery.trim().toLowerCase();
-          final visibleUsers = provider.users.where((u) {
-            final matchesRole = _filter == _RoleFilter.all || u.role == _roleFilterValue(_filter);
-            final matchesQuery = query.isEmpty ||
-                u.name.toLowerCase().contains(query) ||
-                u.sicilNo.toLowerCase().contains(query);
-            return matchesRole && matchesQuery;
-          }).toList();
-
-          return RefreshIndicator(
-            onRefresh: () => provider.fetchAllUsers(roleFilter: _roleFilterValue(_filter)),
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(AppSpacing.md),
-              children: [
-                // 12+ kullanıcı olduğunda (seed verisi büyüdükçe) hızlı bulma
-                // için isim/sicil no'ya göre anlık, istemci taraflı filtre —
-                // ayrı bir API isteği gerekmez.
-                TextField(
-                  onChanged: (v) => setState(() => _searchQuery = v),
-                  decoration: const InputDecoration(
-                    hintText: 'İsim veya sicil no ile ara...',
-                    prefixIcon: Icon(Icons.search),
-                    isDense: true,
+            if (provider.usersErrorMessage != null && provider.users.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 56,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      const SizedBox(height: AppSpacing.sm + 4),
+                      Text(
+                        provider.usersErrorMessage!,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      AppButton(
+                        label: 'Tekrar Dene',
+                        onPressed: () => provider.fetchAllUsers(),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: AppSpacing.sm + 4),
-                _FilterBar(filter: _filter, onChanged: (f) => setState(() => _filter = f)),
-                const SizedBox(height: AppSpacing.sm),
-                if (visibleUsers.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: AppSpacing.xl),
-                    child: Center(child: Text('Bu filtreye uyan kullanıcı yok.')),
-                  )
-                else
-                  ...visibleUsers.map(
-                    (user) => Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: _UserRow(
-                        user: user,
-                        onTap: () => _openEdit(user.id),
-                        onDeactivate: () => _deactivate(user),
-                        onReactivate: () => _reactivate(user),
-                      ),
+              );
+            }
+
+            final query = _searchQuery.trim().toLowerCase();
+            final visibleUsers = provider.users.where((u) {
+              final matchesRole =
+                  _filter == _RoleFilter.all ||
+                  u.role == _roleFilterValue(_filter);
+              final matchesQuery =
+                  query.isEmpty ||
+                  u.name.toLowerCase().contains(query) ||
+                  u.sicilNo.toLowerCase().contains(query);
+              return matchesRole && matchesQuery;
+            }).toList();
+
+            return RefreshIndicator(
+              onRefresh: () =>
+                  provider.fetchAllUsers(roleFilter: _roleFilterValue(_filter)),
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(AppSpacing.md),
+                children: [
+                  // 12+ kullanıcı olduğunda (seed verisi büyüdükçe) hızlı bulma
+                  // için isim/sicil no'ya göre anlık, istemci taraflı filtre —
+                  // ayrı bir API isteği gerekmez.
+                  TextField(
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                    decoration: const InputDecoration(
+                      hintText: 'İsim veya sicil no ile ara...',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
                     ),
                   ),
-              ],
-            ),
-          );
-        },
+                  const SizedBox(height: AppSpacing.sm + 4),
+                  _FilterBar(
+                    filter: _filter,
+                    onChanged: (f) => setState(() => _filter = f),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  if (visibleUsers.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: AppSpacing.xl),
+                      child: Center(
+                        child: Text('Bu filtreye uyan kullanıcı yok.'),
+                      ),
+                    )
+                  else
+                    ...visibleUsers.map(
+                      (user) => Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        child: _UserRow(
+                          user: user,
+                          onTap: () => _openEdit(user.id),
+                          onDeactivate: () => _deactivate(user),
+                          onReactivate: () => _reactivate(user),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Yeni Kullanıcı Ekle',
@@ -245,7 +287,9 @@ class _FilterBar extends StatelessWidget {
               label: Text(entry.key),
               selected: isSelected,
               showCheckmark: false,
-              labelStyle: TextStyle(color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant),
+              labelStyle: TextStyle(
+                color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant,
+              ),
               onSelected: (_) => onChanged(entry.value),
             ),
           );
@@ -280,7 +324,12 @@ class _UserRow extends StatelessWidget {
           children: [
             Row(
               children: [
-                UserAvatar(photoPath: user.photoPath, initials: user.initials, role: user.role, radius: 22),
+                UserAvatar(
+                  photoPath: user.photoPath,
+                  initials: user.initials,
+                  role: user.role,
+                  radius: 22,
+                ),
                 const SizedBox(width: AppSpacing.sm + 4),
                 Expanded(
                   child: Column(
@@ -295,7 +344,9 @@ class _UserRow extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         'Sicil No: ${user.sicilNo}',
-                        style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                        style: AppTextStyles.caption(
+                          color: scheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -309,7 +360,11 @@ class _UserRow extends StatelessWidget {
                     if (!user.isActive)
                       Text(
                         'Pasif',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.danger(context)),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.danger(context),
+                        ),
                       ),
                   ],
                 ),

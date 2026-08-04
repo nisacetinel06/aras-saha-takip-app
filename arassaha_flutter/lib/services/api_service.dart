@@ -13,6 +13,7 @@ import '../models/isg_report.dart';
 import '../models/maintenance_recommendation.dart';
 import '../models/managed_device.dart';
 import '../models/material.dart';
+import '../models/usage_analytics.dart';
 import '../models/meter_anomaly.dart';
 import '../models/work_order.dart';
 import '../models/work_order_map_pin.dart';
@@ -1606,6 +1607,49 @@ class ApiService {
 
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => MaterialItem.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  // --- Basit Kullanım Analitiği — UX standardizasyonu turu bölüm E ---
+  // Bu, AnalyticsService tarafından "fire and forget" olarak çağrılır (bkz.
+  // services/analytics_service.dart) — bu yüzden diğer metodlardan farklı
+  // olarak burada ApiException fırlatılmaz/statusCode kontrol edilmez; hata
+  // olursa çağıran taraf zaten sessizce yutuyor.
+
+  /// POST /api/analytics/log
+  Future<void> logAnalyticsEvent({
+    required String eventType,
+    required String screenName,
+    String? elementName,
+  }) async {
+    final uri = Uri.parse('$baseUrl/analytics/log');
+    await _post(
+      uri,
+      body: jsonEncode({
+        'event_type': eventType,
+        'screen_name': screenName,
+        if (elementName != null) 'element_name': elementName,
+      }),
+    );
+  }
+
+  /// GET /api/analytics/summary — yalnızca yönetici.
+  Future<UsageAnalyticsSummary> getAnalyticsSummary() async {
+    try {
+      final uri = Uri.parse('$baseUrl/analytics/summary');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'Kullanım analitiği alınamadı.'),
+        );
+      }
+
+      return UsageAnalyticsSummary.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
     } catch (e) {

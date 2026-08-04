@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../../providers/equipment_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_spacing.dart';
 import 'equipment_detail_screen.dart';
 
@@ -23,6 +24,12 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   final MobileScannerController _controller = MobileScannerController();
   bool _isProcessing = false;
   String? _transientMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    AnalyticsService.logScreenView('QrScannerScreen');
+  }
 
   @override
   void dispose() {
@@ -48,7 +55,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
 
     if (equipment != null) {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => EquipmentDetailScreen(equipmentId: equipment.id)),
+        MaterialPageRoute(
+          builder: (_) => EquipmentDetailScreen(equipmentId: equipment.id),
+        ),
       );
       return;
     }
@@ -89,7 +98,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           MobileScanner(
             controller: _controller,
             onDetect: _onDetect,
-            errorBuilder: (context, error) => _PermissionDeniedView(error: error),
+            errorBuilder: (context, error) =>
+                _PermissionDeniedView(error: error),
           ),
           const _ScanFrameOverlay(),
           if (_isProcessing)
@@ -125,7 +135,10 @@ class _ScanFrameOverlay extends StatelessWidget {
           width: 250,
           height: 250,
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 3),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.9),
+              width: 3,
+            ),
             borderRadius: BorderRadius.circular(24),
           ),
         ),
@@ -141,14 +154,27 @@ class _LoadingBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: Colors.black87,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          ),
           SizedBox(width: 10),
-          Text('Ekipman aranıyor...', style: TextStyle(color: Colors.white, fontSize: 13)),
+          Text(
+            'Ekipman aranıyor...',
+            style: TextStyle(color: Colors.white, fontSize: 13),
+          ),
         ],
       ),
     );
@@ -163,13 +189,25 @@ class _WarningBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: Colors.black87,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 20),
+          const Icon(
+            Icons.warning_amber_rounded,
+            color: Colors.amber,
+            size: 20,
+          ),
           const SizedBox(width: 10),
-          Expanded(child: Text(message, style: const TextStyle(color: Colors.white, fontSize: 13))),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+          ),
         ],
       ),
     );
@@ -182,7 +220,8 @@ class _PermissionDeniedView extends StatelessWidget {
   final MobileScannerException error;
   const _PermissionDeniedView({required this.error});
 
-  bool get _isPermissionDenied => error.errorCode == MobileScannerErrorCode.permissionDenied;
+  bool get _isPermissionDenied =>
+      error.errorCode == MobileScannerErrorCode.permissionDenied;
 
   @override
   Widget build(BuildContext context) {
@@ -194,7 +233,11 @@ class _PermissionDeniedView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.no_photography_outlined, size: 56, color: Colors.white70),
+              const Icon(
+                Icons.no_photography_outlined,
+                size: 56,
+                color: Colors.white70,
+              ),
               const SizedBox(height: AppSpacing.md),
               Text(
                 _isPermissionDenied
@@ -205,7 +248,10 @@ class _PermissionDeniedView extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.md),
               OutlinedButton(
-                style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white54)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white54),
+                ),
                 onPressed: () => Navigator.of(context).pop(),
                 child: const Text('Manuel Kod Girişine Dön'),
               ),

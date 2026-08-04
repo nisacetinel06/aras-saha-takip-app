@@ -59,7 +59,9 @@ class AppNotification {
     return AppNotification(
       id: json['id'] as int,
       message: json['message'] as String,
-      relatedType: NotificationRelatedType.fromJson(json['related_type'] as String),
+      relatedType: NotificationRelatedType.fromJson(
+        json['related_type'] as String,
+      ),
       relatedId: json['related_id'] as int,
       isRead: json['is_read'] as bool,
       createdAt: DateTime.parse(json['created_at'] as String),

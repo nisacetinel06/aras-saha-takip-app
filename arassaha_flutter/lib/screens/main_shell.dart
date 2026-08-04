@@ -44,7 +44,13 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _index = 0;
 
-  static const _titles = ['Ana Sayfa', 'İş Emirleri', 'Harita', 'Dashboard', 'Profil'];
+  static const _titles = [
+    'Ana Sayfa',
+    'İş Emirleri',
+    'Harita',
+    'Dashboard',
+    'Profil',
+  ];
 
   @override
   void initState() {
@@ -79,7 +85,9 @@ class _MainShellState extends State<MainShell> {
       if (index == 1) {
         context.read<WorkOrderListProvider>().setFilter(statusFilter);
       } else if (index == 2) {
-        context.read<MapProvider>().fetchMapData(statusFilter: statusFilter.toJson());
+        context.read<MapProvider>().fetchMapData(
+          statusFilter: statusFilter.toJson(),
+        );
       }
     }
     setState(() => _index = index);
@@ -102,9 +110,14 @@ class _MainShellState extends State<MainShell> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const AppLogo(height: 22, padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
+            const AppLogo(
+              height: 22,
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            ),
             const SizedBox(width: 10),
-            Flexible(child: Text(_titles[_index], overflow: TextOverflow.ellipsis)),
+            Flexible(
+              child: Text(_titles[_index], overflow: TextOverflow.ellipsis),
+            ),
           ],
         ),
         actions: const [
@@ -140,10 +153,20 @@ class _MainShellState extends State<MainShell> {
           ),
           NavigationDestination(
             icon: myProfile != null
-                ? UserAvatar(photoPath: myProfile.photoPath, initials: myProfile.initials, role: myProfile.role, radius: 12)
+                ? UserAvatar(
+                    photoPath: myProfile.photoPath,
+                    initials: myProfile.initials,
+                    role: myProfile.role,
+                    radius: 12,
+                  )
                 : const Icon(Icons.person_outline),
             selectedIcon: myProfile != null
-                ? UserAvatar(photoPath: myProfile.photoPath, initials: myProfile.initials, role: myProfile.role, radius: 12)
+                ? UserAvatar(
+                    photoPath: myProfile.photoPath,
+                    initials: myProfile.initials,
+                    role: myProfile.role,
+                    radius: 12,
+                  )
                 : const Icon(Icons.person),
             label: 'Profil',
           ),

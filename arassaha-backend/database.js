@@ -314,6 +314,25 @@ db.exec(`
     created_at TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users (id)
   );
+
+  -- Basit Kullanım Analitiği (UX standardizasyonu turu, bölüm E) — ücretli/
+  -- harici bir ısı haritası aracı yerine hafif bir kullanım logu. Gerçek bir
+  -- analitik SDK'sı (Firebase Analytics, Mixpanel vb.) DEĞİLDİR — yalnızca
+  -- "hangi ekran ne sıklıkla açılıyor, hangi buton ne sıklıkla tıklanıyor"
+  -- sorusuna cevap veren, kendi veritabanımızdaki bir sayaç tablosudur.
+  -- user_id NULL olabilir: teorik olarak auth olmadan da (örn. login ekranı)
+  -- bir gün loglanmak istenebilir diye nullable bırakıldı, ama pratikte bu
+  -- router zaten verifyToken arkasında mount edildiği için (bkz. server.js)
+  -- şu an her zaman dolu gelir.
+  CREATE TABLE IF NOT EXISTS usage_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    event_type TEXT NOT NULL,
+    screen_name TEXT NOT NULL,
+    element_name TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id)
+  );
 `);
 
 // Migrasyon: bu proje ilk kurulduğunda `users` tablosu `password_hash`

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/app_notification.dart';
 import '../../providers/notification_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
@@ -31,6 +32,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('NotificationsScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<NotificationProvider>().fetchNotifications();
     });
@@ -47,15 +49,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     switch (notification.relatedType) {
       case NotificationRelatedType.workOrder:
         Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => WorkOrderDetailScreen(workOrderId: notification.relatedId)),
+          MaterialPageRoute(
+            builder: (_) =>
+                WorkOrderDetailScreen(workOrderId: notification.relatedId),
+          ),
         );
       case NotificationRelatedType.isgReport:
         Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => IsgReportDetailScreen(reportId: notification.relatedId)),
+          MaterialPageRoute(
+            builder: (_) =>
+                IsgReportDetailScreen(reportId: notification.relatedId),
+          ),
         );
       case NotificationRelatedType.equipment:
         Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => EquipmentDetailScreen(equipmentId: notification.relatedId)),
+          MaterialPageRoute(
+            builder: (_) =>
+                EquipmentDetailScreen(equipmentId: notification.relatedId),
+          ),
         );
     }
   }
@@ -68,10 +79,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return Scaffold(
       // showNotificationBell: false — bu ekran zilin GİTTİĞİ yer, zilin
       // KENDİSİNİ tekrar göstermek anlamsız/kafa karıştırıcı olurdu.
-      appBar: const AppTopBar(title: 'Bildirimler', showNotificationBell: false),
-      body: RefreshIndicator(
-        onRefresh: provider.fetchNotifications,
-        child: _buildBody(provider, scheme),
+      appBar: const AppTopBar(
+        title: 'Bildirimler',
+        showNotificationBell: false,
+      ),
+      body: SafeArea(
+        top: false,
+        child: RefreshIndicator(
+          onRefresh: provider.fetchNotifications,
+          child: _buildBody(provider, scheme),
+        ),
       ),
     );
   }
@@ -119,7 +136,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   'Henüz bir bildiriminiz yok',
-                  style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant),
+                  style: AppTextStyles.bodyMedium(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -129,7 +148,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xl),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.xl,
+      ),
       children: [
         if (provider.unreadCount > 0) ...[
           Align(
@@ -146,7 +170,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ...provider.notifications.map(
           (n) => Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: _NotificationTile(notification: n, onTap: () => _openNotification(n)),
+            child: _NotificationTile(
+              notification: n,
+              onTap: () => _openNotification(n),
+            ),
           ),
         ),
       ],
@@ -177,13 +204,19 @@ class _NotificationTile extends StatelessWidget {
             height: 36,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: (isUnread ? AppColors.primary(context) : scheme.outlineVariant).withValues(alpha: isUnread ? 1 : 0.4),
+              color:
+                  (isUnread
+                          ? AppColors.primary(context)
+                          : scheme.outlineVariant)
+                      .withValues(alpha: isUnread ? 1 : 0.4),
               shape: BoxShape.circle,
             ),
             child: Icon(
               notification.relatedType.icon,
               size: 18,
-              color: isUnread ? Colors.white : scheme.onSurfaceVariant,
+              color: isUnread
+                  ? accessibleOnColor(AppColors.primary(context))
+                  : scheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
@@ -193,9 +226,12 @@ class _NotificationTile extends StatelessWidget {
               children: [
                 Text(
                   notification.message,
-                  style: AppTextStyles.bodyMedium(color: scheme.onSurface).copyWith(
-                    fontWeight: isUnread ? FontWeight.w700 : FontWeight.w400,
-                  ),
+                  style: AppTextStyles.bodyMedium(color: scheme.onSurface)
+                      .copyWith(
+                        fontWeight: isUnread
+                            ? FontWeight.w700
+                            : FontWeight.w400,
+                      ),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -211,7 +247,10 @@ class _NotificationTile extends StatelessWidget {
               width: 8,
               height: 8,
               margin: const EdgeInsets.only(top: 4),
-              decoration: BoxDecoration(color: AppColors.primary(context), shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: AppColors.primary(context),
+                shape: BoxShape.circle,
+              ),
             ),
           ],
         ],

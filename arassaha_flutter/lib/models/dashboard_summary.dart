@@ -44,12 +44,14 @@ class DashboardSummary {
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) {
     final statusJson = json['status_breakdown'] as Map<String, dynamic>? ?? {};
-    final priorityJson = json['priority_breakdown'] as Map<String, dynamic>? ?? {};
+    final priorityJson =
+        json['priority_breakdown'] as Map<String, dynamic>? ?? {};
 
     return DashboardSummary(
       openCount: json['open_count'] as int? ?? 0,
       resolvedTodayCount: json['resolved_today_count'] as int? ?? 0,
-      avgResolutionHours: (json['avg_resolution_hours'] as num?)?.toDouble() ?? 0.0,
+      avgResolutionHours:
+          (json['avg_resolution_hours'] as num?)?.toDouble() ?? 0.0,
       statusBreakdown: {
         for (final status in WorkOrderStatus.values)
           status: (statusJson[status.toJson()] as num?)?.toInt() ?? 0,

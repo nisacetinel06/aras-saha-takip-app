@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/isg_report.dart';
 import '../../providers/isg_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
@@ -35,6 +36,7 @@ class _IsgReportListScreenState extends State<IsgReportListScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('IsgReportListScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<IsgProvider>().fetchReports();
     });
@@ -56,66 +58,84 @@ class _IsgReportListScreenState extends State<IsgReportListScreen> {
         icon: const Icon(Icons.add_alert_outlined),
         label: const Text('Yeni Bildirim'),
       ),
-      body: Builder(
-        builder: (context) {
-          if (provider.isListLoading && provider.reports.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: SafeArea(
+        top: false,
+        child: Builder(
+          builder: (context) {
+            if (provider.isListLoading && provider.reports.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (provider.listErrorMessage != null && provider.reports.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.error_outline, size: 56, color: Theme.of(context).colorScheme.error),
-                    const SizedBox(height: AppSpacing.sm + 4),
-                    Text(provider.listErrorMessage!, textAlign: TextAlign.center),
-                    const SizedBox(height: AppSpacing.md),
-                    AppButton(label: 'Tekrar Dene', onPressed: provider.fetchReports),
-                  ],
+            if (provider.listErrorMessage != null && provider.reports.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 56,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      const SizedBox(height: AppSpacing.sm + 4),
+                      Text(
+                        provider.listErrorMessage!,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      AppButton(
+                        label: 'Tekrar Dene',
+                        onPressed: provider.fetchReports,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          }
+              );
+            }
 
-          return RefreshIndicator(
-            onRefresh: provider.fetchReports,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.xl + 64,
-              ),
-              children: [
-                _SummaryStrip(reports: provider.reports),
-                const SizedBox(height: AppSpacing.md),
-                _FilterBar(provider: provider),
-                const SizedBox(height: AppSpacing.sm),
-                if (provider.reports.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: AppSpacing.xl),
-                    child: Center(child: Text('Bu filtreye uyan bildirim yok.')),
-                  )
-                else
-                  ...provider.reports.map(
-                    (report) => Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: _IsgReportCard(
-                        report: report,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => IsgReportDetailScreen(reportId: report.id)),
+            return RefreshIndicator(
+              onRefresh: provider.fetchReports,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.xl + 64,
+                ),
+                children: [
+                  _SummaryStrip(reports: provider.reports),
+                  const SizedBox(height: AppSpacing.md),
+                  _FilterBar(provider: provider),
+                  const SizedBox(height: AppSpacing.sm),
+                  if (provider.reports.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: AppSpacing.xl),
+                      child: Center(
+                        child: Text('Bu filtreye uyan bildirim yok.'),
+                      ),
+                    )
+                  else
+                    ...provider.reports.map(
+                      (report) => Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        child: _IsgReportCard(
+                          report: report,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  IsgReportDetailScreen(reportId: report.id),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-          );
-        },
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -129,23 +149,50 @@ class _SummaryStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final total = reports.length;
-    final bekliyor = reports.where((r) => r.status == IsgStatus.bekliyor).length;
-    final incelendi = reports.where((r) => r.status == IsgStatus.incelendi).length;
+    final bekliyor = reports
+        .where((r) => r.status == IsgStatus.bekliyor)
+        .length;
+    final incelendi = reports
+        .where((r) => r.status == IsgStatus.incelendi)
+        .length;
     final cozuldu = reports.where((r) => r.status == IsgStatus.cozuldu).length;
 
     return AppCard(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm + 4, horizontal: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+        vertical: AppSpacing.sm + 4,
+        horizontal: AppSpacing.sm,
+      ),
       child: Text.rich(
         TextSpan(
           style: AppTextStyles.bodyMedium(color: scheme.onSurface),
           children: [
-            TextSpan(text: '$total', style: AppTextStyles.headingMedium(color: AppColors.primary(context))),
+            TextSpan(
+              text: '$total',
+              style: AppTextStyles.headingMedium(
+                color: AppColors.primary(context),
+              ),
+            ),
             const TextSpan(text: ' bildirim, '),
-            TextSpan(text: '$bekliyor', style: AppTextStyles.headingMedium(color: AppColors.warning(context))),
+            TextSpan(
+              text: '$bekliyor',
+              style: AppTextStyles.headingMedium(
+                color: AppColors.warning(context),
+              ),
+            ),
             const TextSpan(text: ' bekliyor, '),
-            TextSpan(text: '$incelendi', style: AppTextStyles.headingMedium(color: AppColors.primary(context))),
+            TextSpan(
+              text: '$incelendi',
+              style: AppTextStyles.headingMedium(
+                color: AppColors.primary(context),
+              ),
+            ),
             const TextSpan(text: ' incelendi, '),
-            TextSpan(text: '$cozuldu', style: AppTextStyles.headingMedium(color: AppColors.success(context))),
+            TextSpan(
+              text: '$cozuldu',
+              style: AppTextStyles.headingMedium(
+                color: AppColors.success(context),
+              ),
+            ),
             const TextSpan(text: ' çözüldü'),
           ],
         ),
@@ -180,7 +227,9 @@ class _FilterBar extends StatelessWidget {
               label: Text(entry.key),
               selected: isSelected,
               showCheckmark: false,
-              labelStyle: TextStyle(color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant),
+              labelStyle: TextStyle(
+                color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant,
+              ),
               onSelected: (_) => provider.setFilter(entry.value),
             ),
           );
@@ -212,7 +261,11 @@ class _IsgReportCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   report.category.label,
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
               _StatusBadge(status: report.status),
@@ -228,7 +281,11 @@ class _IsgReportCard extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              Icon(Icons.person_outline, size: 14, color: scheme.onSurfaceVariant),
+              Icon(
+                Icons.person_outline,
+                size: 14,
+                color: scheme.onSurfaceVariant,
+              ),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
@@ -259,10 +316,17 @@ class _StatusBadge extends StatelessWidget {
     final color = _statusColor(context, status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(AppRadius.pill)),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
       child: Text(
         status.label,
-        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+        style: TextStyle(
+          color: accessibleOnColor(color),
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

@@ -33,7 +33,10 @@ class AppCard extends StatelessWidget {
         ? Padding(padding: padding, child: child)
         : Material(
             type: MaterialType.transparency,
-            child: InkWell(onTap: onTap, child: Padding(padding: padding, child: child)),
+            child: InkWell(
+              onTap: onTap,
+              child: Padding(padding: padding, child: child),
+            ),
           );
   }
 
@@ -64,17 +67,28 @@ class AppCard extends StatelessWidget {
     // kendi borderRadius'una bırakılıyor.
     return Container(
       decoration: BoxDecoration(
-        color: backgroundTint?.withValues(alpha: isDark ? 0.28 : 0.22) ?? scheme.surfaceContainerLowest,
+        color:
+            backgroundTint?.withValues(alpha: isDark ? 0.28 : 0.22) ??
+            scheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(
-          color: backgroundTint?.withValues(alpha: isDark ? 0.55 : 0.45) ??
+          color:
+              backgroundTint?.withValues(alpha: isDark ? 0.55 : 0.45) ??
               scheme.outlineVariant.withValues(alpha: isDark ? 0.5 : 0.3),
         ),
         boxShadow: isDark
             ? null
             : [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 4, offset: const Offset(0, 2)),
-                BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 6, offset: const Offset(0, 4)),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.10),
+                  blurRadius: 6,
+                  offset: const Offset(0, 4),
+                ),
               ],
       ),
       clipBehavior: Clip.antiAlias,

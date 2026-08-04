@@ -30,11 +30,15 @@ class AnomalyProvider extends ChangeNotifier {
   String? get anomalyErrorMessage => _anomalyErrorMessage;
   String? get consumptionErrorMessage => _consumptionErrorMessage;
 
-  MeterAnomaly? anomalyFor(int equipmentId) => _anomalyByEquipmentId[equipmentId];
-  bool isAnomalyLoading(int equipmentId) => _loadingAnomalyEquipmentIds.contains(equipmentId);
+  MeterAnomaly? anomalyFor(int equipmentId) =>
+      _anomalyByEquipmentId[equipmentId];
+  bool isAnomalyLoading(int equipmentId) =>
+      _loadingAnomalyEquipmentIds.contains(equipmentId);
 
-  List<MeterConsumptionEntry>? consumptionFor(int equipmentId) => _consumptionByEquipmentId[equipmentId];
-  bool isConsumptionLoading(int equipmentId) => _loadingConsumptionEquipmentIds.contains(equipmentId);
+  List<MeterConsumptionEntry>? consumptionFor(int equipmentId) =>
+      _consumptionByEquipmentId[equipmentId];
+  bool isConsumptionLoading(int equipmentId) =>
+      _loadingConsumptionEquipmentIds.contains(equipmentId);
 
   Future<void> fetchSuspiciousMeters() async {
     _isSuspiciousListLoading = true;
@@ -57,7 +61,8 @@ class AnomalyProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _anomalyByEquipmentId[equipmentId] = await _apiService.getEquipmentAnomaly(equipmentId);
+      _anomalyByEquipmentId[equipmentId] = await _apiService
+          .getEquipmentAnomaly(equipmentId);
     } catch (e) {
       _anomalyErrorMessage = e.toString();
     } finally {
@@ -72,7 +77,8 @@ class AnomalyProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _consumptionByEquipmentId[equipmentId] = await _apiService.getEquipmentConsumption(equipmentId);
+      _consumptionByEquipmentId[equipmentId] = await _apiService
+          .getEquipmentConsumption(equipmentId);
     } catch (e) {
       _consumptionErrorMessage = e.toString();
     } finally {

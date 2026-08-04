@@ -44,7 +44,10 @@ class WorkOrderDetailProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _workOrder = await _apiService.updateStatus(workOrderId, newStatus.toJson());
+      _workOrder = await _apiService.updateStatus(
+        workOrderId,
+        newStatus.toJson(),
+      );
       return true;
     } catch (e) {
       _errorMessage = e.toString();
@@ -63,7 +66,10 @@ class WorkOrderDetailProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _workOrder = await _apiService.assignWorkOrder(workOrderId, newAssignedUserId);
+      _workOrder = await _apiService.assignWorkOrder(
+        workOrderId,
+        newAssignedUserId,
+      );
       return true;
     } catch (e) {
       _errorMessage = e.toString();

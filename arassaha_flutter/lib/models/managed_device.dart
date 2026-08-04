@@ -38,10 +38,13 @@ enum DeviceComplianceStatus {
   uyumsuz;
 
   static DeviceComplianceStatus fromJson(String value) {
-    return value == 'uyumsuz' ? DeviceComplianceStatus.uyumsuz : DeviceComplianceStatus.uyumlu;
+    return value == 'uyumsuz'
+        ? DeviceComplianceStatus.uyumsuz
+        : DeviceComplianceStatus.uyumlu;
   }
 
-  String get label => this == DeviceComplianceStatus.uyumlu ? 'Uyumlu' : 'Uyumsuz';
+  String get label =>
+      this == DeviceComplianceStatus.uyumlu ? 'Uyumlu' : 'Uyumsuz';
 }
 
 /// Bir cihaz üzerinde yapılan simüle işlemin geçmiş kaydı (device_action_logs).
@@ -133,14 +136,22 @@ class ManagedDevice {
       deviceModel: json['device_model'] as String? ?? '',
       osVersion: json['os_version'] as String? ?? '',
       appVersion: json['app_version'] as String? ?? '',
-      enrollmentStatus: DeviceEnrollmentStatus.fromJson(json['enrollment_status'] as String),
-      complianceStatus: DeviceComplianceStatus.fromJson(json['compliance_status'] as String),
-      lastSyncAt: json['last_sync_at'] != null ? DateTime.parse(json['last_sync_at'] as String) : null,
+      enrollmentStatus: DeviceEnrollmentStatus.fromJson(
+        json['enrollment_status'] as String,
+      ),
+      complianceStatus: DeviceComplianceStatus.fromJson(
+        json['compliance_status'] as String,
+      ),
+      lastSyncAt: json['last_sync_at'] != null
+          ? DateTime.parse(json['last_sync_at'] as String)
+          : null,
       batteryLevel: json['battery_level'] as int? ?? 0,
       isLocked: json['is_locked'] as bool? ?? false,
       createdAt: DateTime.parse(json['created_at'] as String),
       logs: json['logs'] != null
-          ? (json['logs'] as List).map((l) => DeviceActionLog.fromJson(l as Map<String, dynamic>)).toList()
+          ? (json['logs'] as List)
+                .map((l) => DeviceActionLog.fromJson(l as Map<String, dynamic>))
+                .toList()
           : const [],
     );
   }

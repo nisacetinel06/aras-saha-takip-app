@@ -12,6 +12,7 @@ import '../providers/maintenance_provider.dart';
 import '../providers/material_provider.dart';
 import '../providers/risk_provider.dart';
 import '../providers/work_order_detail_provider.dart';
+import '../services/analytics_service.dart';
 import '../services/api_service.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
@@ -32,6 +33,7 @@ class WorkOrderDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (context) {
+        AnalyticsService.logScreenView('WorkOrderDetailScreen');
         // Malzeme / Yedek Parça Stok Takibi (Modül 13) — "Kullanılan
         // Malzemeler" bölümü kendi verisini iş emri detayının yüklenmesini
         // BEKLEMEDEN çekebilir (workOrderId zaten burada biliniyor, ekipman
@@ -53,203 +55,212 @@ class _WorkOrderDetailBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const AppTopBar(title: 'İş Emri Detayı'),
-      body: Consumer<WorkOrderDetailProvider>(
-        builder: (context, provider, _) {
-          if (provider.isLoading && provider.workOrder == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: SafeArea(
+        top: false,
+        child: Consumer<WorkOrderDetailProvider>(
+          builder: (context, provider, _) {
+            if (provider.isLoading && provider.workOrder == null) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (provider.errorMessage != null && provider.workOrder == null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 56,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(provider.errorMessage!, textAlign: TextAlign.center),
-                    const SizedBox(height: 16),
-                    AppButton(
-                      label: 'Tekrar Dene',
-                      onPressed: provider.loadDetail,
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          final workOrder = provider.workOrder!;
-          return RefreshIndicator(
-            onRefresh: provider.loadDetail,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              children: [
-                Text(
-                  workOrder.title,
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    StatusBadge(status: workOrder.status),
-                    PriorityBadge(priority: workOrder.priority),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                _SectionCard(
-                  title: 'Açıklama',
-                  icon: Icons.description_outlined,
-                  child: _QuoteBox(text: workOrder.description),
-                ),
-                const SizedBox(height: 16),
-
-                _SectionCard(
-                  title: 'Konum',
-                  icon: Icons.location_on_outlined,
+            if (provider.errorMessage != null && provider.workOrder == null) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      _InfoRow(
-                        icon: Icons.place_outlined,
-                        text: workOrder.locationName,
+                      Icon(
+                        Icons.error_outline,
+                        size: 56,
+                        color: Theme.of(context).colorScheme.error,
                       ),
-                      const SizedBox(height: 4),
-                      _InfoRow(
-                        icon: Icons.map_outlined,
-                        text:
-                            'Lat: ${workOrder.lat.toStringAsFixed(5)}, Lng: ${workOrder.lng.toStringAsFixed(5)}',
-                        mono: true,
-                      ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
+                      Text(provider.errorMessage!, textAlign: TextAlign.center),
+                      const SizedBox(height: 16),
                       AppButton(
-                        label: 'Haritada Aç',
-                        icon: Icons.directions_outlined,
-                        variant: AppButtonVariant.secondary,
-                        onPressed: () =>
-                            _openInMaps(context, workOrder.lat, workOrder.lng),
+                        label: 'Tekrar Dene',
+                        onPressed: provider.loadDetail,
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+              );
+            }
 
-                _SectionCard(
-                  title: 'Atanan Personel',
-                  icon: Icons.badge_outlined,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            final workOrder = provider.workOrder!;
+            return RefreshIndicator(
+              onRefresh: provider.loadDetail,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Text(
+                    workOrder.title,
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
                     children: [
-                      _InitialsAvatar(name: workOrder.assignedUser?.name),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              workOrder.assignedUser?.name ?? 'Henüz atanmadı',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            if (workOrder.assignedUser != null)
+                      StatusBadge(status: workOrder.status),
+                      PriorityBadge(priority: workOrder.priority),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  _SectionCard(
+                    title: 'Açıklama',
+                    icon: Icons.description_outlined,
+                    child: _QuoteBox(text: workOrder.description),
+                  ),
+                  const SizedBox(height: 16),
+
+                  _SectionCard(
+                    title: 'Konum',
+                    icon: Icons.location_on_outlined,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _InfoRow(
+                          icon: Icons.place_outlined,
+                          text: workOrder.locationName,
+                        ),
+                        const SizedBox(height: 4),
+                        _InfoRow(
+                          icon: Icons.map_outlined,
+                          text:
+                              'Lat: ${workOrder.lat.toStringAsFixed(5)}, Lng: ${workOrder.lng.toStringAsFixed(5)}',
+                          mono: true,
+                        ),
+                        const SizedBox(height: 10),
+                        AppButton(
+                          label: 'Haritada Aç',
+                          icon: Icons.directions_outlined,
+                          variant: AppButtonVariant.secondary,
+                          onPressed: () => _openInMaps(
+                            context,
+                            workOrder.lat,
+                            workOrder.lng,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  _SectionCard(
+                    title: 'Atanan Personel',
+                    icon: Icons.badge_outlined,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _InitialsAvatar(name: workOrder.assignedUser?.name),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Text(
-                                workOrder.assignedUser!.role,
-                                style: TextStyle(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                  fontSize: 12,
+                                workOrder.assignedUser?.name ??
+                                    'Henüz atanmadı',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                            if (workOrder.equipmentRef.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              // Modül 4 (Ekipman) ile gerçek, İKİ YÖNLÜ bağlantı:
-                              // Ekipman Detayı geçmiş arızalarını gösterirken
-                              // (Modül 4), burada da bu iş emrinin bağlı olduğu
-                              // ekipmanın tipi + QR kodu gösterilip dokununca
-                              // doğrudan Ekipman Detayı'na gidilir.
-                              workOrder.equipmentId != null
-                                  ? InkWell(
-                                      borderRadius: BorderRadius.circular(6),
-                                      onTap: () => Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (_) => EquipmentDetailScreen(
-                                            equipmentId: workOrder.equipmentId!,
+                              if (workOrder.assignedUser != null)
+                                Text(
+                                  workOrder.assignedUser!.role,
+                                  style: TextStyle(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              if (workOrder.equipmentRef.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                // Modül 4 (Ekipman) ile gerçek, İKİ YÖNLÜ bağlantı:
+                                // Ekipman Detayı geçmiş arızalarını gösterirken
+                                // (Modül 4), burada da bu iş emrinin bağlı olduğu
+                                // ekipmanın tipi + QR kodu gösterilip dokununca
+                                // doğrudan Ekipman Detayı'na gidilir.
+                                workOrder.equipmentId != null
+                                    ? InkWell(
+                                        borderRadius: BorderRadius.circular(6),
+                                        onTap: () => Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                EquipmentDetailScreen(
+                                                  equipmentId:
+                                                      workOrder.equipmentId!,
+                                                ),
                                           ),
                                         ),
-                                      ),
-                                      child: _EquipmentChip(
+                                        child: _EquipmentChip(
+                                          code: workOrder.equipmentRef,
+                                          type: workOrder.equipmentType,
+                                        ),
+                                      )
+                                    : _EquipmentChip(
                                         code: workOrder.equipmentRef,
                                         type: workOrder.equipmentType,
                                       ),
-                                    )
-                                  : _EquipmentChip(
-                                      code: workOrder.equipmentRef,
-                                      type: workOrder.equipmentType,
-                                    ),
-                              // Kestirimci Bakım Planlama (Modül 12) bağlamı:
-                              // bu bir ARIZA iş emri ise (önleyici bakımdan
-                              // dönüştürülmüş bir iş emri zaten kendisi bir
-                              // öneriyi temsil ettiği için burada tekrar
-                              // gösterilmez), bağlı ekipmanın risk skoruna göre
-                              // neden bir bakım önerisi olup olmadığını açıklayan
-                              // küçük bir not gösterilir.
-                              if (workOrder.equipmentId != null &&
-                                  workOrder.sourceType ==
-                                      WorkOrderSourceType.ariza)
-                                _RiskContextNote(
-                                  equipmentId: workOrder.equipmentId!,
-                                ),
+                                // Kestirimci Bakım Planlama (Modül 12) bağlamı:
+                                // bu bir ARIZA iş emri ise (önleyici bakımdan
+                                // dönüştürülmüş bir iş emri zaten kendisi bir
+                                // öneriyi temsil ettiği için burada tekrar
+                                // gösterilmez), bağlı ekipmanın risk skoruna göre
+                                // neden bir bakım önerisi olup olmadığını açıklayan
+                                // küçük bir not gösterilir.
+                                if (workOrder.equipmentId != null &&
+                                    workOrder.sourceType ==
+                                        WorkOrderSourceType.ariza)
+                                  _RiskContextNote(
+                                    equipmentId: workOrder.equipmentId!,
+                                  ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                      // Yeniden atama — yalnızca dispeçer/yönetici (Modül 7 devamı,
-                      // bkz. ARCHITECTURE.md). Teknisyen bu ikonu hiç görmez.
-                      if (context.watch<AuthProvider>().canCreateWorkOrders)
-                        IconButton(
-                          tooltip: 'Atanan Kişiyi Değiştir',
-                          icon: const Icon(Icons.edit_outlined, size: 20),
-                          onPressed: () =>
-                              _showReassignSheet(context, workOrder),
-                        ),
-                    ],
+                        // Yeniden atama — yalnızca dispeçer/yönetici (Modül 7 devamı,
+                        // bkz. ARCHITECTURE.md). Teknisyen bu ikonu hiç görmez.
+                        if (context.watch<AuthProvider>().canCreateWorkOrders)
+                          IconButton(
+                            tooltip: 'Atanan Kişiyi Değiştir',
+                            icon: const Icon(Icons.edit_outlined, size: 20),
+                            onPressed: () =>
+                                _showReassignSheet(context, workOrder),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                _SectionCard(
-                  title: 'Durum Güncelle',
-                  icon: Icons.sync_alt,
-                  child: _StatusUpdateSection(workOrder: workOrder),
-                ),
-                const SizedBox(height: 16),
+                  _SectionCard(
+                    title: 'Durum Güncelle',
+                    icon: Icons.sync_alt,
+                    child: _StatusUpdateSection(workOrder: workOrder),
+                  ),
+                  const SizedBox(height: 16),
 
-                _SectionCard(
-                  title: 'Fotoğraflar',
-                  icon: Icons.photo_library_outlined,
-                  child: _PhotoSection(workOrder: workOrder),
-                ),
-                const SizedBox(height: 16),
+                  _SectionCard(
+                    title: 'Fotoğraflar',
+                    icon: Icons.photo_library_outlined,
+                    child: _PhotoSection(workOrder: workOrder),
+                  ),
+                  const SizedBox(height: 16),
 
-                _SectionCard(
-                  title: 'Kullanılan Malzemeler',
-                  icon: Icons.inventory_2_outlined,
-                  child: _MaterialsSection(workOrder: workOrder),
-                ),
-              ],
-            ),
-          );
-        },
+                  _SectionCard(
+                    title: 'Kullanılan Malzemeler',
+                    icon: Icons.inventory_2_outlined,
+                    child: _MaterialsSection(workOrder: workOrder),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -703,47 +714,54 @@ class _PhotoSection extends StatelessWidget {
             ),
           )
         else
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: workOrder.photos.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-            ),
-            itemBuilder: (context, index) {
-              final photo = workOrder.photos[index];
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  color: scheme.surfaceContainerHigh,
-                  // Fotoğraf backend'in diskinde gerçekten saklanır ve buradan
-                  // ağ üzerinden çekilir; bu sayede başka bir cihazdan (örn.
-                  // saha amirinin telefonundan) açıldığında da görüntülenir.
-                  child: Image.network(
-                    ApiService.photoUrl(photo.photoPath),
-                    fit: BoxFit.cover,
-                    loadingBuilder: (context, child, progress) {
-                      if (progress == null) return child;
-                      return const Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+          // C1 (responsive grid): bkz. home_screen.dart modül ızgarasındaki
+          // aynı not — telefonda 3, tablette 4-5 sütun.
+          LayoutBuilder(
+            builder: (context, constraints) => GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: workOrder.photos.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: responsiveGridColumns(
+                  constraints.maxWidth,
+                  minColumns: 3,
+                ),
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemBuilder: (context, index) {
+                final photo = workOrder.photos[index];
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    color: scheme.surfaceContainerHigh,
+                    // Fotoğraf backend'in diskinde gerçekten saklanır ve buradan
+                    // ağ üzerinden çekilir; bu sayede başka bir cihazdan (örn.
+                    // saha amirinin telefonundan) açıldığında da görüntülenir.
+                    child: Image.network(
+                      ApiService.photoUrl(photo.photoPath),
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) => Center(
+                        child: Icon(
+                          Icons.image_not_supported_outlined,
+                          color: scheme.onSurfaceVariant,
                         ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) => Center(
-                      child: Icon(
-                        Icons.image_not_supported_outlined,
-                        color: scheme.onSurfaceVariant,
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         const SizedBox(height: 12),
         AppButton(
@@ -915,12 +933,14 @@ class _MaterialUsageRow extends StatelessWidget {
           ),
         ),
         if (canDelete)
+          // B2 (dokunma alanı): varsayılan IconButton 48x48 dp dokunma
+          // alanını KISITLAYAN constraints/padding override'ı kaldırıldı —
+          // ikon görsel olarak küçük kalsa da tıklanabilir alan artık tam
+          // 48x48 dp (bkz. widgets/app_button.dart'taki AYNI minimum kural).
           IconButton(
             tooltip: 'Sil',
             icon: Icon(Icons.delete_outline, size: 20, color: scheme.error),
             onPressed: () => _confirmDelete(context),
-            constraints: const BoxConstraints(),
-            padding: const EdgeInsets.all(4),
           ),
       ],
     );

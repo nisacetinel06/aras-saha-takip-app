@@ -43,7 +43,9 @@ class IsgProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _reports = await _apiService.getIsgReports(statusFilter: _filterStatus?.toJson());
+      _reports = await _apiService.getIsgReports(
+        statusFilter: _filterStatus?.toJson(),
+      );
     } catch (e) {
       _listErrorMessage = e.toString();
     } finally {
@@ -106,13 +108,21 @@ class IsgProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> updateReportStatus(int id, IsgStatus newStatus, {String? reviewerNote}) async {
+  Future<bool> updateReportStatus(
+    int id,
+    IsgStatus newStatus, {
+    String? reviewerNote,
+  }) async {
     _isUpdatingStatus = true;
     _detailErrorMessage = null;
     notifyListeners();
 
     try {
-      _selectedReport = await _apiService.updateIsgReportStatus(id, newStatus, reviewerNote: reviewerNote);
+      _selectedReport = await _apiService.updateIsgReportStatus(
+        id,
+        newStatus,
+        reviewerNote: reviewerNote,
+      );
       final index = _reports.indexWhere((r) => r.id == id);
       if (index != -1) _reports[index] = _selectedReport!;
       return true;

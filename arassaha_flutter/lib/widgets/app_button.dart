@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/analytics_service.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 
 /// Renk kuralı (bkz. DESIGN_SYSTEM.md / app_colors.dart):
@@ -46,13 +48,26 @@ class AppButton extends StatelessWidget {
     final effectiveOnPressed = isLoading ? null : onPressed;
 
     Color loadingColor() {
-      if (variant == AppButtonVariant.primary) return Colors.white;
+      // D1 kontrast bulgusu: koyu temada scheme.primary (#5B9BE0) sabit
+      // Colors.white ile yalnızca 2.91:1 kontrast veriyordu (WCAG AA eşiği
+      // 4.5:1) — accessibleOnColor doğru rengi (ihtiyaç halinde koyu) hesaplar.
+      if (variant == AppButtonVariant.primary)
+        return accessibleOnColor(color ?? scheme.primary);
       if (color != null) return color!;
-      return variant == AppButtonVariant.destructive ? scheme.error : scheme.primary;
+      return variant == AppButtonVariant.destructive
+          ? scheme.error
+          : scheme.primary;
     }
 
     final leading = isLoading
-        ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: loadingColor()))
+        ? SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: loadingColor(),
+            ),
+          )
         : (icon != null ? Icon(icon, size: 18) : null);
 
     final content = Row(
@@ -72,14 +87,30 @@ class AppButton extends StatelessWidget {
         // Birincil aksiyon HER ZAMAN primary (mavi), dolu — ambient temanın
         // ElevatedButton varsayılanı zaten scheme.primary'dir, ama burada
         // açıkça belirtiliyor ki `color` geçersiz kılması net şekilde çalışsın.
+        //
+        // E3 (kullanım analitiği): TÜM primary butonlar burada MERKEZİ olarak
+        // loglanır — her ekranda tek tek AnalyticsService.logButtonTap
+        // çağırmaya gerek yok. Ekranın adı, en son o ekranın initState'inde
+        // çağırdığı logScreenView'dan gelir (bkz. AnalyticsService.currentScreen).
+        final loggedOnPressed = effectiveOnPressed == null
+            ? null
+            : () {
+                AnalyticsService.logButtonTap(
+                  AnalyticsService.currentScreen,
+                  label,
+                );
+                effectiveOnPressed();
+              };
         return ConstrainedBox(
           constraints: constraints,
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: color ?? scheme.primary,
-              foregroundColor: Colors.white,
+              // bkz. loadingColor() üstündeki D1 notu — aynı sebeple sabit
+              // beyaz yerine hesaplanmış kontrastlı renk kullanılıyor.
+              foregroundColor: accessibleOnColor(color ?? scheme.primary),
             ),
-            onPressed: effectiveOnPressed,
+            onPressed: loggedOnPressed,
             child: content,
           ),
         );
@@ -88,7 +119,10 @@ class AppButton extends StatelessWidget {
           constraints: constraints,
           child: OutlinedButton(
             style: color != null
-                ? OutlinedButton.styleFrom(foregroundColor: color, side: BorderSide(color: color!, width: 1.5))
+                ? OutlinedButton.styleFrom(
+                    foregroundColor: color,
+                    side: BorderSide(color: color!, width: 1.5),
+                  )
                 : null,
             onPressed: effectiveOnPressed,
             child: content,
@@ -98,7 +132,9 @@ class AppButton extends StatelessWidget {
         return ConstrainedBox(
           constraints: constraints,
           child: TextButton(
-            style: color != null ? TextButton.styleFrom(foregroundColor: color) : null,
+            style: color != null
+                ? TextButton.styleFrom(foregroundColor: color)
+                : null,
             onPressed: effectiveOnPressed,
             child: content,
           ),

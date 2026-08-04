@@ -74,7 +74,8 @@ enum EquipmentStatus {
   }
 
   /// Backend'in beklediği değer (`devreDisi` -> `devre_disi`); diğerleri `name` ile aynı.
-  String get apiValue => this == EquipmentStatus.devreDisi ? 'devre_disi' : name;
+  String get apiValue =>
+      this == EquipmentStatus.devreDisi ? 'devre_disi' : name;
 }
 
 /// Bir ekipmana bağlı geçmiş iş emri (arıza) kaydı — GET
@@ -178,15 +179,20 @@ class Equipment {
       locationName: json['location_name'] as String? ?? '',
       lat: (json['lat'] as num?)?.toDouble() ?? 0.0,
       lng: (json['lng'] as num?)?.toDouble() ?? 0.0,
-      installDate: json['install_date'] != null ? DateTime.parse(json['install_date'] as String) : null,
-      lastMaintenanceDate:
-          json['last_maintenance_date'] != null ? DateTime.parse(json['last_maintenance_date'] as String) : null,
+      installDate: json['install_date'] != null
+          ? DateTime.parse(json['install_date'] as String)
+          : null,
+      lastMaintenanceDate: json['last_maintenance_date'] != null
+          ? DateTime.parse(json['last_maintenance_date'] as String)
+          : null,
       manufacturer: json['manufacturer'] as String? ?? '',
       capacityInfo: json['capacity_info'] as String?,
       status: EquipmentStatus.fromJson(json['status'] as String),
       createdAt: DateTime.parse(json['created_at'] as String),
       riskScore: json['risk_score'] as int?,
-      riskLevel: json['risk_level'] != null ? RiskLevel.fromJson(json['risk_level'] as String) : null,
+      riskLevel: json['risk_level'] != null
+          ? RiskLevel.fromJson(json['risk_level'] as String)
+          : null,
     );
   }
 }

@@ -9,7 +9,11 @@ class AppLogo extends StatelessWidget {
   final double height;
   final EdgeInsetsGeometry padding;
 
-  const AppLogo({super.key, this.height = 28, this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 6)});
+  const AppLogo({
+    super.key,
+    this.height = 28,
+    this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -19,10 +23,18 @@ class AppLogo extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 4, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
-      child: Image.asset('assets/images/aras_logo.jpg', height: height, fit: BoxFit.contain),
+      child: Image.asset(
+        'assets/images/aras_logo.jpg',
+        height: height,
+        fit: BoxFit.contain,
+      ),
     );
   }
 }

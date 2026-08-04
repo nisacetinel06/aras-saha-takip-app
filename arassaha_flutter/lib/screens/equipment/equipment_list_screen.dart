@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/equipment.dart';
 import '../../models/equipment_risk.dart';
 import '../../providers/equipment_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
@@ -26,6 +27,7 @@ class _EquipmentListScreenState extends State<EquipmentListScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('EquipmentListScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<EquipmentProvider>().fetchEquipmentList();
     });
@@ -37,87 +39,115 @@ class _EquipmentListScreenState extends State<EquipmentListScreen> {
 
     return Scaffold(
       appBar: const AppTopBar(title: 'Ekipmanlar'),
-      body: Column(
-        children: [
-          _TypeFilterBar(provider: provider),
-          _StatusFilterBar(provider: provider),
-          _IlFilterBar(provider: provider),
-          Expanded(
-            child: Builder(
-              builder: (context) {
-                if (provider.isListLoading && provider.equipmentList.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            _TypeFilterBar(provider: provider),
+            _StatusFilterBar(provider: provider),
+            _IlFilterBar(provider: provider),
+            Expanded(
+              child: Builder(
+                builder: (context) {
+                  if (provider.isListLoading &&
+                      provider.equipmentList.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                if (provider.listErrorMessage != null && provider.equipmentList.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.error_outline, size: 56, color: Theme.of(context).colorScheme.error),
-                          const SizedBox(height: AppSpacing.sm + 4),
-                          Text(provider.listErrorMessage!, textAlign: TextAlign.center),
-                          const SizedBox(height: AppSpacing.md),
-                          AppButton(label: 'Tekrar Dene', onPressed: provider.fetchEquipmentList),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-
-                if (provider.equipmentList.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'Bu filtreye uyan ekipman yok.',
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    ),
-                  );
-                }
-
-                return RefreshIndicator(
-                  onRefresh: provider.fetchEquipmentList,
-                  child: ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.md,
-                      AppSpacing.sm,
-                      AppSpacing.md,
-                      AppSpacing.md,
-                    ),
-                    itemCount: provider.equipmentList.length,
-                    itemBuilder: (context, index) {
-                      final equipment = provider.equipmentList[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.sm, top: 6),
-                        child: Stack(
-                          clipBehavior: Clip.none,
+                  if (provider.listErrorMessage != null &&
+                      provider.equipmentList.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            _EquipmentCard(
-                              equipment: equipment,
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => EquipmentDetailScreen(equipmentId: equipment.id)),
-                              ),
+                            Icon(
+                              Icons.error_outline,
+                              size: 56,
+                              color: Theme.of(context).colorScheme.error,
                             ),
-                            // Arıza Risk Tahmini (Modül 9) — durum şeridiyle
-                            // karışmaması için sağ üst köşede ayrı bir rozet.
-                            if (equipment.riskScore != null && equipment.riskLevel != null)
-                              Positioned(
-                                top: -8,
-                                right: 8,
-                                child: _RiskBadge(score: equipment.riskScore!, level: equipment.riskLevel!),
-                              ),
+                            const SizedBox(height: AppSpacing.sm + 4),
+                            Text(
+                              provider.listErrorMessage!,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            AppButton(
+                              label: 'Tekrar Dene',
+                              onPressed: provider.fetchEquipmentList,
+                            ),
                           ],
                         ),
-                      );
-                    },
-                  ),
-                );
-              },
+                      ),
+                    );
+                  }
+
+                  if (provider.equipmentList.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'Bu filtreye uyan ekipman yok.',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    );
+                  }
+
+                  return RefreshIndicator(
+                    onRefresh: provider.fetchEquipmentList,
+                    child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.md,
+                        AppSpacing.sm,
+                        AppSpacing.md,
+                        AppSpacing.md,
+                      ),
+                      itemCount: provider.equipmentList.length,
+                      itemBuilder: (context, index) {
+                        final equipment = provider.equipmentList[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: AppSpacing.sm,
+                            top: 6,
+                          ),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              _EquipmentCard(
+                                equipment: equipment,
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => EquipmentDetailScreen(
+                                      equipmentId: equipment.id,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // Arıza Risk Tahmini (Modül 9) — durum şeridiyle
+                              // karışmaması için sağ üst köşede ayrı bir rozet.
+                              if (equipment.riskScore != null &&
+                                  equipment.riskLevel != null)
+                                Positioned(
+                                  top: -8,
+                                  right: 8,
+                                  child: _RiskBadge(
+                                    score: equipment.riskScore!,
+                                    level: equipment.riskLevel!,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -151,7 +181,9 @@ class _TypeFilterBar extends StatelessWidget {
               label: Text(entry.key),
               selected: isSelected,
               showCheckmark: false,
-              labelStyle: TextStyle(color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant),
+              labelStyle: TextStyle(
+                color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant,
+              ),
               onSelected: (_) => provider.setTypeFilter(entry.value),
             ),
           );
@@ -188,7 +220,10 @@ class _StatusFilterBar extends StatelessWidget {
               label: Text(entry.key),
               selected: isSelected,
               showCheckmark: false,
-              labelStyle: TextStyle(color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant, fontSize: 12),
+              labelStyle: TextStyle(
+                color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
               onSelected: (_) => provider.setStatusFilter(entry.value),
             ),
           );
@@ -203,7 +238,15 @@ class _StatusFilterBar extends StatelessWidget {
 /// Bu, ARCHITECTURE.md'nin "kişiler sabit kodlanmaz" kuralını ihlal etmez —
 /// coğrafi referans verisidir, personel değil (bkz. create_work_order_screen.dart
 /// üstündeki aynı gerekçe notu).
-const _ilOptions = ['Erzurum', 'Erzincan', 'Ağrı', 'Kars', 'Iğdır', 'Ardahan', 'Bayburt'];
+const _ilOptions = [
+  'Erzurum',
+  'Erzincan',
+  'Ağrı',
+  'Kars',
+  'Iğdır',
+  'Ardahan',
+  'Bayburt',
+];
 
 class _IlFilterBar extends StatelessWidget {
   final EquipmentProvider provider;
@@ -212,7 +255,10 @@ class _IlFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final filters = <String, String?>{'Tümü': null, for (final il in _ilOptions) il: il};
+    final filters = <String, String?>{
+      'Tümü': null,
+      for (final il in _ilOptions) il: il,
+    };
 
     return SizedBox(
       height: 48,
@@ -227,7 +273,10 @@ class _IlFilterBar extends StatelessWidget {
               label: Text(entry.key),
               selected: isSelected,
               showCheckmark: false,
-              labelStyle: TextStyle(color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant, fontSize: 12),
+              labelStyle: TextStyle(
+                color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
               onSelected: (_) => provider.setIlFilter(entry.value),
             ),
           );
@@ -260,7 +309,11 @@ class _EquipmentCard extends StatelessWidget {
               color: scheme.primary.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(AppRadius.chip),
             ),
-            child: Icon(equipment.equipmentType.icon, size: 20, color: scheme.primary),
+            child: Icon(
+              equipment.equipmentType.icon,
+              size: 20,
+              color: scheme.primary,
+            ),
           ),
           const SizedBox(width: AppSpacing.sm + 4),
           Expanded(
@@ -273,6 +326,8 @@ class _EquipmentCard extends StatelessWidget {
                       child: Text(
                         equipment.equipmentType.label,
                         style: Theme.of(context).textTheme.headlineSmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     Text(
@@ -288,20 +343,36 @@ class _EquipmentCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(Icons.qr_code_2_outlined, size: 14, color: scheme.onSurfaceVariant),
+                    Icon(
+                      Icons.qr_code_2_outlined,
+                      size: 14,
+                      color: scheme.onSurfaceVariant,
+                    ),
                     const SizedBox(width: 4),
-                    Text(equipment.qrCode, style: AppTextStyles.dataMono(color: scheme.onSurfaceVariant).copyWith(fontSize: 12)),
+                    Text(
+                      equipment.qrCode,
+                      style: AppTextStyles.dataMono(
+                        color: scheme.onSurfaceVariant,
+                      ).copyWith(fontSize: 12),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(Icons.location_on_outlined, size: 14, color: scheme.onSurfaceVariant),
+                    Icon(
+                      Icons.location_on_outlined,
+                      size: 14,
+                      color: scheme.onSurfaceVariant,
+                    ),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
                         equipment.locationName,
-                        style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 13,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -312,11 +383,18 @@ class _EquipmentCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(Icons.event_outlined, size: 14, color: scheme.onSurfaceVariant),
+                      Icon(
+                        Icons.event_outlined,
+                        size: 14,
+                        color: scheme.onSurfaceVariant,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '${equipment.installDate!.year} kurulum',
-                        style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
@@ -361,12 +439,25 @@ class _RiskBadge extends StatelessWidget {
         decoration: BoxDecoration(
           color: color,
           shape: BoxShape.circle,
-          border: Border.all(color: Theme.of(context).colorScheme.surface, width: 2),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 4, offset: const Offset(0, 2))],
+          border: Border.all(
+            color: Theme.of(context).colorScheme.surface,
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Text(
           '$score',
-          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800),
+          style: TextStyle(
+            color: accessibleOnColor(color),
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
     );

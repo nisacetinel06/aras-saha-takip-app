@@ -7,6 +7,7 @@ import '../../providers/anomaly_provider.dart';
 import '../../providers/equipment_provider.dart';
 import '../../providers/maintenance_provider.dart';
 import '../../providers/risk_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
@@ -36,6 +37,7 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('EquipmentDetailScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<EquipmentProvider>();
       provider.fetchEquipmentDetail(widget.equipmentId);
@@ -67,184 +69,191 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
 
     return Scaffold(
       appBar: const AppTopBar(title: 'Ekipman Detayı'),
-      body: Builder(
-        builder: (context) {
-          if (equipment == null && provider.detailErrorMessage != null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 56,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    const SizedBox(height: AppSpacing.sm + 4),
-                    Text(
-                      provider.detailErrorMessage!,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    AppButton(
-                      label: 'Tekrar Dene',
-                      onPressed: () =>
-                          provider.fetchEquipmentDetail(widget.equipmentId),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          if (equipment == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final riskProvider = context.read<RiskProvider>();
-          final anomalyProvider = context.read<AnomalyProvider>();
-          final maintenanceProvider = context.read<MaintenanceProvider>();
-          return RefreshIndicator(
-            onRefresh: () async {
-              await provider.fetchEquipmentDetail(widget.equipmentId);
-              await provider.fetchEquipmentHistory(widget.equipmentId);
-              await riskProvider.fetchEquipmentRisk(widget.equipmentId);
-              await maintenanceProvider.fetchRecommendations(
-                statusFilter: 'onerildi',
-              );
-              if (equipment.equipmentType == EquipmentType.sayac) {
-                await anomalyProvider.fetchEquipmentAnomaly(widget.equipmentId);
-                await anomalyProvider.fetchEquipmentConsumption(
-                  widget.equipmentId,
-                );
-              }
-            },
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(AppSpacing.md),
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      equipment.equipmentType.icon,
-                      size: 28,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        equipment.equipmentType.label,
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                    ),
-                    _EquipmentStatusBadge(status: equipment.status),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.qr_code_2_outlined,
-                      size: 16,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      equipment.qrCode,
-                      style: AppTextStyles.dataMono(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.lg),
-
-                _SectionCard(
-                  title: 'Ekipman Bilgileri',
-                  icon: Icons.info_outline,
+      body: SafeArea(
+        top: false,
+        child: Builder(
+          builder: (context) {
+            if (equipment == null && provider.detailErrorMessage != null) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      _InfoRow(
-                        icon: Icons.location_on_outlined,
-                        label: 'Konum',
-                        value: equipment.locationName,
+                      Icon(
+                        Icons.error_outline,
+                        size: 56,
+                        color: Theme.of(context).colorScheme.error,
                       ),
-                      _InfoRow(
-                        icon: Icons.event_outlined,
-                        label: 'Kurulum Tarihi',
-                        value: equipment.installDate != null
-                            ? '${_formatDate(equipment.installDate!)} (${_installedAgoLabel(equipment.installDate!)})'
-                            : 'Bilinmiyor',
+                      const SizedBox(height: AppSpacing.sm + 4),
+                      Text(
+                        provider.detailErrorMessage!,
+                        textAlign: TextAlign.center,
                       ),
-                      _InfoRow(
-                        icon: Icons.build_outlined,
-                        label: 'Son Bakım',
-                        value: equipment.lastMaintenanceDate != null
-                            ? '${_formatDate(equipment.lastMaintenanceDate!)} (${formatRelativeTime(equipment.lastMaintenanceDate!)})'
-                            : 'Hiç bakım kaydı yok',
-                      ),
-                      _InfoRow(
-                        icon: Icons.factory_outlined,
-                        label: 'Üretici',
-                        value: equipment.manufacturer.isNotEmpty
-                            ? equipment.manufacturer
-                            : 'Bilinmiyor',
-                      ),
-                      _InfoRow(
-                        icon: Icons.settings_outlined,
-                        label: 'Kapasite',
-                        value: equipment.capacityInfo?.isNotEmpty == true
-                            ? equipment.capacityInfo!
-                            : '—',
+                      const SizedBox(height: AppSpacing.md),
+                      AppButton(
+                        label: 'Tekrar Dene',
+                        onPressed: () =>
+                            provider.fetchEquipmentDetail(widget.equipmentId),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: AppSpacing.md),
+              );
+            }
 
-                _SectionCard(
-                  title: 'Risk Analizi',
-                  icon: Icons.insights_outlined,
-                  child: _RiskAnalysisSection(equipmentId: widget.equipmentId),
-                ),
-                const SizedBox(height: AppSpacing.md),
+            if (equipment == null) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-                // Kestirimci Bakım Planlama (Modül 12) — bu ekipman için
-                // bekleyen ('onerildi') bir öneri varsa bağlam içi gösterilir;
-                // kullanıcı merkezi Bakım Planlama listesine gitmeden,
-                // doğrudan burada "Önleyici İş Emri Oluştur" aksiyonunu
-                // alabilir. Öneri yoksa hiçbir şey render edilmez (bkz.
-                // _MaintenanceRecommendationSection).
-                _MaintenanceRecommendationSection(
-                  equipmentId: widget.equipmentId,
-                ),
+            final riskProvider = context.read<RiskProvider>();
+            final anomalyProvider = context.read<AnomalyProvider>();
+            final maintenanceProvider = context.read<MaintenanceProvider>();
+            return RefreshIndicator(
+              onRefresh: () async {
+                await provider.fetchEquipmentDetail(widget.equipmentId);
+                await provider.fetchEquipmentHistory(widget.equipmentId);
+                await riskProvider.fetchEquipmentRisk(widget.equipmentId);
+                await maintenanceProvider.fetchRecommendations(
+                  statusFilter: 'onerildi',
+                );
+                if (equipment.equipmentType == EquipmentType.sayac) {
+                  await anomalyProvider.fetchEquipmentAnomaly(
+                    widget.equipmentId,
+                  );
+                  await anomalyProvider.fetchEquipmentConsumption(
+                    widget.equipmentId,
+                  );
+                }
+              },
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(AppSpacing.md),
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        equipment.equipmentType.icon,
+                        size: 28,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          equipment.equipmentType.label,
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                      ),
+                      _EquipmentStatusBadge(status: equipment.status),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.qr_code_2_outlined,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        equipment.qrCode,
+                        style: AppTextStyles.dataMono(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
 
-                // Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) — yalnızca
-                // sayaç tipi ekipmanlar için anlamlıdır (bkz. routes/anomaly.js
-                // equipment_type kontrolü). Farklı bir ikon (büyüteç) kullanılır
-                // ki Risk Analizi kartıyla (Icons.insights_outlined) karışmasın.
-                if (equipment.equipmentType == EquipmentType.sayac) ...[
                   _SectionCard(
-                    title: 'Tüketim Analizi',
-                    icon: Icons.search,
-                    child: _ConsumptionAnalysisSection(
+                    title: 'Ekipman Bilgileri',
+                    icon: Icons.info_outline,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _InfoRow(
+                          icon: Icons.location_on_outlined,
+                          label: 'Konum',
+                          value: equipment.locationName,
+                        ),
+                        _InfoRow(
+                          icon: Icons.event_outlined,
+                          label: 'Kurulum Tarihi',
+                          value: equipment.installDate != null
+                              ? '${_formatDate(equipment.installDate!)} (${_installedAgoLabel(equipment.installDate!)})'
+                              : 'Bilinmiyor',
+                        ),
+                        _InfoRow(
+                          icon: Icons.build_outlined,
+                          label: 'Son Bakım',
+                          value: equipment.lastMaintenanceDate != null
+                              ? '${_formatDate(equipment.lastMaintenanceDate!)} (${formatRelativeTime(equipment.lastMaintenanceDate!)})'
+                              : 'Hiç bakım kaydı yok',
+                        ),
+                        _InfoRow(
+                          icon: Icons.factory_outlined,
+                          label: 'Üretici',
+                          value: equipment.manufacturer.isNotEmpty
+                              ? equipment.manufacturer
+                              : 'Bilinmiyor',
+                        ),
+                        _InfoRow(
+                          icon: Icons.settings_outlined,
+                          label: 'Kapasite',
+                          value: equipment.capacityInfo?.isNotEmpty == true
+                              ? equipment.capacityInfo!
+                              : '—',
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+
+                  _SectionCard(
+                    title: 'Risk Analizi',
+                    icon: Icons.insights_outlined,
+                    child: _RiskAnalysisSection(
                       equipmentId: widget.equipmentId,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                ],
 
-                _SectionCard(
-                  title: 'Geçmiş Arıza Kayıtları',
-                  icon: Icons.history,
-                  child: _HistorySection(equipmentId: widget.equipmentId),
-                ),
-              ],
-            ),
-          );
-        },
+                  // Kestirimci Bakım Planlama (Modül 12) — bu ekipman için
+                  // bekleyen ('onerildi') bir öneri varsa bağlam içi gösterilir;
+                  // kullanıcı merkezi Bakım Planlama listesine gitmeden,
+                  // doğrudan burada "Önleyici İş Emri Oluştur" aksiyonunu
+                  // alabilir. Öneri yoksa hiçbir şey render edilmez (bkz.
+                  // _MaintenanceRecommendationSection).
+                  _MaintenanceRecommendationSection(
+                    equipmentId: widget.equipmentId,
+                  ),
+
+                  // Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) — yalnızca
+                  // sayaç tipi ekipmanlar için anlamlıdır (bkz. routes/anomaly.js
+                  // equipment_type kontrolü). Farklı bir ikon (büyüteç) kullanılır
+                  // ki Risk Analizi kartıyla (Icons.insights_outlined) karışmasın.
+                  if (equipment.equipmentType == EquipmentType.sayac) ...[
+                    _SectionCard(
+                      title: 'Tüketim Analizi',
+                      icon: Icons.search,
+                      child: _ConsumptionAnalysisSection(
+                        equipmentId: widget.equipmentId,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
+
+                  _SectionCard(
+                    title: 'Geçmiş Arıza Kayıtları',
+                    icon: Icons.history,
+                    child: _HistorySection(equipmentId: widget.equipmentId),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -269,8 +278,8 @@ class _EquipmentStatusBadge extends StatelessWidget {
       ),
       child: Text(
         status.label,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: accessibleOnColor(color),
           fontSize: 12,
           fontWeight: FontWeight.w700,
         ),
@@ -459,8 +468,8 @@ class _RiskAnalysisSection extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           child: Text(
             '${risk.riskScore}',
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: accessibleOnColor(color),
               fontSize: 22,
               fontWeight: FontWeight.w800,
             ),
@@ -601,8 +610,8 @@ class _ConsumptionAnalysisSectionState
               decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               child: Text(
                 '${anomaly.anomalyScore}',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: accessibleOnColor(color),
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
                 ),

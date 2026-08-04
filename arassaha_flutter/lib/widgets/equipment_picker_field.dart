@@ -28,7 +28,11 @@ class EquipmentPickerField extends StatefulWidget {
   final Equipment? initialValue;
   final ValueChanged<Equipment?> onSelected;
 
-  const EquipmentPickerField({super.key, this.initialValue, required this.onSelected});
+  const EquipmentPickerField({
+    super.key,
+    this.initialValue,
+    required this.onSelected,
+  });
 
   @override
   State<EquipmentPickerField> createState() => _EquipmentPickerFieldState();
@@ -64,7 +68,9 @@ class _EquipmentPickerFieldState extends State<EquipmentPickerField> {
       // tuş vuruşu değil) — bu yüzden debounce'suz, anında sorgulanır. Metin
       // boşsa backend filtre uygulamadan TÜM ekipmanı döner (bkz. yukarısı).
       _debounce?.cancel();
-      context.read<EquipmentProvider>().searchEquipment(_controller.text.trim());
+      context.read<EquipmentProvider>().searchEquipment(
+        _controller.text.trim(),
+      );
     }
   }
 
@@ -91,13 +97,18 @@ class _EquipmentPickerFieldState extends State<EquipmentPickerField> {
     widget.onSelected(null);
     // Bir sonraki karede (build tamamlandıktan sonra) alana odaklanılır ki
     // liste kullanıcı ikinci kez dokunmadan hemen açılsın.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _focusNode.requestFocus(),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     if (_selected != null) {
-      return _SelectedEquipmentCard(equipment: _selected!, onChange: _changeSelection);
+      return _SelectedEquipmentCard(
+        equipment: _selected!,
+        onChange: _changeSelection,
+      );
     }
 
     final provider = context.watch<EquipmentProvider>();
@@ -111,13 +122,18 @@ class _EquipmentPickerFieldState extends State<EquipmentPickerField> {
           focusNode: _focusNode,
           onChanged: _onChanged,
           decoration: InputDecoration(
-            hintText: 'Listeden seçin ya da QR kod/il/ilçe/mahalle ile arayın...',
+            hintText:
+                'Listeden seçin ya da QR kod/il/ilçe/mahalle ile arayın...',
             isDense: true,
             prefixIcon: const Icon(Icons.search),
             suffixIcon: provider.isSearching
                 ? const Padding(
                     padding: EdgeInsets.all(12),
-                    child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   )
                 : const Icon(Icons.arrow_drop_down),
           ),
@@ -125,7 +141,10 @@ class _EquipmentPickerFieldState extends State<EquipmentPickerField> {
         if (_isOpen) ...[
           const SizedBox(height: AppSpacing.sm),
           if (provider.searchErrorMessage != null)
-            Text(provider.searchErrorMessage!, style: TextStyle(color: scheme.error, fontSize: 13))
+            Text(
+              provider.searchErrorMessage!,
+              style: TextStyle(color: scheme.error, fontSize: 13),
+            )
           else if (!provider.isSearching && provider.searchResults.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -146,7 +165,10 @@ class _EquipmentPickerFieldState extends State<EquipmentPickerField> {
                   separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final equipment = provider.searchResults[index];
-                    return _EquipmentResultTile(equipment: equipment, onTap: () => _select(equipment));
+                    return _EquipmentResultTile(
+                      equipment: equipment,
+                      onTap: () => _select(equipment),
+                    );
                   },
                 ),
               ),
@@ -171,7 +193,9 @@ class _EquipmentResultTile extends StatelessWidget {
       leading: Icon(equipment.equipmentType.icon, color: scheme.primary),
       title: Text(
         equipment.qrCode,
-        style: AppTextStyles.dataMono(color: scheme.onSurface).copyWith(fontSize: 13),
+        style: AppTextStyles.dataMono(
+          color: scheme.onSurface,
+        ).copyWith(fontSize: 13),
       ),
       subtitle: Text(
         equipment.locationName,
@@ -182,7 +206,10 @@ class _EquipmentResultTile extends StatelessWidget {
       trailing: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: equipmentStatusColor(context, equipment.status).withValues(alpha: 0.15),
+          color: equipmentStatusColor(
+            context,
+            equipment.status,
+          ).withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(AppRadius.pill),
         ),
         child: Text(
@@ -201,7 +228,10 @@ class _EquipmentResultTile extends StatelessWidget {
 class _SelectedEquipmentCard extends StatelessWidget {
   final Equipment equipment;
   final VoidCallback onChange;
-  const _SelectedEquipmentCard({required this.equipment, required this.onChange});
+  const _SelectedEquipmentCard({
+    required this.equipment,
+    required this.onChange,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -219,7 +249,9 @@ class _SelectedEquipmentCard extends StatelessWidget {
               children: [
                 Text(
                   '${equipment.equipmentType.label} · ${equipment.qrCode}',
-                  style: AppTextStyles.dataMono(color: scheme.onSurface).copyWith(fontSize: 13),
+                  style: AppTextStyles.dataMono(
+                    color: scheme.onSurface,
+                  ).copyWith(fontSize: 13),
                 ),
                 const SizedBox(height: 2),
                 Text(

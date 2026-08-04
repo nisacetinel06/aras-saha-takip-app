@@ -83,6 +83,23 @@ class _ArasSahaAppState extends State<ArasSahaApp> {
             theme: AppTheme.light(),
             darkTheme: AppTheme.dark(),
             home: const AuthGate(),
+            // C4 (yazı ölçekleme desteği): cihazın erişilebilirlik yazı
+            // boyutu ayarını TAMAMEN yok saymak (textScaler'ı 1.0'a sabitlemek)
+            // kötü bir erişilebilirlik pratiği — büyütülmüş yazıyı görmek
+            // isteyen kullanıcı bunu göremez. Ama sınırsız büyütme de sabit
+            // yükseklikli kartlarda/butonlarda taşmaya yol açar. Makul bir üst
+            // sınır (1.3x) ile ikisi arasında denge kurulur.
+            builder: (context, child) {
+              final clampedScaler = MediaQuery.textScalerOf(
+                context,
+              ).clamp(maxScaleFactor: 1.3);
+              return MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: clampedScaler),
+                child: child!,
+              );
+            },
           );
         },
       ),

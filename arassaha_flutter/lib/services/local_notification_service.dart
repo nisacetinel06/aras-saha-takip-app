@@ -18,12 +18,14 @@ class LocalNotificationService {
   LocalNotificationService._();
   static final LocalNotificationService instance = LocalNotificationService._();
 
-  final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
   static const _channelId = 'arassaha_notifications';
   static const _channelName = 'ArasSaha Bildirimleri';
-  static const _channelDescription = 'İş emri, İSG bildirimi ve ekipman risk güncellemeleri.';
+  static const _channelDescription =
+      'İş emri, İSG bildirimi ve ekipman risk güncellemeleri.';
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -43,7 +45,9 @@ class LocalNotificationService {
       importance: Importance.high,
     );
     await _plugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(channel);
 
     _initialized = true;
@@ -56,7 +60,9 @@ class LocalNotificationService {
   /// değildir.
   Future<void> requestPermission() async {
     await _plugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.requestNotificationsPermission();
   }
 

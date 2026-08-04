@@ -288,8 +288,8 @@ class _UrgencyBadge extends StatelessWidget {
       ),
       child: Text(
         _urgencyLabel(level),
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: accessibleOnColor(color),
           fontSize: 11,
           fontWeight: FontWeight.w700,
         ),

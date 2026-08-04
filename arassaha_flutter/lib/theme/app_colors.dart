@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/equipment.dart';
 import '../models/equipment_risk.dart';
@@ -35,7 +36,13 @@ class AppColors {
   static const darkSuccess = Color(0xFF3ECC7A);
   static const darkWarning = Color(0xFFFBBF24);
   static const darkDanger = Color(0xFFF16B7A);
-  static const darkBackground = Color(0xFF121316);
+  // OLED/AMOLED optimizasyonu (C3): koyu gri (#121316) yerine TAM SİYAH —
+  // OLED panellerde siyah piksel hiç ışık yaymadığı için gerçek pil tasarrufu
+  // sağlar (koyu gri bir piksel hâlâ ışık yayar). Kartlar bu saf siyahtan
+  // hafifçe ayrışsın diye `app_theme.dart`'taki `surfaceContainerLowest`
+  // (AppCard'ın okuduğu ton) ayrı, biraz daha açık bir gri (#0E1013) olarak
+  // tutuluyor — tamamen aynı renk olsaydı kartlar arka planda kaybolurdu.
+  static const darkBackground = Color(0xFF000000);
   static const darkSurface = Color(0xFF1E2126);
   static const darkTextPrimary = Color(0xFFE8EAED);
   static const darkTextSecondary = Color(0xFF9AA0A8);
@@ -71,6 +78,32 @@ class AppColors {
   }
 }
 
+/// WCAG bağıl parlaklık formülüne göre, verilen bir arka plan renginin
+/// üzerine en okunabilir metin/ikon rengini (siyah ya da beyaz) seçer.
+///
+/// GEREKÇE (D1 kontrast denetimi bulgusu): Koyu temadaki success/warning/
+/// accent/primary/rol tonları BİLİNÇLİ olarak açık/pastel seçildi — bir KOYU
+/// ZEMİN ÜZERİNDE METİN olarak okunsun diye. Ama aynı renkler rozet/avatar
+/// gibi SOLID DOLGU olup üzerine SABİT `Colors.white` konunca bu açıklık tam
+/// tersine dönüp WCAG AA eşiğinin (4.5:1) çok altına düşürüyordu — ölçtüğümüz
+/// somut örnekler: beyaz üzerine koyu tema warning'i (#FBBF24) yalnızca
+/// 1.67:1, beyaz üzerine koyu tema success'i (#3ECC7A) yalnızca 2.07:1, beyaz
+/// üzerine AppButton'ın (eskiden hep beyaz varsayan) primary rengi koyu
+/// temada yalnızca 2.91:1. Palet renklerinin kendisini (iki farklı amaç için
+/// iki ayrı ton tanımlayarak) karmaşıklaştırmak yerine, DOĞRU metin rengini
+/// HESAPLAYARAK tek bir yerden garanti eder — hangi renk gelirse gelsin.
+Color accessibleOnColor(Color background) {
+  double channel(double c) =>
+      c <= 0.03928 ? c / 12.92 : math.pow((c + 0.055) / 1.055, 2.4).toDouble();
+  final luminance =
+      0.2126 * channel(background.r) +
+      0.7152 * channel(background.g) +
+      0.0722 * channel(background.b);
+  final contrastWithWhite = 1.05 / (luminance + 0.05);
+  final contrastWithBlack = (luminance + 0.05) / 0.05;
+  return contrastWithBlack >= contrastWithWhite ? Colors.black : Colors.white;
+}
+
 /// Statü rengi: acik=danger, yolda=warning, sahada=primary, cozuldu=success.
 /// Tüm modüller (liste kartı, detay, harita pin'i, dashboard grafiği) bu tek
 /// fonksiyonu çağırır.
@@ -87,12 +120,9 @@ Color statusColor(BuildContext context, WorkOrderStatus status) {
   }
 }
 
-/// Statü renginin üzerine gelecek metin/ikon rengi (kontrast için).
-/// warning (amber) zemin üzerinde beyaz düşük kontrasta düşüyor; koyu metin kullanılır.
-Color onStatusColor(BuildContext context, WorkOrderStatus status) {
-  if (status == WorkOrderStatus.yolda) return const Color(0xFF3A2500);
-  return Colors.white;
-}
+/// Statü renginin üzerine gelecek metin/ikon rengi — bkz. [accessibleOnColor].
+Color onStatusColor(BuildContext context, WorkOrderStatus status) =>
+    accessibleOnColor(statusColor(context, status));
 
 /// Öncelik rengi: acil=danger, normal=accent, dusuk=textSecondary.
 Color priorityColor(BuildContext context, WorkOrderPriority priority) {
@@ -106,9 +136,9 @@ Color priorityColor(BuildContext context, WorkOrderPriority priority) {
   }
 }
 
-Color onPriorityColor(BuildContext context, WorkOrderPriority priority) {
-  return Colors.white;
-}
+/// bkz. [accessibleOnColor].
+Color onPriorityColor(BuildContext context, WorkOrderPriority priority) =>
+    accessibleOnColor(priorityColor(context, priority));
 
 /// Kullanıcı rolü rengi (Modül 8 — Profil / Kullanıcı Yönetimi): teknisyen,
 /// dispeçer, yönetici. `role`, backend'deki `users.role` alanıyla birebir
@@ -129,9 +159,9 @@ Color roleColor(BuildContext context, String role) {
   }
 }
 
-/// Rol rengi zemininin üzerine gelecek metin/ikon rengi — üç rol rengi de
-/// yeterince koyu/doygun olduğu için her zaman beyaz.
-Color onRoleColor(BuildContext context, String role) => Colors.white;
+/// Rol rengi zemininin üzerine gelecek metin/ikon rengi — bkz. [accessibleOnColor].
+Color onRoleColor(BuildContext context, String role) =>
+    accessibleOnColor(roleColor(context, role));
 
 /// Ekipman durumu rengi: aktif=success, bakımda=warning, devreDışı=textSecondary.
 /// Önceden equipment_list_screen.dart ve equipment_detail_screen.dart bu eşlemeyi
@@ -149,6 +179,10 @@ Color equipmentStatusColor(BuildContext context, EquipmentStatus status) {
   }
 }
 
+/// Ekipman durumu renginin üzerine gelecek metin/ikon rengi — bkz. [accessibleOnColor].
+Color onEquipmentStatusColor(BuildContext context, EquipmentStatus status) =>
+    accessibleOnColor(equipmentStatusColor(context, status));
+
 /// Risk seviyesi rengi: dusuk=success, orta=warning, yuksek=danger (Modül 9).
 /// Kestirimci Bakım Planlama (Modül 12) önerilerinin urgency_level'ı da AYNI
 /// üç değeri (RiskLevel) kullandığı için (bkz. models/maintenance_recommendation.dart),
@@ -164,3 +198,7 @@ Color riskLevelColor(BuildContext context, RiskLevel level) {
       return AppColors.danger(context);
   }
 }
+
+/// Risk seviyesi renginin üzerine gelecek metin/ikon rengi — bkz. [accessibleOnColor].
+Color onRiskLevelColor(BuildContext context, RiskLevel level) =>
+    accessibleOnColor(riskLevelColor(context, level));

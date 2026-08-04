@@ -5,6 +5,7 @@ import '../../models/description_classification.dart';
 import '../../models/equipment.dart';
 import '../../models/work_order.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -13,6 +14,7 @@ import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/equipment_picker_field.dart';
+import '../../widgets/sticky_form_footer.dart';
 
 /// Yeni İş Emri Oluştur/Ata ekranı (Modül 7 — RBAC). Yalnızca dispeçer/yönetici
 /// rolündeki kullanıcılar erişebilir; backend zaten requireRole('dispecer',
@@ -62,6 +64,7 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('CreateWorkOrderScreen');
     _loadTechnicians();
   }
 
@@ -82,7 +85,10 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
     });
 
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 800), () => _classifyDescription(text));
+    _debounceTimer = Timer(
+      const Duration(milliseconds: 800),
+      () => _classifyDescription(text),
+    );
   }
 
   Future<void> _classifyDescription(String text) async {
@@ -133,7 +139,10 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
       _technicianError = null;
     });
     try {
-      final users = await ApiService().getUsers(roleFilter: 'teknisyen', activeOnly: true);
+      final users = await ApiService().getUsers(
+        roleFilter: 'teknisyen',
+        activeOnly: true,
+      );
       setState(() => _technicians = users);
     } catch (e) {
       setState(() => _technicianError = e.toString());
@@ -168,7 +177,9 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('İş emri oluşturuldu ve teknisyene atandı.')),
+        const SnackBar(
+          content: Text('İş emri oluşturuldu ve teknisyene atandı.'),
+        ),
       );
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -201,122 +212,145 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
 
     return Scaffold(
       appBar: const AppTopBar(title: 'Yeni İş Emri Oluştur'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xl),
-        children: [
-          // Mantıksal sıra: önce "hangi ekipman" sorusu cevaplanır, sonra
-          // başlık/açıklama girilir — bkz. dosya üstündeki Konum Tutarlılığı notu.
-          Text('Ekipman', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: AppSpacing.sm),
-          EquipmentPickerField(
-            initialValue: _selectedEquipment,
-            onSelected: (equipment) => setState(() => _selectedEquipment = equipment),
-          ),
-          if (_selectedEquipment != null) ...[
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          children: [
+            // Mantıksal sıra: önce "hangi ekipman" sorusu cevaplanır, sonra
+            // başlık/açıklama girilir — bkz. dosya üstündeki Konum Tutarlılığı notu.
+            Text('Ekipman', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: AppSpacing.sm),
-            _LocationInfoCard(equipment: _selectedEquipment!),
-          ],
-          const SizedBox(height: AppSpacing.lg),
-
-          Text('Başlık', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: _titleController,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(hintText: 'Örn. Trafo Arızası'),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
-          Text('Açıklama', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: _descriptionController,
-            maxLines: 4,
-            onChanged: _onDescriptionChanged,
-            decoration: InputDecoration(
-              hintText: 'İşin detaylarını açıklayın...',
-              alignLabelWithHint: true,
-              suffixIcon: _isClassifying
-                  ? const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                    )
-                  : null,
+            EquipmentPickerField(
+              initialValue: _selectedEquipment,
+              onSelected: (equipment) =>
+                  setState(() => _selectedEquipment = equipment),
             ),
-          ),
-          if (_suggestion != null && !_suggestionDismissed) ...[
+            if (_selectedEquipment != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _LocationInfoCard(equipment: _selectedEquipment!),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+
+            Text('Başlık', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: AppSpacing.sm),
-            _ClassificationSuggestionBox(
-              suggestion: _suggestion!,
-              onApply: _applySuggestion,
-              onDismiss: _dismissSuggestion,
+            TextField(
+              controller: _titleController,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(hintText: 'Örn. Trafo Arızası'),
             ),
-          ],
-          const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.lg),
 
-          Text('Öncelik', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: WorkOrderPriority.values.map((priority) {
-              final selected = _priority == priority;
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: AppSpacing.sm),
-                  child: _PriorityChip(
-                    priority: priority,
-                    selected: selected,
-                    onTap: () => setState(() => _priority = priority),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: AppSpacing.lg),
+            Text('Açıklama', style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              controller: _descriptionController,
+              maxLines: 4,
+              onChanged: _onDescriptionChanged,
+              decoration: InputDecoration(
+                hintText: 'İşin detaylarını açıklayın...',
+                alignLabelWithHint: true,
+                suffixIcon: _isClassifying
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+            if (_suggestion != null && !_suggestionDismissed) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _ClassificationSuggestionBox(
+                suggestion: _suggestion!,
+                onApply: _applySuggestion,
+                onDismiss: _dismissSuggestion,
+              ),
+            ],
+            const SizedBox(height: AppSpacing.lg),
 
-          Text('Atanacak Teknisyen', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: AppSpacing.sm),
-          _buildTechnicianField(scheme),
-
-          if (_submitError != null) ...[
-            const SizedBox(height: AppSpacing.md),
+            Text('Öncelik', style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: AppSpacing.sm),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.error_outline, size: 16, color: scheme.error),
-                const SizedBox(width: 6),
-                Expanded(child: Text(_submitError!, style: TextStyle(color: scheme.error, fontSize: 13))),
-              ],
-            ),
-          ],
-
-          if (_selectedEquipment == null) ...[
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.info_outline, size: 16, color: scheme.onSurfaceVariant),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Lütfen önce bir ekipman seçin.',
-                    style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+              children: WorkOrderPriority.values.map((priority) {
+                final selected = _priority == priority;
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: AppSpacing.sm),
+                    child: _PriorityChip(
+                      priority: priority,
+                      selected: selected,
+                      onTap: () => setState(() => _priority = priority),
+                    ),
                   ),
-                ),
-              ],
+                );
+              }).toList(),
             ),
-          ],
+            const SizedBox(height: AppSpacing.lg),
 
-          const SizedBox(height: AppSpacing.xl),
-          SizedBox(
-            width: double.infinity,
-            child: AppButton(
-              label: 'İş Emri Oluştur',
-              icon: Icons.assignment_add,
-              isLoading: _isSubmitting,
-              onPressed: _canSubmit ? _submit : null,
+            Text(
+              'Atanacak Teknisyen',
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
+            const SizedBox(height: AppSpacing.sm),
+            _buildTechnicianField(scheme),
+
+            if (_submitError != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.error_outline, size: 16, color: scheme.error),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _submitError!,
+                      style: TextStyle(color: scheme.error, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            if (_selectedEquipment == null) ...[
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Lütfen önce bir ekipman seçin.',
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+      bottomNavigationBar: StickyFormFooter(
+        child: SizedBox(
+          width: double.infinity,
+          child: AppButton(
+            label: 'İş Emri Oluştur',
+            icon: Icons.assignment_add,
+            isLoading: _isSubmitting,
+            onPressed: _canSubmit ? _submit : null,
           ),
-        ],
+        ),
       ),
     );
   }
@@ -333,9 +367,16 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(_technicianError!, style: TextStyle(color: scheme.error, fontSize: 13)),
+          Text(
+            _technicianError!,
+            style: TextStyle(color: scheme.error, fontSize: 13),
+          ),
           const SizedBox(height: AppSpacing.sm),
-          AppButton(label: 'Tekrar Dene', variant: AppButtonVariant.secondary, onPressed: _loadTechnicians),
+          AppButton(
+            label: 'Tekrar Dene',
+            variant: AppButtonVariant.secondary,
+            onPressed: _loadTechnicians,
+          ),
         ],
       );
     }
@@ -343,7 +384,10 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
     return DropdownButtonFormField<AssignedUser>(
       initialValue: _selectedTechnician,
       isExpanded: true,
-      decoration: const InputDecoration(hintText: 'Teknisyen seçin', isDense: true),
+      decoration: const InputDecoration(
+        hintText: 'Teknisyen seçin',
+        isDense: true,
+      ),
       items: _technicians
           .map((user) => DropdownMenuItem(value: user, child: Text(user.name)))
           .toList(),
@@ -363,7 +407,10 @@ class _LocationInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm + 4, vertical: AppSpacing.sm + 4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm + 4,
+        vertical: AppSpacing.sm + 4,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -371,11 +418,20 @@ class _LocationInfoCard extends StatelessWidget {
             children: [
               Icon(Icons.location_on_outlined, size: 16, color: scheme.primary),
               const SizedBox(width: 6),
-              Text('Konum Bilgisi', style: TextStyle(fontWeight: FontWeight.w700, color: scheme.onSurface)),
+              Text(
+                'Konum Bilgisi',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurface,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          Text('${equipment.il} / ${equipment.ilce} / ${equipment.mahalle}', style: TextStyle(color: scheme.onSurface)),
+          Text(
+            '${equipment.il} / ${equipment.ilce} / ${equipment.mahalle}',
+            style: TextStyle(color: scheme.onSurface),
+          ),
           const SizedBox(height: 6),
           Text(
             'Bu bilgi seçilen ekipmandan otomatik alınıyor.',
@@ -391,7 +447,11 @@ class _PriorityChip extends StatelessWidget {
   final WorkOrderPriority priority;
   final bool selected;
   final VoidCallback onTap;
-  const _PriorityChip({required this.priority, required this.selected, required this.onTap});
+  const _PriorityChip({
+    required this.priority,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -401,7 +461,10 @@ class _PriorityChip extends StatelessWidget {
     return AppCard(
       onTap: onTap,
       backgroundTint: selected ? color : null,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.sm,
+      ),
       child: Center(
         child: Text(
           priority.label,
@@ -450,7 +513,10 @@ class _ClassificationSuggestionBox extends StatelessWidget {
 
     return AppCard(
       backgroundTint: accent,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.sm,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -470,15 +536,27 @@ class _ClassificationSuggestionBox extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             '(yapay zeka önerisi)',
-            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: scheme.onSurfaceVariant),
+            style: TextStyle(
+              fontSize: 11,
+              fontStyle: FontStyle.italic,
+              color: scheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              AppButton(label: 'Yoksay', variant: AppButtonVariant.text, onPressed: onDismiss),
+              AppButton(
+                label: 'Yoksay',
+                variant: AppButtonVariant.text,
+                onPressed: onDismiss,
+              ),
               const SizedBox(width: AppSpacing.xs),
-              AppButton(label: 'Uygula', variant: AppButtonVariant.secondary, onPressed: onApply),
+              AppButton(
+                label: 'Uygula',
+                variant: AppButtonVariant.secondary,
+                onPressed: onApply,
+              ),
             ],
           ),
         ],

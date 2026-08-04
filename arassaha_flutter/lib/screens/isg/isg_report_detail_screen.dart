@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/isg_report.dart';
 import '../../providers/isg_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -44,6 +45,7 @@ class _IsgReportDetailScreenState extends State<IsgReportDetailScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('IsgReportDetailScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<IsgProvider>().fetchReportDetail(widget.reportId);
     });
@@ -62,13 +64,19 @@ class _IsgReportDetailScreenState extends State<IsgReportDetailScreen> {
     final success = await provider.updateReportStatus(
       widget.reportId,
       newStatus,
-      reviewerNote: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
+      reviewerNote: _noteController.text.trim().isEmpty
+          ? null
+          : _noteController.text.trim(),
     );
 
     if (!mounted) return;
     messenger.showSnackBar(
       SnackBar(
-        content: Text(success ? 'Durum "${newStatus.label}" olarak güncellendi.' : (provider.detailErrorMessage ?? 'Güncellenemedi.')),
+        content: Text(
+          success
+              ? 'Durum "${newStatus.label}" olarak güncellendi.'
+              : (provider.detailErrorMessage ?? 'Güncellenemedi.'),
+        ),
       ),
     );
     if (success) _noteController.clear();
@@ -82,7 +90,9 @@ class _IsgReportDetailScreenState extends State<IsgReportDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<IsgProvider>();
-    final report = provider.selectedReport?.id == widget.reportId ? provider.selectedReport : null;
+    final report = provider.selectedReport?.id == widget.reportId
+        ? provider.selectedReport
+        : null;
 
     return Scaffold(
       appBar: const AppTopBar(title: 'İSG Bildirim Detayı'),
@@ -95,13 +105,21 @@ class _IsgReportDetailScreenState extends State<IsgReportDetailScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.error_outline, size: 56, color: Theme.of(context).colorScheme.error),
+                    Icon(
+                      Icons.error_outline,
+                      size: 56,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                     const SizedBox(height: AppSpacing.sm + 4),
-                    Text(provider.detailErrorMessage!, textAlign: TextAlign.center),
+                    Text(
+                      provider.detailErrorMessage!,
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: AppSpacing.md),
                     AppButton(
                       label: 'Tekrar Dene',
-                      onPressed: () => provider.fetchReportDetail(widget.reportId),
+                      onPressed: () =>
+                          provider.fetchReportDetail(widget.reportId),
                     ),
                   ],
                 ),
@@ -121,10 +139,17 @@ class _IsgReportDetailScreenState extends State<IsgReportDetailScreen> {
               children: [
                 Row(
                   children: [
-                    Icon(report.category.icon, size: 26, color: Theme.of(context).colorScheme.primary),
+                    Icon(
+                      report.category.icon,
+                      size: 26,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
-                      child: Text(report.category.label, style: Theme.of(context).textTheme.headlineMedium),
+                      child: Text(
+                        report.category.label,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
                     ),
                     _StatusPill(status: report.status),
                   ],
@@ -141,7 +166,10 @@ class _IsgReportDetailScreenState extends State<IsgReportDetailScreen> {
                 _SectionCard(
                   title: 'Açıklama',
                   icon: Icons.description_outlined,
-                  child: Text(report.description, style: const TextStyle(height: 1.4)),
+                  child: Text(
+                    report.description,
+                    style: const TextStyle(height: 1.4),
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.md),
 
@@ -154,12 +182,15 @@ class _IsgReportDetailScreenState extends State<IsgReportDetailScreen> {
                       _InfoRow(
                         icon: Icons.place_outlined,
                         label: 'Konum',
-                        value: report.locationName?.isNotEmpty == true ? report.locationName! : 'Belirtilmemiş',
+                        value: report.locationName?.isNotEmpty == true
+                            ? report.locationName!
+                            : 'Belirtilmemiş',
                       ),
                       _InfoRow(
                         icon: Icons.map_outlined,
                         label: 'Koordinat',
-                        value: '${report.lat.toStringAsFixed(5)}, ${report.lng.toStringAsFixed(5)}',
+                        value:
+                            '${report.lat.toStringAsFixed(5)}, ${report.lng.toStringAsFixed(5)}',
                         mono: true,
                       ),
                       _InfoRow(
@@ -187,7 +218,10 @@ class _IsgReportDetailScreenState extends State<IsgReportDetailScreen> {
                   _SectionCard(
                     title: 'İnceleme Notu',
                     icon: Icons.notes_outlined,
-                    child: Text(report.reviewerNote!, style: const TextStyle(height: 1.4)),
+                    child: Text(
+                      report.reviewerNote!,
+                      style: const TextStyle(height: 1.4),
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.md),
                 ],
@@ -223,13 +257,23 @@ class _PhotoPreview extends StatelessWidget {
         width: double.infinity,
         height: 140,
         alignment: Alignment.center,
-        decoration: BoxDecoration(color: scheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(10),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.image_not_supported_outlined, color: scheme.onSurfaceVariant, size: 32),
+            Icon(
+              Icons.image_not_supported_outlined,
+              color: scheme.onSurfaceVariant,
+              size: 32,
+            ),
             const SizedBox(height: 6),
-            Text('Bu bildirime fotoğraf eklenmemiş.', style: AppTextStyles.caption(color: scheme.onSurfaceVariant)),
+            Text(
+              'Bu bildirime fotoğraf eklenmemiş.',
+              style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+            ),
           ],
         ),
       );
@@ -258,9 +302,16 @@ class _PhotoPreview extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.broken_image_outlined, color: scheme.onSurfaceVariant, size: 32),
+              Icon(
+                Icons.broken_image_outlined,
+                color: scheme.onSurfaceVariant,
+                size: 32,
+              ),
               const SizedBox(height: 6),
-              Text('Fotoğraf yüklenemedi.', style: AppTextStyles.caption(color: scheme.onSurfaceVariant)),
+              Text(
+                'Fotoğraf yüklenemedi.',
+                style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+              ),
             ],
           ),
         ),
@@ -278,10 +329,17 @@ class _StatusPill extends StatelessWidget {
     final color = _statusColor(context, status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(AppRadius.pill)),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
       child: Text(
         status.label,
-        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+        style: TextStyle(
+          color: accessibleOnColor(color),
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -291,7 +349,11 @@ class _SectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
   final Widget child;
-  const _SectionCard({required this.title, required this.icon, required this.child});
+  const _SectionCard({
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -301,7 +363,11 @@ class _SectionCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+              Icon(
+                icon,
+                size: 18,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 8),
               Text(title, style: Theme.of(context).textTheme.headlineSmall),
             ],
@@ -319,7 +385,12 @@ class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
   final bool mono;
-  const _InfoRow({required this.icon, required this.label, required this.value, this.mono = false});
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.mono = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -333,11 +404,17 @@ class _InfoRow extends StatelessWidget {
           const SizedBox(width: 8),
           SizedBox(
             width: 110,
-            child: Text(label, style: AppTextStyles.caption(color: scheme.onSurfaceVariant)),
+            child: Text(
+              label,
+              style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+            ),
           ),
           Expanded(
             child: mono
-                ? Text(value, style: AppTextStyles.dataMono(color: scheme.onSurface))
+                ? Text(
+                    value,
+                    style: AppTextStyles.dataMono(color: scheme.onSurface),
+                  )
                 : Text(value, style: TextStyle(color: scheme.onSurface)),
           ),
         ],
@@ -352,7 +429,11 @@ class _StatusUpdateSection extends StatelessWidget {
   final IsgReport report;
   final TextEditingController noteController;
   final ValueChanged<IsgStatus> onUpdate;
-  const _StatusUpdateSection({required this.report, required this.noteController, required this.onUpdate});
+  const _StatusUpdateSection({
+    required this.report,
+    required this.noteController,
+    required this.onUpdate,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -367,8 +448,12 @@ class _StatusUpdateSection extends StatelessWidget {
       );
     }
 
-    final actionLabel = nextStatus == IsgStatus.incelendi ? 'İncelendi Olarak İşaretle' : 'Çözüldü Olarak İşaretle';
-    final actionIcon = nextStatus == IsgStatus.incelendi ? Icons.fact_check_outlined : Icons.check_circle_outline;
+    final actionLabel = nextStatus == IsgStatus.incelendi
+        ? 'İncelendi Olarak İşaretle'
+        : 'Çözüldü Olarak İşaretle';
+    final actionIcon = nextStatus == IsgStatus.incelendi
+        ? Icons.fact_check_outlined
+        : Icons.check_circle_outline;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,7 +463,10 @@ class _StatusUpdateSection extends StatelessWidget {
         TextField(
           controller: noteController,
           maxLines: 2,
-          decoration: const InputDecoration(hintText: 'İnceleme notu ekleyin (opsiyonel)...', isDense: true),
+          decoration: const InputDecoration(
+            hintText: 'İnceleme notu ekleyin (opsiyonel)...',
+            isDense: true,
+          ),
         ),
         const SizedBox(height: AppSpacing.sm + 4),
         SizedBox(

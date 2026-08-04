@@ -96,7 +96,11 @@ class NotificationBellButton extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Text(
                   unreadCount > 9 ? '9+' : '$unreadCount',
-                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    color: accessibleOnColor(AppColors.danger(context)),
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -116,7 +120,11 @@ class ThemeToggleButton extends StatelessWidget {
     final themeProvider = context.watch<ThemeProvider>();
     return IconButton(
       tooltip: themeProvider.isDark ? 'Aydınlık moda geç' : 'Karanlık moda geç',
-      icon: Icon(themeProvider.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+      icon: Icon(
+        themeProvider.isDark
+            ? Icons.light_mode_outlined
+            : Icons.dark_mode_outlined,
+      ),
       onPressed: themeProvider.toggle,
     );
   }

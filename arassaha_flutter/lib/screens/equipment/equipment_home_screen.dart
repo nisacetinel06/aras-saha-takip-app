@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/equipment_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
@@ -25,6 +26,12 @@ class _EquipmentHomeScreenState extends State<EquipmentHomeScreen> {
   final _codeController = TextEditingController();
   bool _isQuerying = false;
   String? _inlineError;
+
+  @override
+  void initState() {
+    super.initState();
+    AnalyticsService.logScreenView('EquipmentHomeScreen');
+  }
 
   @override
   void dispose() {
@@ -52,13 +59,16 @@ class _EquipmentHomeScreenState extends State<EquipmentHomeScreen> {
 
     if (equipment != null) {
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => EquipmentDetailScreen(equipmentId: equipment.id)),
+        MaterialPageRoute(
+          builder: (_) => EquipmentDetailScreen(equipmentId: equipment.id),
+        ),
       );
       return;
     }
 
     setState(() {
-      _inlineError = provider.qrLookupErrorMessage ?? 'Bu koda ait ekipman bulunamadı.';
+      _inlineError =
+          provider.qrLookupErrorMessage ?? 'Bu koda ait ekipman bulunamadı.';
     });
   }
 
@@ -80,7 +90,9 @@ class _EquipmentHomeScreenState extends State<EquipmentHomeScreen> {
                 Text(
                   'Sahadaki bir direk, trafo, kesici ya da sayacı\ntanımlamak için QR kodunu okutun.',
                   textAlign: TextAlign.center,
-                  style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant),
+                  style: AppTextStyles.bodyMedium(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 SizedBox(
@@ -89,7 +101,9 @@ class _EquipmentHomeScreenState extends State<EquipmentHomeScreen> {
                     label: 'QR Kod Tara',
                     icon: Icons.qr_code_scanner,
                     onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const QrScannerScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const QrScannerScreen(),
+                      ),
                     ),
                   ),
                 ),
@@ -98,8 +112,15 @@ class _EquipmentHomeScreenState extends State<EquipmentHomeScreen> {
                   children: [
                     Expanded(child: Divider(color: scheme.outlineVariant)),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                      child: Text('veya kod girin', style: AppTextStyles.caption(color: scheme.onSurfaceVariant)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                      ),
+                      child: Text(
+                        'veya kod girin',
+                        style: AppTextStyles.caption(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
                     ),
                     Expanded(child: Divider(color: scheme.outlineVariant)),
                   ],
@@ -118,7 +139,11 @@ class _EquipmentHomeScreenState extends State<EquipmentHomeScreen> {
                 ),
                 if (_inlineError != null) ...[
                   const SizedBox(height: AppSpacing.sm),
-                  Text(_inlineError!, style: TextStyle(color: scheme.error, fontSize: 13), textAlign: TextAlign.center),
+                  Text(
+                    _inlineError!,
+                    style: TextStyle(color: scheme.error, fontSize: 13),
+                    textAlign: TextAlign.center,
+                  ),
                 ],
                 const SizedBox(height: AppSpacing.sm + 4),
                 SizedBox(
@@ -137,7 +162,9 @@ class _EquipmentHomeScreenState extends State<EquipmentHomeScreen> {
                   icon: Icons.list_alt_outlined,
                   variant: AppButtonVariant.text,
                   onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const EquipmentListScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const EquipmentListScreen(),
+                    ),
                   ),
                 ),
               ],

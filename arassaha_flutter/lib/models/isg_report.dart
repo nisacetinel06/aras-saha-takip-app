@@ -154,7 +154,9 @@ class IsgReport {
       status: IsgStatus.fromJson(json['status'] as String),
       reviewerNote: json['reviewer_note'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
-      reviewedAt: json['reviewed_at'] != null ? DateTime.parse(json['reviewed_at'] as String) : null,
+      reviewedAt: json['reviewed_at'] != null
+          ? DateTime.parse(json['reviewed_at'] as String)
+          : null,
     );
   }
 }

@@ -4,11 +4,13 @@ import '../../models/equipment.dart' show EquipmentType;
 import '../../models/material.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/material_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/sticky_form_footer.dart';
 
 /// Yeni Malzeme Ekleme (Modül 13) — YALNIZCA yönetici erişebilir. Backend
 /// zaten requireRole('yonetici') ile POST /api/materials'ı korur (bkz.
@@ -30,6 +32,12 @@ class _MaterialCreateScreenState extends State<MaterialCreateScreen> {
   MaterialCategory _category = MaterialCategory.diger;
   MaterialUnit _unit = MaterialUnit.adet;
   final Set<EquipmentType> _compatibleTypes = {};
+
+  @override
+  void initState() {
+    super.initState();
+    AnalyticsService.logScreenView('MaterialCreateScreen');
+  }
 
   @override
   void dispose() {
@@ -114,194 +122,197 @@ class _MaterialCreateScreenState extends State<MaterialCreateScreen> {
 
     return Scaffold(
       appBar: const AppTopBar(title: 'Yeni Malzeme Ekle'),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md,
-          AppSpacing.md,
-          AppSpacing.md,
-          AppSpacing.xl,
-        ),
-        children: [
-          Text('İsim', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: _nameController,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              hintText: 'Örn. 100A Trafo Sigortası',
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
-          Text('Kategori', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: MaterialCategory.values.map((category) {
-              return _SingleSelectChip(
-                label: category.label,
-                icon: category.icon,
-                selected: _category == category,
-                onTap: () => setState(() => _category = category),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
-          Text('Birim', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: AppSpacing.sm),
-          DropdownButtonFormField<MaterialUnit>(
-            initialValue: _unit,
-            isExpanded: true,
-            decoration: const InputDecoration(isDense: true),
-            items: MaterialUnit.values
-                .map(
-                  (unit) =>
-                      DropdownMenuItem(value: unit, child: Text(unit.label)),
-                )
-                .toList(),
-            onChanged: (unit) {
-              if (unit != null) setState(() => _unit = unit);
-            },
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Başlangıç Stok',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    TextField(
-                      controller: _stockController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      onChanged: (_) => setState(() {}),
-                      decoration: InputDecoration(
-                        hintText: '0',
-                        suffixText: _unit.label,
-                        isDense: true,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Kritik Eşik',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    TextField(
-                      controller: _thresholdController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      onChanged: (_) => setState(() {}),
-                      decoration: InputDecoration(
-                        hintText: '0',
-                        suffixText: _unit.label,
-                        isDense: true,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
-          Text(
-            'Birim Maliyet (₺, opsiyonel)',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: _unitCostController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(hintText: 'Örn. 145.00'),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
-          Text(
-            'Uyumlu Ekipman Tipleri',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Bu malzeme tipik olarak hangi ekipmanlarla kullanılır? (birden fazla seçebilirsiniz)',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: EquipmentType.values.map((type) {
-              final selected = _compatibleTypes.contains(type);
-              return _SingleSelectChip(
-                label: type.label,
-                icon: type.icon,
-                selected: selected,
-                onTap: () => setState(() {
-                  if (selected) {
-                    _compatibleTypes.remove(type);
-                  } else {
-                    _compatibleTypes.add(type);
-                  }
-                }),
-              );
-            }).toList(),
-          ),
-          if (_compatibleTypes.isEmpty) ...[
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          children: [
+            Text('İsim', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: AppSpacing.sm),
+            TextField(
+              controller: _nameController,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                hintText: 'Örn. 100A Trafo Sigortası',
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
+            Text('Kategori', style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: MaterialCategory.values.map((category) {
+                return _SingleSelectChip(
+                  label: category.label,
+                  icon: category.icon,
+                  selected: _category == category,
+                  onTap: () => setState(() => _category = category),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
+            Text('Birim', style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: AppSpacing.sm),
+            DropdownButtonFormField<MaterialUnit>(
+              initialValue: _unit,
+              isExpanded: true,
+              decoration: const InputDecoration(isDense: true),
+              items: MaterialUnit.values
+                  .map(
+                    (unit) =>
+                        DropdownMenuItem(value: unit, child: Text(unit.label)),
+                  )
+                  .toList(),
+              onChanged: (unit) {
+                if (unit != null) setState(() => _unit = unit);
+              },
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.info_outline,
-                  size: 16,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 6),
                 Expanded(
-                  child: Text(
-                    'En az bir ekipman tipi seçilmeli.',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 13,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Başlangıç Stok',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      TextField(
+                        controller: _stockController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
+                          hintText: '0',
+                          suffixText: _unit.label,
+                          isDense: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Kritik Eşik',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      TextField(
+                        controller: _thresholdController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
+                          hintText: '0',
+                          suffixText: _unit.label,
+                          isDense: true,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-          ],
+            const SizedBox(height: AppSpacing.lg),
 
-          const SizedBox(height: AppSpacing.xl),
-          SizedBox(
-            width: double.infinity,
-            child: AppButton(
-              label: 'Malzemeyi Kaydet',
-              icon: Icons.save_outlined,
-              isLoading: provider.isSubmitting,
-              onPressed: _canSubmit ? _submit : null,
+            Text(
+              'Birim Maliyet (₺, opsiyonel)',
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              controller: _unitCostController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(hintText: 'Örn. 145.00'),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
+            Text(
+              'Uyumlu Ekipman Tipleri',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Bu malzeme tipik olarak hangi ekipmanlarla kullanılır? (birden fazla seçebilirsiniz)',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: EquipmentType.values.map((type) {
+                final selected = _compatibleTypes.contains(type);
+                return _SingleSelectChip(
+                  label: type.label,
+                  icon: type.icon,
+                  selected: selected,
+                  onTap: () => setState(() {
+                    if (selected) {
+                      _compatibleTypes.remove(type);
+                    } else {
+                      _compatibleTypes.add(type);
+                    }
+                  }),
+                );
+              }).toList(),
+            ),
+            if (_compatibleTypes.isEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'En az bir ekipman tipi seçilmeli.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+      // B1 (baş parmak ergonomisi): birincil aksiyon ekranın altında SABİT —
+      // form ne kadar uzun olursa olsun kullanıcı yukarı/aşağı kaydırmadan
+      // her zaman erişebilir (bkz. widgets/sticky_form_footer.dart).
+      bottomNavigationBar: StickyFormFooter(
+        child: SizedBox(
+          width: double.infinity,
+          child: AppButton(
+            label: 'Malzemeyi Kaydet',
+            icon: Icons.save_outlined,
+            isLoading: provider.isSubmitting,
+            onPressed: _canSubmit ? _submit : null,
           ),
-        ],
+        ),
       ),
     );
   }

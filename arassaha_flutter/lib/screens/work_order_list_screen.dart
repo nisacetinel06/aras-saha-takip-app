@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/work_order.dart';
 import '../providers/work_order_list_provider.dart';
+import '../services/analytics_service.dart';
 import '../widgets/app_button.dart';
 import '../widgets/work_order_card.dart';
 import 'work_order_detail_screen.dart';
@@ -22,6 +23,7 @@ class _WorkOrderListScreenState extends State<WorkOrderListScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('WorkOrderListScreen');
     // Ekran ilk açıldığında listeyi backend'den çek.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<WorkOrderListProvider>().loadWorkOrders();

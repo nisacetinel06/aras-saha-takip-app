@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../providers/user_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
@@ -13,6 +14,7 @@ import '../../widgets/app_card.dart';
 import '../../widgets/role_badge.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
+import '../admin/analytics_screen.dart';
 import '../admin/user_management_list_screen.dart';
 import '../devices/device_list_screen.dart';
 import '../equipment/equipment_home_screen.dart';
@@ -103,6 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('HomeScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DashboardProvider>().fetchSummary();
     });
@@ -199,157 +202,183 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: AppTextStyles.headingMedium(color: scheme.onSurface),
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: AppSpacing.sm,
-                  crossAxisSpacing: AppSpacing.sm,
-                  mainAxisExtent: 80,
-                  children: [
-                    _ModuleCard(
-                      icon: Icons.assignment_outlined,
-                      title: workOrdersCardTitle,
-                      subtitle: summary != null
-                          ? (acilCount > 0
-                                ? '${summary.openCount} Açık, $acilCount Acil'
-                                : '${summary.openCount} Açık')
-                          : null,
-                      color: AppColors.primary(context),
-                      onTap: () => widget.onNavigate(1),
-                    ),
-                    _ModuleCard(
-                      icon: Icons.location_on_outlined,
-                      title: 'Harita Görünümü',
-                      subtitle: 'Konum görünümü',
-                      color: AppColors.accent(context),
-                      onTap: () => widget.onNavigate(2),
-                    ),
-                    _ModuleCard(
-                      icon: Icons.bar_chart_outlined,
-                      title: 'Panel',
-                      subtitle: 'Performans özeti',
-                      color: AppColors.success(context),
-                      onTap: () => widget.onNavigate(3),
-                    ),
-                    // Cihaz Yönetimi yalnızca yönetici rolüne görünür — dispeçer
-                    // ve teknisyen bu kartı hiç görmez (backend zaten requireRole
-                    // ile engelliyor, bkz. routes/devices.js).
-                    if (auth.isYonetici)
-                      _ModuleCard(
-                        icon: Icons.phonelink_lock_outlined,
-                        title: 'Cihaz Yönetimi',
-                        subtitle: 'Kilitle · Senkronize et',
-                        color: AppColors.warning(context),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const DeviceListScreen(),
+                // C1 (responsive grid): sütun sayısı artık sabit değil, ekran
+                // genişliğine göre hesaplanıyor — bkz. theme/app_spacing.dart
+                // responsiveGridColumns (telefon: 2, tablet: 3, geniş
+                // tablet/katlanabilir: 4).
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    return GridView.count(
+                      crossAxisCount: responsiveGridColumns(
+                        constraints.maxWidth,
+                      ),
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: AppSpacing.sm,
+                      crossAxisSpacing: AppSpacing.sm,
+                      mainAxisExtent: 80,
+                      children: [
+                        _ModuleCard(
+                          icon: Icons.assignment_outlined,
+                          title: workOrdersCardTitle,
+                          subtitle: summary != null
+                              ? (acilCount > 0
+                                    ? '${summary.openCount} Açık, $acilCount Acil'
+                                    : '${summary.openCount} Açık')
+                              : null,
+                          color: AppColors.primary(context),
+                          onTap: () => widget.onNavigate(1),
+                        ),
+                        _ModuleCard(
+                          icon: Icons.location_on_outlined,
+                          title: 'Harita Görünümü',
+                          subtitle: 'Konum görünümü',
+                          color: AppColors.accent(context),
+                          onTap: () => widget.onNavigate(2),
+                        ),
+                        _ModuleCard(
+                          icon: Icons.bar_chart_outlined,
+                          title: 'Panel',
+                          subtitle: 'Performans özeti',
+                          color: AppColors.success(context),
+                          onTap: () => widget.onNavigate(3),
+                        ),
+                        // Cihaz Yönetimi yalnızca yönetici rolüne görünür — dispeçer
+                        // ve teknisyen bu kartı hiç görmez (backend zaten requireRole
+                        // ile engelliyor, bkz. routes/devices.js).
+                        if (auth.isYonetici)
+                          _ModuleCard(
+                            icon: Icons.phonelink_lock_outlined,
+                            title: 'Cihaz Yönetimi',
+                            subtitle: 'Kilitle · Senkronize et',
+                            color: AppColors.warning(context),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const DeviceListScreen(),
+                              ),
+                            ),
+                          ),
+                        // Kullanıcı Yönetimi de yalnızca yönetici rolüne görünür
+                        // (bkz. ARCHITECTURE.md Modül 8) — backend requireRole ile
+                        // ayrıca engelliyor.
+                        if (auth.isYonetici)
+                          _ModuleCard(
+                            icon: Icons.manage_accounts_outlined,
+                            title: 'Kullanıcı Yönetimi',
+                            subtitle: 'Ekle · Düzenle',
+                            color: roleColor(context, 'yonetici'),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const UserManagementListScreen(),
+                              ),
+                            ),
+                          ),
+                        // Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) — bir
+                        // yönetim raporudur (backend GET /api/meters/suspicious
+                        // giriş yapmış herkese açık olsa da, kaçak/kayıp takibi
+                        // yönetimsel bir sorumluluktur) — Cihaz/Kullanıcı Yönetimi
+                        // ile AYNI RBAC deseniyle yalnızca yöneticiye gösterilir.
+                        if (auth.isYonetici)
+                          _ModuleCard(
+                            icon: Icons.search,
+                            title: 'Şüpheli Sayaçlar',
+                            subtitle: 'Kayıp-kaçak / anomali tespiti',
+                            color: AppColors.danger(context),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const SuspiciousMetersScreen(),
+                              ),
+                            ),
+                          ),
+                        // Basit Kullanım Analitiği (UX standardizasyonu turu,
+                        // bölüm E) — Cihaz/Kullanıcı Yönetimi ile AYNI RBAC
+                        // deseniyle yalnızca yöneticiye gösterilir.
+                        if (auth.isYonetici)
+                          _ModuleCard(
+                            icon: Icons.analytics_outlined,
+                            title: 'Kullanım Analitiği',
+                            subtitle: 'En çok kullanılan ekran/butonlar',
+                            color: roleColor(context, 'yonetici'),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const AnalyticsScreen(),
+                              ),
+                            ),
+                          ),
+                        // Kestirimci Bakım Planlama (Modül 12) — Modül 9'un risk
+                        // skorundan türetilen bakım önerilerini gösterir ve
+                        // "Önleyici İş Emri Oluştur" aksiyonunu barındırır; bu
+                        // yüzden iş emri oluşturma yetkisiyle AYNI role gated'dir
+                        // (dispeçer/yönetici) — backend de aynı requireRole'ü
+                        // kullanır (bkz. routes/maintenance.js).
+                        if (auth.canCreateWorkOrders)
+                          _ModuleCard(
+                            icon: Icons.build_circle_outlined,
+                            title: 'Bakım Planlama',
+                            subtitle: 'Kestirimci bakım önerileri',
+                            color: AppColors.success(context),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const MaintenanceRecommendationsScreen(),
+                              ),
+                            ),
+                          ),
+                        _ModuleCard(
+                          icon: Icons.inventory_2_outlined,
+                          title: 'Ekipman',
+                          subtitle: 'Varlıkları tara veya ara',
+                          color: AppColors.accent(context),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const EquipmentHomeScreen(),
+                            ),
                           ),
                         ),
-                      ),
-                    // Kullanıcı Yönetimi de yalnızca yönetici rolüne görünür
-                    // (bkz. ARCHITECTURE.md Modül 8) — backend requireRole ile
-                    // ayrıca engelliyor.
-                    if (auth.isYonetici)
-                      _ModuleCard(
-                        icon: Icons.manage_accounts_outlined,
-                        title: 'Kullanıcı Yönetimi',
-                        subtitle: 'Ekle · Düzenle',
-                        color: roleColor(context, 'yonetici'),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const UserManagementListScreen(),
+                        // Malzeme / Yedek Parça Stok Takibi (Modül 13) — TÜM
+                        // roller görebilir (yalnızca görüntüleme amaçlı da olsa
+                        // teknisyen "depoda ne var" diye bakabilmeli); kayıt/
+                        // silme/restock/oluşturma yetkileri ekran içinde ayrıca
+                        // kısıtlanır (bkz. material_list_screen.dart).
+                        _ModuleCard(
+                          icon: Icons.warehouse_outlined,
+                          title: 'Stok / Malzeme',
+                          subtitle: 'Yedek parça envanteri',
+                          color: AppColors.warning(context),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const MaterialListScreen(),
+                            ),
                           ),
                         ),
-                      ),
-                    // Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) — bir
-                    // yönetim raporudur (backend GET /api/meters/suspicious
-                    // giriş yapmış herkese açık olsa da, kaçak/kayıp takibi
-                    // yönetimsel bir sorumluluktur) — Cihaz/Kullanıcı Yönetimi
-                    // ile AYNI RBAC deseniyle yalnızca yöneticiye gösterilir.
-                    if (auth.isYonetici)
-                      _ModuleCard(
-                        icon: Icons.search,
-                        title: 'Şüpheli Sayaçlar',
-                        subtitle: 'Kayıp-kaçak / anomali tespiti',
-                        color: AppColors.danger(context),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const SuspiciousMetersScreen(),
+                        _ModuleCard(
+                          icon: Icons.shield_outlined,
+                          title: 'İş Güvenliği',
+                          subtitle: 'Olay/Tehlike bildir',
+                          color: AppColors.danger(context),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const IsgReportListScreen(),
+                            ),
                           ),
                         ),
-                      ),
-                    // Kestirimci Bakım Planlama (Modül 12) — Modül 9'un risk
-                    // skorundan türetilen bakım önerilerini gösterir ve
-                    // "Önleyici İş Emri Oluştur" aksiyonunu barındırır; bu
-                    // yüzden iş emri oluşturma yetkisiyle AYNI role gated'dir
-                    // (dispeçer/yönetici) — backend de aynı requireRole'ü
-                    // kullanır (bkz. routes/maintenance.js).
-                    if (auth.canCreateWorkOrders)
-                      _ModuleCard(
-                        icon: Icons.build_circle_outlined,
-                        title: 'Bakım Planlama',
-                        subtitle: 'Kestirimci bakım önerileri',
-                        color: AppColors.success(context),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const MaintenanceRecommendationsScreen(),
+                        _ModuleCard(
+                          icon: Icons.notifications_outlined,
+                          title: 'Bildirimler',
+                          subtitle: unreadNotifications > 0
+                              ? '$unreadNotifications Yeni Uyarı'
+                              : 'Güncel',
+                          color: AppColors.primary(context),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const NotificationsScreen(),
+                            ),
                           ),
                         ),
-                      ),
-                    _ModuleCard(
-                      icon: Icons.inventory_2_outlined,
-                      title: 'Ekipman',
-                      subtitle: 'Varlıkları tara veya ara',
-                      color: AppColors.accent(context),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const EquipmentHomeScreen(),
-                        ),
-                      ),
-                    ),
-                    // Malzeme / Yedek Parça Stok Takibi (Modül 13) — TÜM
-                    // roller görebilir (yalnızca görüntüleme amaçlı da olsa
-                    // teknisyen "depoda ne var" diye bakabilmeli); kayıt/
-                    // silme/restock/oluşturma yetkileri ekran içinde ayrıca
-                    // kısıtlanır (bkz. material_list_screen.dart).
-                    _ModuleCard(
-                      icon: Icons.warehouse_outlined,
-                      title: 'Stok / Malzeme',
-                      subtitle: 'Yedek parça envanteri',
-                      color: AppColors.warning(context),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const MaterialListScreen(),
-                        ),
-                      ),
-                    ),
-                    _ModuleCard(
-                      icon: Icons.shield_outlined,
-                      title: 'İş Güvenliği',
-                      subtitle: 'Olay/Tehlike bildir',
-                      color: AppColors.danger(context),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const IsgReportListScreen(),
-                        ),
-                      ),
-                    ),
-                    _ModuleCard(
-                      icon: Icons.notifications_outlined,
-                      title: 'Bildirimler',
-                      subtitle: unreadNotifications > 0
-                          ? '$unreadNotifications Yeni Uyarı'
-                          : 'Güncel',
-                      color: AppColors.primary(context),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const NotificationsScreen(),
-                        ),
-                      ),
-                    ),
-                  ],
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
@@ -644,37 +673,45 @@ class _QuickActionChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surfaceContainerLowest,
-      borderRadius: BorderRadius.circular(AppRadius.pill),
-      child: InkWell(
+    // B2 (dokunma alanı): öncesinde yalnızca ~38dp yüksekliğindeydi (16-18dp
+    // içerik + 20dp dikey padding) — ConstrainedBox ile 48dp minimum
+    // dokunma alanı garanti edilir, AppButton'daki AYNI kural (bkz.
+    // widgets/app_button.dart).
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 48),
+      child: Material(
+        color: scheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(AppRadius.pill),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm + 2,
-          ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            border: Border.all(
-              color: scheme.outlineVariant.withValues(alpha: 0.6),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          onTap: onTap,
+          child: Container(
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm + 2,
             ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 18, color: scheme.onSurface),
-              const SizedBox(width: AppSpacing.xs),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onSurface,
-                ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(
+                color: scheme.outlineVariant.withValues(alpha: 0.6),
               ),
-            ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 18, color: scheme.onSurface),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

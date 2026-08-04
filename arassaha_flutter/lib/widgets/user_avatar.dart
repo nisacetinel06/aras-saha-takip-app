@@ -40,7 +40,7 @@ class UserAvatar extends StatelessWidget {
       child: Text(
         initials,
         style: TextStyle(
-          color: Colors.white,
+          color: onRoleColor(context, role),
           fontWeight: FontWeight.w700,
           fontSize: radius * 0.7,
         ),

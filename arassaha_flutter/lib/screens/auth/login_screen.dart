@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
@@ -20,6 +21,12 @@ class _LoginScreenState extends State<LoginScreen> {
   final _sicilNoController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    AnalyticsService.logScreenView('LoginScreen');
+  }
 
   @override
   void dispose() {
@@ -52,13 +59,21 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const AppLogo(height: 56, padding: EdgeInsets.all(AppSpacing.md)),
+                  const AppLogo(
+                    height: 56,
+                    padding: EdgeInsets.all(AppSpacing.md),
+                  ),
                   const SizedBox(height: AppSpacing.lg),
-                  Text('ArasSaha', style: AppTextStyles.displayLarge(color: scheme.onSurface)),
+                  Text(
+                    'ArasSaha',
+                    style: AppTextStyles.displayLarge(color: scheme.onSurface),
+                  ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     'Saha Ekipleri Operasyon Uygulaması',
-                    style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant),
+                    style: AppTextStyles.bodyMedium(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   TextField(
@@ -80,8 +95,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       labelText: 'Şifre',
                       prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
-                        icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                        onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
                       ),
                     ),
                   ),
@@ -92,12 +113,19 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.error_outline, size: 16, color: scheme.error),
+                          Icon(
+                            Icons.error_outline,
+                            size: 16,
+                            color: scheme.error,
+                          ),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               auth.errorMessage!,
-                              style: TextStyle(color: scheme.error, fontSize: 13),
+                              style: TextStyle(
+                                color: scheme.error,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                         ],

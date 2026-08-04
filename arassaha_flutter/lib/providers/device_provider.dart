@@ -62,7 +62,11 @@ class DeviceProvider extends ChangeNotifier {
   /// `telemetry` yalnızca 'force-sync' için anlamlıdır — uygulamanın o an
   /// çalıştığı gerçek cihazdan okunan pil/model/OS bilgisidir (bkz.
   /// DeviceTelemetryService). Verilmezse backend yalnızca senkron zamanını günceller.
-  Future<bool> performAction(int id, String actionType, {DeviceTelemetry? telemetry}) async {
+  Future<bool> performAction(
+    int id,
+    String actionType, {
+    DeviceTelemetry? telemetry,
+  }) async {
     _isPerformingAction = true;
     notifyListeners();
 

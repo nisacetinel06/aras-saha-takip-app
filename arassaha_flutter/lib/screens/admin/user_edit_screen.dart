@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../models/app_user.dart';
 import '../../models/work_order.dart' show AssignedUser, WorkOrderStatus;
 import '../../providers/user_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -13,6 +14,7 @@ import '../../utils/role_helper.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/sticky_form_footer.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 
@@ -62,6 +64,7 @@ class _UserEditScreenState extends State<UserEditScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('UserEditScreen');
     _loadDispatchers();
     if (widget.isEditMode) {
       _loadUser();
@@ -86,7 +89,8 @@ class _UserEditScreenState extends State<UserEditScreen> {
       if (!mounted) return;
       setState(() {
         _dispatchers = dispatchers;
-        _selectedSupervisor = _findDispatcher(_existingSupervisorId) ?? _selectedSupervisor;
+        _selectedSupervisor =
+            _findDispatcher(_existingSupervisorId) ?? _selectedSupervisor;
       });
     } catch (e) {
       if (!mounted) return;
@@ -121,7 +125,8 @@ class _UserEditScreenState extends State<UserEditScreen> {
     if (user == null) {
       setState(() {
         _isLoadingDetail = false;
-        _loadErrorMessage = provider.detailErrorMessage ?? 'Kullanıcı bulunamadı.';
+        _loadErrorMessage =
+            provider.detailErrorMessage ?? 'Kullanıcı bulunamadı.';
       });
       return;
     }
@@ -144,7 +149,10 @@ class _UserEditScreenState extends State<UserEditScreen> {
 
   Future<void> _pickPhoto(ImageSource source) async {
     final picker = ImagePicker();
-    final XFile? file = await picker.pickImage(source: source, imageQuality: 85);
+    final XFile? file = await picker.pickImage(
+      source: source,
+      imageQuality: 85,
+    );
     if (file == null) return;
     setState(() => _newPhotoFile = File(file.path));
   }
@@ -191,10 +199,15 @@ class _UserEditScreenState extends State<UserEditScreen> {
           controller: passwordController,
           obscureText: true,
           autofocus: true,
-          decoration: const InputDecoration(hintText: 'Yeni şifre (en az 4 karakter)'),
+          decoration: const InputDecoration(
+            hintText: 'Yeni şifre (en az 4 karakter)',
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Vazgeç')),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Vazgeç'),
+          ),
           TextButton(
             onPressed: () {
               if (passwordController.text.trim().length >= 4) {
@@ -216,13 +229,19 @@ class _UserEditScreenState extends State<UserEditScreen> {
     if (!mounted) return;
     messenger.showSnackBar(
       SnackBar(
-        content: Text(success ? 'Şifre güncellendi.' : (provider.saveErrorMessage ?? 'Şifre sıfırlanamadı.')),
+        content: Text(
+          success
+              ? 'Şifre güncellendi.'
+              : (provider.saveErrorMessage ?? 'Şifre sıfırlanamadı.'),
+        ),
       ),
     );
   }
 
   bool get _canSubmit {
-    final baseValid = _nameController.text.trim().isNotEmpty && _sicilNoController.text.trim().isNotEmpty;
+    final baseValid =
+        _nameController.text.trim().isNotEmpty &&
+        _sicilNoController.text.trim().isNotEmpty;
     if (!widget.isEditMode) {
       return baseValid && _passwordController.text.trim().length >= 4;
     }
@@ -240,7 +259,11 @@ class _UserEditScreenState extends State<UserEditScreen> {
       try {
         final allOrders = await ApiService().getWorkOrders();
         openCount = allOrders
-            .where((w) => w.assignedUser?.id == widget.userId && w.status != WorkOrderStatus.cozuldu)
+            .where(
+              (w) =>
+                  w.assignedUser?.id == widget.userId &&
+                  w.status != WorkOrderStatus.cozuldu,
+            )
             .length;
       } catch (_) {
         openCount = null; // Hesaplanamadıysa notu atla, işlemi engelleme.
@@ -260,8 +283,14 @@ class _UserEditScreenState extends State<UserEditScreen> {
         title: const Text('Rol Değişikliği'),
         content: Text(message),
         actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Vazgeç')),
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Devam Et')),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Devam Et'),
+          ),
         ],
       ),
     );
@@ -319,12 +348,21 @@ class _UserEditScreenState extends State<UserEditScreen> {
     // id'sini (provider.selectedUser, bkz. UserProvider.createUser), düzenleme
     // modunda widget.userId'yi kullanarak — ayrıca gerçek bir upload yapılır.
     if (_newPhotoFile != null) {
-      final targetId = widget.isEditMode ? widget.userId! : provider.selectedUser?.id;
+      final targetId = widget.isEditMode
+          ? widget.userId!
+          : provider.selectedUser?.id;
       if (targetId != null) {
-        final photoUploaded = await provider.uploadUserPhoto(targetId, _newPhotoFile!);
+        final photoUploaded = await provider.uploadUserPhoto(
+          targetId,
+          _newPhotoFile!,
+        );
         if (!photoUploaded && mounted) {
           messenger.showSnackBar(
-            SnackBar(content: Text('Kullanıcı kaydedildi ama fotoğraf yüklenemedi: ${provider.saveErrorMessage ?? ''}')),
+            SnackBar(
+              content: Text(
+                'Kullanıcı kaydedildi ama fotoğraf yüklenemedi: ${provider.saveErrorMessage ?? ''}',
+              ),
+            ),
           );
           navigator.pop(true);
           return;
@@ -334,7 +372,13 @@ class _UserEditScreenState extends State<UserEditScreen> {
 
     if (!mounted) return;
     messenger.showSnackBar(
-      SnackBar(content: Text(widget.isEditMode ? 'Kullanıcı güncellendi.' : 'Kullanıcı oluşturuldu.')),
+      SnackBar(
+        content: Text(
+          widget.isEditMode
+              ? 'Kullanıcı güncellendi.'
+              : 'Kullanıcı oluşturuldu.',
+        ),
+      ),
     );
     navigator.pop(true);
   }
@@ -345,216 +389,283 @@ class _UserEditScreenState extends State<UserEditScreen> {
     final provider = context.watch<UserProvider>();
 
     return Scaffold(
-      appBar: AppTopBar(title: widget.isEditMode ? 'Kullanıcıyı Düzenle' : 'Yeni Kullanıcı Ekle'),
-      body: _isLoadingDetail
-          ? const Center(child: CircularProgressIndicator())
-          : _loadErrorMessage != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.error_outline, size: 56, color: scheme.error),
-                        const SizedBox(height: AppSpacing.sm + 4),
-                        Text(_loadErrorMessage!, textAlign: TextAlign.center),
-                        const SizedBox(height: AppSpacing.md),
-                        AppButton(label: 'Tekrar Dene', onPressed: _loadUser),
-                      ],
+      appBar: AppTopBar(
+        title: widget.isEditMode
+            ? 'Kullanıcıyı Düzenle'
+            : 'Yeni Kullanıcı Ekle',
+      ),
+      body: SafeArea(
+        top: false,
+        child: _isLoadingDetail
+            ? const Center(child: CircularProgressIndicator())
+            : _loadErrorMessage != null
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.error_outline, size: 56, color: scheme.error),
+                      const SizedBox(height: AppSpacing.sm + 4),
+                      Text(_loadErrorMessage!, textAlign: TextAlign.center),
+                      const SizedBox(height: AppSpacing.md),
+                      AppButton(label: 'Tekrar Dene', onPressed: _loadUser),
+                    ],
+                  ),
+                ),
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.xl,
+                ),
+                children: [
+                  Center(child: _buildPhotoPicker()),
+                  const SizedBox(height: AppSpacing.lg),
+
+                  Text(
+                    'Ad Soyad',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    controller: _nameController,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      hintText: 'Örn. Ahmet Yılmaz',
                     ),
                   ),
-                )
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xl),
-                  children: [
-                    Center(child: _buildPhotoPicker()),
-                    const SizedBox(height: AppSpacing.lg),
+                  const SizedBox(height: AppSpacing.lg),
 
-                    Text('Ad Soyad', style: Theme.of(context).textTheme.headlineSmall),
-                    const SizedBox(height: AppSpacing.sm),
-                    TextField(
-                      controller: _nameController,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(hintText: 'Örn. Ahmet Yılmaz'),
+                  Text(
+                    'Sicil No',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    controller: _sicilNoController,
+                    enabled: !widget.isEditMode,
+                    onChanged: (_) => setState(() {}),
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      hintText: 'Örn. 1007',
+                      helperText: widget.isEditMode
+                          ? 'Sicil no oluşturulduktan sonra değiştirilemez.'
+                          : null,
                     ),
-                    const SizedBox(height: AppSpacing.lg),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
 
-                    Text('Sicil No', style: Theme.of(context).textTheme.headlineSmall),
-                    const SizedBox(height: AppSpacing.sm),
-                    TextField(
-                      controller: _sicilNoController,
-                      enabled: !widget.isEditMode,
-                      onChanged: (_) => setState(() {}),
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        hintText: 'Örn. 1007',
-                        helperText: widget.isEditMode ? 'Sicil no oluşturulduktan sonra değiştirilemez.' : null,
-                      ),
+                  Text(
+                    'Telefon',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      hintText: 'Örn. 0532 123 45 67',
                     ),
-                    const SizedBox(height: AppSpacing.lg),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
 
-                    Text('Telefon', style: Theme.of(context).textTheme.headlineSmall),
-                    const SizedBox(height: AppSpacing.sm),
-                    TextField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(hintText: 'Örn. 0532 123 45 67'),
+                  Text(
+                    'E-posta',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      hintText: 'Örn. ahmet.yilmaz@arasedas.com.tr',
                     ),
-                    const SizedBox(height: AppSpacing.lg),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
 
-                    Text('E-posta', style: Theme.of(context).textTheme.headlineSmall),
-                    const SizedBox(height: AppSpacing.sm),
-                    TextField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(hintText: 'Örn. ahmet.yilmaz@arasedas.com.tr'),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-
-                    Text('Rol', style: Theme.of(context).textTheme.headlineSmall),
-                    const SizedBox(height: AppSpacing.sm),
-                    Row(
-                      children: _roles.map((role) {
-                        final selected = _role == role;
-                        return Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: AppSpacing.sm),
-                            child: _RoleChip(
-                              role: role,
-                              selected: selected,
-                              onTap: () => setState(() => _role = role),
-                            ),
+                  Text('Rol', style: Theme.of(context).textTheme.headlineSmall),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: _roles.map((role) {
+                      final selected = _role == role;
+                      return Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: AppSpacing.sm),
+                          child: _RoleChip(
+                            role: role,
+                            selected: selected,
+                            onTap: () => setState(() => _role = role),
                           ),
-                        );
-                      }).toList(),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+
+                  // Dispeçer atama/değiştirme/silme — yalnızca teknisyen
+                  // rolünde anlamlıdır (bkz. ARCHITECTURE.md Modül 8 devamı,
+                  // hiyerarşik yetkilendirme: her dispeçer yalnızca kendi
+                  // ekibini görür).
+                  if (_role == 'teknisyen') ...[
+                    Text(
+                      'Bağlı Dispeçer',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    _buildSupervisorField(scheme),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+
+                  if (!widget.isEditMode) ...[
+                    Text(
+                      'Şifre',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    TextField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        hintText: 'En az 4 karakter',
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.lg),
+                  ],
 
-                    // Dispeçer atama/değiştirme/silme — yalnızca teknisyen
-                    // rolünde anlamlıdır (bkz. ARCHITECTURE.md Modül 8 devamı,
-                    // hiyerarşik yetkilendirme: her dispeçer yalnızca kendi
-                    // ekibini görür).
-                    if (_role == 'teknisyen') ...[
-                      Text('Bağlı Dispeçer', style: Theme.of(context).textTheme.headlineSmall),
-                      const SizedBox(height: AppSpacing.sm),
-                      _buildSupervisorField(scheme),
-                      const SizedBox(height: AppSpacing.lg),
-                    ],
-
-                    if (!widget.isEditMode) ...[
-                      Text('Şifre', style: Theme.of(context).textTheme.headlineSmall),
-                      const SizedBox(height: AppSpacing.sm),
-                      TextField(
-                        controller: _passwordController,
-                        obscureText: true,
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(hintText: 'En az 4 karakter'),
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-                    ],
-
-                    if (widget.isEditMode) ...[
-                      // Aktif/Pasif durumu artık BURADAN değiştirilmez —
-                      // yalnızca Kullanıcı Yönetimi listesindeki net "Aktifleştir"/
-                      // "Pasifleştir" butonlarından, onay dialoguyla ve
-                      // loglanarak yönetilir (bkz. UserManagementListScreen).
-                      // Burada yalnızca salt-okunur bir durum göstergesi var —
-                      // ikisi karışmasın diye.
-                      AppCard(
-                        child: Row(
-                          children: [
-                            Icon(
-                              _isActive ? Icons.check_circle_outline : Icons.block_outlined,
-                              size: 18,
-                              color: _isActive ? AppColors.success(context) : AppColors.danger(context),
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            Expanded(
-                              child: Text(
-                                _isActive ? 'Aktif kullanıcı' : 'Pasif kullanıcı',
-                                style: Theme.of(context).textTheme.bodyLarge,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.sm + 4),
-
-                      // Şifre sıfırlama (Modül 8 devamı) — teknisyen/dispeçer
-                      // kendi şifresini değiştiremediği için buradan yönetici
-                      // tarafından sıfırlanır.
-                      SizedBox(
-                        width: double.infinity,
-                        child: AppButton(
-                          label: 'Şifreyi Sıfırla',
-                          icon: Icons.password_outlined,
-                          variant: AppButtonVariant.secondary,
-                          onPressed: _showResetPasswordDialog,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-                    ],
-
-                    if (provider.saveErrorMessage != null) ...[
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  if (widget.isEditMode) ...[
+                    // Aktif/Pasif durumu artık BURADAN değiştirilmez —
+                    // yalnızca Kullanıcı Yönetimi listesindeki net "Aktifleştir"/
+                    // "Pasifleştir" butonlarından, onay dialoguyla ve
+                    // loglanarak yönetilir (bkz. UserManagementListScreen).
+                    // Burada yalnızca salt-okunur bir durum göstergesi var —
+                    // ikisi karışmasın diye.
+                    AppCard(
+                      child: Row(
                         children: [
-                          Icon(Icons.error_outline, size: 16, color: scheme.error),
-                          const SizedBox(width: 6),
+                          Icon(
+                            _isActive
+                                ? Icons.check_circle_outline
+                                : Icons.block_outlined,
+                            size: 18,
+                            color: _isActive
+                                ? AppColors.success(context)
+                                : AppColors.danger(context),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
                           Expanded(
-                            child: Text(provider.saveErrorMessage!, style: TextStyle(color: scheme.error, fontSize: 13)),
+                            child: Text(
+                              _isActive ? 'Aktif kullanıcı' : 'Pasif kullanıcı',
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: AppSpacing.md),
-                    ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm + 4),
 
+                    // Şifre sıfırlama (Modül 8 devamı) — teknisyen/dispeçer
+                    // kendi şifresini değiştiremediği için buradan yönetici
+                    // tarafından sıfırlanır.
                     SizedBox(
                       width: double.infinity,
                       child: AppButton(
-                        label: 'Kaydet',
-                        icon: Icons.save_outlined,
-                        isLoading: provider.isSaving,
-                        onPressed: _canSubmit ? _submit : null,
+                        label: 'Şifreyi Sıfırla',
+                        icon: Icons.password_outlined,
+                        variant: AppButtonVariant.secondary,
+                        onPressed: _showResetPasswordDialog,
                       ),
                     ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
 
-                    // İşlem Geçmişi — Cihaz Yönetimi modülündeki (device_action_logs)
-                    // ile AYNI tasarım deseni. Yalnızca düzenleme modunda gösterilir.
-                    if (widget.isEditMode) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      AppCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                  if (provider.saveErrorMessage != null) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 16,
+                          color: scheme.error,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            provider.saveErrorMessage!,
+                            style: TextStyle(color: scheme.error, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
+
+                  // İşlem Geçmişi — Cihaz Yönetimi modülündeki (device_action_logs)
+                  // ile AYNI tasarım deseni. Yalnızca düzenleme modunda gösterilir.
+                  if (widget.isEditMode) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    AppCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.history,
+                                size: 18,
+                                color: scheme.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'İşlem Geçmişi',
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineSmall,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.sm + 4),
+                          if (_logs.isEmpty)
+                            Text(
+                              'Henüz bir işlem yapılmadı.',
+                              style: AppTextStyles.bodyMedium(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            )
+                          else
+                            Column(
                               children: [
-                                Icon(Icons.history, size: 18, color: scheme.primary),
-                                const SizedBox(width: 8),
-                                Text('İşlem Geçmişi', style: Theme.of(context).textTheme.headlineSmall),
+                                for (int i = 0; i < _logs.length; i++) ...[
+                                  if (i > 0) const Divider(height: 20),
+                                  _LogRow(log: _logs[i]),
+                                ],
                               ],
                             ),
-                            const SizedBox(height: AppSpacing.sm + 4),
-                            if (_logs.isEmpty)
-                              Text(
-                                'Henüz bir işlem yapılmadı.',
-                                style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant),
-                              )
-                            else
-                              Column(
-                                children: [
-                                  for (int i = 0; i < _logs.length; i++) ...[
-                                    if (i > 0) const Divider(height: 20),
-                                    _LogRow(log: _logs[i]),
-                                  ],
-                                ],
-                              ),
-                          ],
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
                   ],
+                ],
+              ),
+      ),
+      // B1: form yüklenip gösterildiğinde (yükleniyor/hata durumunda değil)
+      // "Kaydet" ekranın altında sabit — bkz. widgets/sticky_form_footer.dart.
+      bottomNavigationBar: (_isLoadingDetail || _loadErrorMessage != null)
+          ? null
+          : StickyFormFooter(
+              child: SizedBox(
+                width: double.infinity,
+                child: AppButton(
+                  label: 'Kaydet',
+                  icon: Icons.save_outlined,
+                  isLoading: provider.isSaving,
+                  onPressed: _canSubmit ? _submit : null,
                 ),
+              ),
+            ),
     );
   }
 
@@ -570,9 +681,16 @@ class _UserEditScreenState extends State<UserEditScreen> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(_dispatchersErrorMessage!, style: TextStyle(color: scheme.error, fontSize: 13)),
+          Text(
+            _dispatchersErrorMessage!,
+            style: TextStyle(color: scheme.error, fontSize: 13),
+          ),
           const SizedBox(height: AppSpacing.sm),
-          AppButton(label: 'Tekrar Dene', variant: AppButtonVariant.secondary, onPressed: _loadDispatchers),
+          AppButton(
+            label: 'Tekrar Dene',
+            variant: AppButtonVariant.secondary,
+            onPressed: _loadDispatchers,
+          ),
         ],
       );
     }
@@ -580,12 +698,21 @@ class _UserEditScreenState extends State<UserEditScreen> {
     return DropdownButtonFormField<AssignedUser?>(
       initialValue: _selectedSupervisor,
       isExpanded: true,
-      decoration: const InputDecoration(hintText: 'Dispeçer seçin', isDense: true),
+      decoration: const InputDecoration(
+        hintText: 'Dispeçer seçin',
+        isDense: true,
+      ),
       items: [
-        const DropdownMenuItem<AssignedUser?>(value: null, child: Text('Atanmamış')),
-        ..._dispatchers.map((d) => DropdownMenuItem<AssignedUser?>(value: d, child: Text(d.name))),
+        const DropdownMenuItem<AssignedUser?>(
+          value: null,
+          child: Text('Atanmamış'),
+        ),
+        ..._dispatchers.map(
+          (d) => DropdownMenuItem<AssignedUser?>(value: d, child: Text(d.name)),
+        ),
       ],
-      onChanged: (dispatcher) => setState(() => _selectedSupervisor = dispatcher),
+      onChanged: (dispatcher) =>
+          setState(() => _selectedSupervisor = dispatcher),
     );
   }
 
@@ -595,10 +722,15 @@ class _UserEditScreenState extends State<UserEditScreen> {
       child: Stack(
         children: [
           _newPhotoFile != null
-              ? CircleAvatar(radius: 48, backgroundImage: FileImage(_newPhotoFile!))
+              ? CircleAvatar(
+                  radius: 48,
+                  backgroundImage: FileImage(_newPhotoFile!),
+                )
               : UserAvatar(
                   photoPath: _existingPhotoPath,
-                  initials: _nameController.text.trim().isEmpty ? '?' : _initialsOf(_nameController.text),
+                  initials: _nameController.text.trim().isEmpty
+                      ? '?'
+                      : _initialsOf(_nameController.text),
                   role: _role,
                   radius: 48,
                 ),
@@ -610,9 +742,16 @@ class _UserEditScreenState extends State<UserEditScreen> {
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.primary,
                 shape: BoxShape.circle,
-                border: Border.all(color: Theme.of(context).colorScheme.surfaceContainerLowest, width: 2),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                  width: 2,
+                ),
               ),
-              child: const Icon(Icons.camera_alt_outlined, size: 16, color: Colors.white),
+              child: Icon(
+                Icons.camera_alt_outlined,
+                size: 16,
+                color: accessibleOnColor(Theme.of(context).colorScheme.primary),
+              ),
             ),
           ),
         ],
@@ -621,10 +760,15 @@ class _UserEditScreenState extends State<UserEditScreen> {
   }
 
   String _initialsOf(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return '?';
     if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return (parts.first.substring(0, 1) + parts.last.substring(0, 1)).toUpperCase();
+    return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+        .toUpperCase();
   }
 }
 
@@ -632,7 +776,11 @@ class _RoleChip extends StatelessWidget {
   final String role;
   final bool selected;
   final VoidCallback onTap;
-  const _RoleChip({required this.role, required this.selected, required this.onTap});
+  const _RoleChip({
+    required this.role,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -642,7 +790,10 @@ class _RoleChip extends StatelessWidget {
     return AppCard(
       onTap: onTap,
       backgroundTint: selected ? color : null,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.sm,
+      ),
       child: Center(
         child: Text(
           roleLabel(role),
@@ -674,7 +825,13 @@ class _LogRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(log.label, style: TextStyle(fontWeight: FontWeight.w600, color: scheme.onSurface)),
+              Text(
+                log.label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurface,
+                ),
+              ),
               const SizedBox(height: 2),
               Text(
                 '${log.performedBy} · ${formatRelativeTime(log.createdAt)}',

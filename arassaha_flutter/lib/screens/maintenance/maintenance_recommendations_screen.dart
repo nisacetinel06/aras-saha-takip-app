@@ -85,38 +85,30 @@ class _MaintenanceRecommendationsScreenState
     final provider = context.watch<MaintenanceProvider>();
 
     return Scaffold(
-      appBar: AppTopBar(
-        title: 'Bakım Planlama',
-        extraActions: auth.isYonetici
-            ? [
-                IconButton(
-                  tooltip: 'Modül 9 Risk Skorlarına Göre Yeniden Hesapla',
-                  icon: provider.isRefreshingRules
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: Padding(
-                            padding: EdgeInsets.all(2),
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        )
-                      : const Icon(Icons.refresh),
-                  onPressed: provider.isRefreshingRules ? null : _refreshRules,
-                ),
-              ]
-            : null,
-      ),
-      body: Column(
-        children: [
-          _SummaryStrip(recommendations: provider.recommendations),
-          _FilterBar(selected: _filter, onSelected: _applyFilter),
-          Expanded(
-            child: _Body(
-              provider: provider,
-              onRetry: () => _applyFilter(_filter),
+      // A2: "Yeniden Hesapla" veri değiştiren gerçek bir aksiyondur — yalnızca
+      // simge + tooltip olarak app bar'a gömülüyse fark edilme riski yüksek
+      // (skill'in "önemli aksiyonlar yalnızca app bar'da yaşamamalı" kuralı).
+      // Etiketli, gövdede görünür bir buton olarak taşındı (bkz. _SummaryStrip).
+      appBar: const AppTopBar(title: 'Bakım Planlama'),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            _SummaryStrip(
+              recommendations: provider.recommendations,
+              showRefreshButton: auth.isYonetici,
+              isRefreshing: provider.isRefreshingRules,
+              onRefresh: _refreshRules,
             ),
-          ),
-        ],
+            _FilterBar(selected: _filter, onSelected: _applyFilter),
+            Expanded(
+              child: _Body(
+                provider: provider,
+                onRetry: () => _applyFilter(_filter),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -124,7 +116,15 @@ class _MaintenanceRecommendationsScreenState
 
 class _SummaryStrip extends StatelessWidget {
   final List<MaintenanceRecommendation> recommendations;
-  const _SummaryStrip({required this.recommendations});
+  final bool showRefreshButton;
+  final bool isRefreshing;
+  final VoidCallback onRefresh;
+  const _SummaryStrip({
+    required this.recommendations,
+    required this.showRefreshButton,
+    required this.isRefreshing,
+    required this.onRefresh,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -160,6 +160,19 @@ class _SummaryStrip extends StatelessWidget {
                 ).copyWith(fontWeight: FontWeight.w700),
               ),
             ),
+            // A2: yönetici için "Modül 9 risk skorlarına göre yeniden hesapla"
+            // aksiyonu — artık etiketli, gövdede görünür bir buton (öncesinde
+            // yalnızca app bar'da bir simgeydi, bkz. dosya üstündeki not).
+            if (showRefreshButton) ...[
+              const SizedBox(width: AppSpacing.sm),
+              AppButton(
+                label: 'Yenile',
+                icon: Icons.refresh,
+                variant: AppButtonVariant.text,
+                isLoading: isRefreshing,
+                onPressed: isRefreshing ? null : onRefresh,
+              ),
+            ],
           ],
         ),
       ),

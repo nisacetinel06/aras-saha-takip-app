@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../../models/work_order.dart';
 import '../../models/work_order_map_pin.dart';
 import '../../providers/map_provider.dart';
+import '../../services/analytics_service.dart';
+import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_button.dart';
@@ -42,6 +44,7 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logScreenView('MapScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<MapProvider>().fetchMapData();
     });
@@ -54,12 +57,19 @@ class _MapScreenState extends State<MapScreen> {
   void _showPinSheet(WorkOrderMapPin pin) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (sheetContext) {
         final scheme = Theme.of(sheetContext).colorScheme;
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm + 4, AppSpacing.md, AppSpacing.md),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.sm + 4,
+              AppSpacing.md,
+              AppSpacing.md,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -68,7 +78,10 @@ class _MapScreenState extends State<MapScreen> {
                     width: 40,
                     height: 4,
                     margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                    decoration: BoxDecoration(color: scheme.outlineVariant, borderRadius: BorderRadius.circular(4)),
+                    decoration: BoxDecoration(
+                      color: scheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
                 ),
                 // İmza öğesi: durum şeridi — kart/liste/dashboard ile aynı görsel dil.
@@ -78,7 +91,10 @@ class _MapScreenState extends State<MapScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(pin.title, style: Theme.of(sheetContext).textTheme.headlineSmall),
+                      Text(
+                        pin.title,
+                        style: Theme.of(sheetContext).textTheme.headlineSmall,
+                      ),
                       const SizedBox(height: AppSpacing.sm + 2),
                       Wrap(
                         spacing: AppSpacing.sm,
@@ -96,7 +112,10 @@ class _MapScreenState extends State<MapScreen> {
                           onPressed: () {
                             Navigator.of(sheetContext).pop();
                             Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => WorkOrderDetailScreen(workOrderId: pin.id)),
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    WorkOrderDetailScreen(workOrderId: pin.id),
+                              ),
                             );
                           },
                         ),
@@ -115,7 +134,9 @@ class _MapScreenState extends State<MapScreen> {
                               Navigator.of(sheetContext).pop();
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) => EquipmentDetailScreen(equipmentId: pin.equipmentId!),
+                                  builder: (_) => EquipmentDetailScreen(
+                                    equipmentId: pin.equipmentId!,
+                                  ),
                                 ),
                               );
                             },
@@ -135,21 +156,33 @@ class _MapScreenState extends State<MapScreen> {
 
   Marker _buildMarker(WorkOrderMapPin pin) {
     final isUrgent = pin.priority == WorkOrderPriority.acil;
-    final size = isUrgent ? 46.0 : 36.0;
+    // B2 (dokunma alanı): öncekinden (36/46dp) büyütüldü, 48dp hedefine
+    // yaklaştırıldı. Pinleri TAM 48dp yapmadık BİLİNÇLİ olarak — bir işten
+    // yoğun bir bölgede yan yana duran pin'ler arasındaki dokunma alanı
+    // çakışması (skill'in "Touch Spacing" kuralı) haritada birbirine yakın
+    // arızalar arasında yanlış pin'e dokunmaya yol açar; 44/48dp bu iki
+    // kural (hedef büyüklüğü vs. bitişik hedef çakışması) arasında bir denge.
+    final size = isUrgent ? 48.0 : 44.0;
+    final pinColor = statusColor(context, pin.status);
     return Marker(
       point: LatLng(pin.lat, pin.lng),
       width: size,
       height: size,
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: () => _showPinSheet(pin),
         child: Stack(
           alignment: const Alignment(0, -0.35),
           children: [
-            Icon(Icons.location_on, color: statusColor(context, pin.status), size: size),
+            Icon(Icons.location_on, color: pinColor, size: size),
             // Acil öncelikli işler için pin üzerinde küçük bir ünlem ikonu —
             // haritaya bakınca hangi arızaların en kritik olduğu anında ayırt edilir.
             if (isUrgent)
-              Icon(Icons.priority_high, color: Colors.white, size: size * 0.34),
+              Icon(
+                Icons.priority_high,
+                color: accessibleOnColor(pinColor),
+                size: size * 0.34,
+              ),
           ],
         ),
       ),
@@ -168,17 +201,28 @@ class _MapScreenState extends State<MapScreen> {
             children: [
               FlutterMap(
                 mapController: _mapController,
-                options: const MapOptions(initialCenter: _regionCenter, initialZoom: _regionZoom),
+                options: const MapOptions(
+                  initialCenter: _regionCenter,
+                  initialZoom: _regionZoom,
+                ),
                 children: [
                   TileLayer(
-                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.arasedas.arassaha_flutter',
                   ),
-                  MarkerLayer(markers: provider.mapMarkers.map(_buildMarker).toList()),
+                  MarkerLayer(
+                    markers: provider.mapMarkers.map(_buildMarker).toList(),
+                  ),
                 ],
               ),
               if (provider.isLoading)
-                const Positioned(top: 10, left: 0, right: 0, child: _LoadingChip()),
+                const Positioned(
+                  top: 10,
+                  left: 0,
+                  right: 0,
+                  child: _LoadingChip(),
+                ),
               if (provider.errorMessage != null)
                 Positioned(
                   top: 10,
@@ -238,7 +282,9 @@ class _MapFilterBar extends StatelessWidget {
               label: Text(entry.key),
               selected: isSelected,
               showCheckmark: false,
-              labelStyle: TextStyle(color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant),
+              labelStyle: TextStyle(
+                color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant,
+              ),
               // Veri seti küçük (≈15 kayıt) olduğu için backend'e tekrar istek
               // atmak yerine mevcut liste istemci tarafında filtrelenir.
               onSelected: (_) => provider.setStatusFilter(entry.value),
@@ -262,7 +308,13 @@ class _LoadingChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: scheme.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(999),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 6, offset: const Offset(0, 2))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -270,10 +322,16 @@ class _LoadingChip extends StatelessWidget {
             SizedBox(
               width: 14,
               height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2, color: scheme.primary),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: scheme.primary,
+              ),
             ),
             const SizedBox(width: 10),
-            Text('Konum verileri yükleniyor...', style: TextStyle(fontSize: 12, color: scheme.onSurface)),
+            Text(
+              'Konum verileri yükleniyor...',
+              style: TextStyle(fontSize: 12, color: scheme.onSurface),
+            ),
           ],
         ),
       ),
@@ -294,21 +352,37 @@ class _ErrorBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: scheme.errorContainer,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 6, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Icon(Icons.warning_amber_rounded, color: scheme.onErrorContainer, size: 20),
+          Icon(
+            Icons.warning_amber_rounded,
+            color: scheme.onErrorContainer,
+            size: 20,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               'Konum verileri yüklenemedi',
-              style: TextStyle(color: scheme.onErrorContainer, fontWeight: FontWeight.w600, fontSize: 13),
+              style: TextStyle(
+                color: scheme.onErrorContainer,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
             ),
           ),
           TextButton(
             onPressed: onRetry,
-            style: TextButton.styleFrom(foregroundColor: scheme.onErrorContainer),
+            style: TextButton.styleFrom(
+              foregroundColor: scheme.onErrorContainer,
+            ),
             child: const Text('Tekrar Dene'),
           ),
         ],

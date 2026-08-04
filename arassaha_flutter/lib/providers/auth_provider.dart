@@ -45,7 +45,8 @@ class AuthProvider extends ChangeNotifier {
 
   /// Kullanıcının rolünün Türkçe, ekranda gösterilebilir hâli — AppBar'daki
   /// rol rozeti, Ana Sayfa karşılaması ve Profil ekranı bunu kullanır.
-  String get roleLabel => _currentUser != null ? role_helper.roleLabel(_currentUser!.role) : '';
+  String get roleLabel =>
+      _currentUser != null ? role_helper.roleLabel(_currentUser!.role) : '';
 
   Future<bool> login(String sicilNo, String password) async {
     _isLoading = true;
