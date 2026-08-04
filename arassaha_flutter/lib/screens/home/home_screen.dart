@@ -20,6 +20,7 @@ import '../equipment/qr_scanner_screen.dart';
 import '../equipment/suspicious_meters_screen.dart';
 import '../isg/isg_report_list_screen.dart';
 import '../maintenance/maintenance_recommendations_screen.dart';
+import '../materials/material_list_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../work_order_detail_screen.dart';
 import '../work_orders/create_work_order_screen.dart';
@@ -305,6 +306,22 @@ class _HomeScreenState extends State<HomeScreen> {
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const EquipmentHomeScreen(),
+                        ),
+                      ),
+                    ),
+                    // Malzeme / Yedek Parça Stok Takibi (Modül 13) — TÜM
+                    // roller görebilir (yalnızca görüntüleme amaçlı da olsa
+                    // teknisyen "depoda ne var" diye bakabilmeli); kayıt/
+                    // silme/restock/oluşturma yetkileri ekran içinde ayrıca
+                    // kısıtlanır (bkz. material_list_screen.dart).
+                    _ModuleCard(
+                      icon: Icons.warehouse_outlined,
+                      title: 'Stok / Malzeme',
+                      subtitle: 'Yedek parça envanteri',
+                      color: AppColors.warning(context),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const MaterialListScreen(),
                         ),
                       ),
                     ),

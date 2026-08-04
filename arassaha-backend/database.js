@@ -239,6 +239,59 @@ db.exec(`
     FOREIGN KEY (related_work_order_id) REFERENCES work_orders (id)
   );
 
+  -- Malzeme / Yedek Parça Stok Takibi (Modül 13) — bkz. routes/materials.js.
+  -- compatible_equipment_types: virgülle ayrılmış equipment.equipment_type
+  -- değerleri (örn. "trafo,kesici") — ayrı bir ilişki tablosu yerine BİLİNÇLİ
+  -- olarak düz metin tutuldu; bu, "hangi malzeme türü hangi ekipmanla tipik
+  -- olarak kullanılır" bilgisi yalnızca ARAMA SIRALAMASINI iyileştiren bir
+  -- ipucu (bkz. MaterialPickerField) — normalize edilmiş bir zorunluluk/kısıt
+  -- değil, bu yüzden N:N tablo karmaşıklığına gerek yok.
+  -- unit_cost: nullable — raporlama için gerçekçilik katar ama zorunlu değil.
+  CREATE TABLE IF NOT EXISTS materials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    unit TEXT NOT NULL,
+    stock_quantity REAL NOT NULL DEFAULT 0,
+    min_stock_threshold REAL NOT NULL DEFAULT 0,
+    compatible_equipment_types TEXT,
+    unit_cost REAL,
+    created_at TEXT NOT NULL
+  );
+
+  -- Bir iş emrinde hangi malzemeden ne kadar kullanıldığının kaydı. Bu tablo
+  -- yalnızca "kim ne kaydetti" bilgisini tutar; STOK DÜŞÜRME işleminin kendisi
+  -- (materials.stock_quantity güncellemesi) routes/materials.js'te AYNI
+  -- transaction içinde yapılır — bkz. o dosyadaki not.
+  CREATE TABLE IF NOT EXISTS work_order_materials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    work_order_id INTEGER NOT NULL,
+    material_id INTEGER NOT NULL,
+    quantity_used REAL NOT NULL,
+    recorded_by_user_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (work_order_id) REFERENCES work_orders (id),
+    FOREIGN KEY (material_id) REFERENCES materials (id),
+    FOREIGN KEY (recorded_by_user_id) REFERENCES users (id)
+  );
+
+  -- Stok hareketi izlenebilirliği — device_action_logs/user_action_logs ile
+  -- AYNI "işlem geçmişi" deseni. quantity İŞARETLİ tutulur: kullanımda NEGATİF,
+  -- ikmalde POZİTİF — böylece tek bir alan hem yönü hem miktarı taşır, ayrı
+  -- bir "yön" sütununa gerek kalmaz.
+  CREATE TABLE IF NOT EXISTS material_stock_movements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    material_id INTEGER NOT NULL,
+    movement_type TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    related_work_order_id INTEGER,
+    performed_by_user_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (material_id) REFERENCES materials (id),
+    FOREIGN KEY (related_work_order_id) REFERENCES work_orders (id),
+    FOREIGN KEY (performed_by_user_id) REFERENCES users (id)
+  );
+
   -- Bildirim Sistemi (Modül 6) — bkz. utils/notify.js ve routes/notifications.js.
   -- Gerçek bir push (FCM vb.) altyapısı KURULMADI: bu tablo, Flutter tarafının
   -- periyodik olarak (30 sn) yokladığı (polling) GET /api/notifications/unread-count
@@ -247,8 +300,10 @@ db.exec(`
   -- Bir staj projesi için FCM'in gerektirdiği sunucu anahtarı/proje kurulumu
   -- gereksiz karmaşıklık katar; polling + yerel bildirim aynı kullanıcı deneyimini
   -- (cihazın bildirim çubuğunda gerçek bir bildirim) çok daha basit bir altyapıyla verir.
-  -- related_type: 'work_order' | 'isg_report' | 'equipment' — related_id bu tabloya
-  -- göre yorumlanır (uygulama tarafında ilgili detay ekranına yönlendirme için).
+  -- related_type: 'work_order' | 'isg_report' | 'equipment' | 'material' —
+  -- related_id bu tabloya göre yorumlanır (uygulama tarafında ilgili detay
+  -- ekranına yönlendirme için). 'material': Modül 13 — bir malzemenin stoğu
+  -- kritik seviyenin altına düştüğünde (bkz. routes/materials.js).
   CREATE TABLE IF NOT EXISTS notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -322,6 +377,54 @@ if (!hasSourceType) {
   db.exec("ALTER TABLE work_orders ADD COLUMN source_type TEXT NOT NULL DEFAULT 'ariza'");
   db.exec("ALTER TABLE work_orders ADD COLUMN source_recommendation_id INTEGER REFERENCES maintenance_recommendations (id)");
   db.exec("UPDATE work_orders SET source_type = 'ariza' WHERE source_type IS NULL");
+}
+
+// Malzeme / Yedek Parça Stok Takibi (Modül 13) — İLK KURULUM tohum verisi.
+// seed.js'teki (work_orders/users/equipment) desenden BİLİNÇLİ olarak farklı:
+// seed.js her çalıştırıldığında önce SİLİP yeniden ekliyor (tam demo sıfırlama
+// içindir); materials burada yalnızca tablo BOŞSA bir kerelik eklenir —
+// böylece sunucu her yeniden başladığında, o ana kadar gerçekten kullanılmış/
+// ikmal edilmiş stok verisi (work_order_materials, material_stock_movements)
+// asla silinmez. `npm run seed` çalıştırılırsa da bu veriler zaten var
+// olduğu için (count > 0) tekrar eklenmez.
+const materialCount = db.prepare('SELECT COUNT(*) AS c FROM materials').get().c;
+if (materialCount === 0) {
+  const now = new Date().toISOString();
+  const seedMaterials = [
+    // kablo
+    { name: '16mm² NYY Kablo', category: 'kablo', unit: 'metre', stock_quantity: 450, min_stock_threshold: 100, compatible_equipment_types: 'trafo,direk,kesici', unit_cost: 12.5 },
+    { name: '25mm² NYY Kablo', category: 'kablo', unit: 'metre', stock_quantity: 320, min_stock_threshold: 100, compatible_equipment_types: 'trafo,direk', unit_cost: 18.0 },
+    { name: '4mm² TTR Kablo', category: 'kablo', unit: 'metre', stock_quantity: 80, min_stock_threshold: 100, compatible_equipment_types: 'sayac,direk', unit_cost: 4.5 },
+    { name: '50mm² Alüminyum İletken', category: 'kablo', unit: 'metre', stock_quantity: 600, min_stock_threshold: 150, compatible_equipment_types: 'direk', unit_cost: 9.0 },
+    // sigorta
+    { name: '100A Trafo Sigortası', category: 'sigorta', unit: 'adet', stock_quantity: 22, min_stock_threshold: 10, compatible_equipment_types: 'trafo', unit_cost: 145.0 },
+    { name: '200A Trafo Sigortası', category: 'sigorta', unit: 'adet', stock_quantity: 6, min_stock_threshold: 8, compatible_equipment_types: 'trafo', unit_cost: 210.0 },
+    { name: '63A Kesici Sigortası', category: 'sigorta', unit: 'adet', stock_quantity: 40, min_stock_threshold: 15, compatible_equipment_types: 'kesici', unit_cost: 65.0 },
+    { name: '32A Hat Sigortası', category: 'sigorta', unit: 'adet', stock_quantity: 5, min_stock_threshold: 12, compatible_equipment_types: 'kesici,sayac', unit_cost: 28.0 },
+    // izolator
+    { name: 'Silindirik Porselen İzolatör', category: 'izolator', unit: 'adet', stock_quantity: 75, min_stock_threshold: 20, compatible_equipment_types: 'direk', unit_cost: 55.0 },
+    { name: 'Kompozit Askı İzolatörü', category: 'izolator', unit: 'adet', stock_quantity: 18, min_stock_threshold: 20, compatible_equipment_types: 'direk', unit_cost: 90.0 },
+    { name: 'Post İzolatör', category: 'izolator', unit: 'adet', stock_quantity: 30, min_stock_threshold: 10, compatible_equipment_types: 'trafo,direk', unit_cost: 120.0 },
+    // konnektor
+    { name: 'Bimetal Konnektör 16-25mm²', category: 'konnektor', unit: 'adet', stock_quantity: 200, min_stock_threshold: 50, compatible_equipment_types: 'trafo,direk,kesici,sayac', unit_cost: 8.0 },
+    { name: 'Preslik Konnektör', category: 'konnektor', unit: 'adet', stock_quantity: 12, min_stock_threshold: 30, compatible_equipment_types: 'direk,kesici', unit_cost: 15.0 },
+    // diger
+    { name: 'Ayırıcı Bıçak Seti', category: 'diger', unit: 'adet', stock_quantity: 14, min_stock_threshold: 5, compatible_equipment_types: 'kesici', unit_cost: 320.0 },
+    { name: 'Topraklama Çubuğu', category: 'diger', unit: 'adet', stock_quantity: 40, min_stock_threshold: 10, compatible_equipment_types: 'direk,trafo', unit_cost: 60.0 },
+    { name: 'Sayaç Mühürü', category: 'diger', unit: 'adet', stock_quantity: 500, min_stock_threshold: 100, compatible_equipment_types: 'sayac', unit_cost: 0.5 },
+    { name: 'Trafo Yağı', category: 'diger', unit: 'kg', stock_quantity: 90, min_stock_threshold: 40, compatible_equipment_types: 'trafo', unit_cost: 22.0 },
+    { name: 'Kelepçe (Kablo Bağı)', category: 'diger', unit: 'adet', stock_quantity: 8, min_stock_threshold: 20, compatible_equipment_types: 'trafo,direk,kesici,sayac', unit_cost: 1.2 },
+  ];
+
+  const insertMaterial = db.prepare(`
+    INSERT INTO materials
+      (name, category, unit, stock_quantity, min_stock_threshold, compatible_equipment_types, unit_cost, created_at)
+    VALUES
+      (@name, @category, @unit, @stock_quantity, @min_stock_threshold, @compatible_equipment_types, @unit_cost, @created_at)
+  `);
+  for (const material of seedMaterials) {
+    insertMaterial.run({ ...material, created_at: now });
+  }
 }
 
 module.exports = db;

@@ -12,6 +12,7 @@ import '../models/equipment_risk.dart';
 import '../models/isg_report.dart';
 import '../models/maintenance_recommendation.dart';
 import '../models/managed_device.dart';
+import '../models/material.dart';
 import '../models/meter_anomaly.dart';
 import '../models/work_order.dart';
 import '../models/work_order_map_pin.dart';
@@ -1388,6 +1389,223 @@ class ApiService {
       }
 
       return MaintenanceRecommendation.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  // --- Malzeme / Yedek Parça Stok Takibi — Modül 13 ---
+  // Görüntüleme (GET) giriş yapmış HERKESE açık; malzeme kullanımı kaydetme
+  // (recordMaterialUsage) de teknisyen DAHİL herkese açık — sahada malzemeyi
+  // kullanan kişi odur. Silme/restock/yeni malzeme ekleme backend'de
+  // requireRole ile korunur (bkz. routes/materials.js dosya başı RBAC özeti).
+
+  /// GET /api/materials?category=&low_stock=true&search=...
+  Future<List<MaterialItem>> getMaterials({
+    String? category,
+    bool lowStockOnly = false,
+    String? search,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/materials').replace(
+        queryParameters: {
+          if (category != null) 'category': category,
+          if (lowStockOnly) 'low_stock': 'true',
+          if (search != null && search.trim().isNotEmpty)
+            'search': search.trim(),
+        },
+      );
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Malzemeler alınamadı.'));
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => MaterialItem.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// GET /api/materials/:id — detay + kullanım/stok hareketi geçmişi.
+  Future<MaterialDetail> getMaterialDetail(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/materials/$id');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'Malzeme detayı alınamadı.'),
+        );
+      }
+
+      return MaterialDetail.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// POST /api/materials — yalnızca yönetici. Yeni bir malzeme TİPİ tanımlar.
+  Future<MaterialItem> createMaterial({
+    required String name,
+    required MaterialCategory category,
+    required MaterialUnit unit,
+    required double stockQuantity,
+    required double minStockThreshold,
+    required List<EquipmentType> compatibleEquipmentTypes,
+    double? unitCost,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/materials');
+      final response = await _post(
+        uri,
+        body: jsonEncode({
+          'name': name,
+          'category': category.toJson(),
+          'unit': unit.toJson(),
+          'stock_quantity': stockQuantity,
+          'min_stock_threshold': minStockThreshold,
+          'compatible_equipment_types': compatibleEquipmentTypes
+              .map((t) => t.name)
+              .toList(),
+          if (unitCost != null) 'unit_cost': unitCost,
+        }),
+      );
+
+      if (response.statusCode != 201) {
+        throw ApiException(_extractError(response, 'Malzeme oluşturulamadı.'));
+      }
+
+      return MaterialItem.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// POST /api/materials/:id/restock — yalnızca yönetici. Stok girişi/ikmali.
+  Future<MaterialItem> restockMaterial(int id, double quantityAdded) async {
+    try {
+      final uri = Uri.parse('$baseUrl/materials/$id/restock');
+      final response = await _post(
+        uri,
+        body: jsonEncode({'quantity_added': quantityAdded}),
+      );
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Stok ikmali yapılamadı.'));
+      }
+
+      return MaterialItem.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// GET /api/workorders/:id/materials — bir iş emrinde kullanılan malzemeler.
+  Future<List<WorkOrderMaterialUsage>> getWorkOrderMaterials(
+    int workOrderId,
+  ) async {
+    try {
+      final uri = Uri.parse('$baseUrl/workorders/$workOrderId/materials');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'Kullanılan malzemeler alınamadı.'),
+        );
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => WorkOrderMaterialUsage.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// POST /api/workorders/:id/materials — giriş yapmış HERKES (teknisyen
+  /// dahil). Stok yetersizse backend 400 + net bir hata mesajı döner (bkz.
+  /// routes/materials.js) — bu mesaj olduğu gibi ApiException'a taşınır.
+  Future<WorkOrderMaterialUsage> recordMaterialUsage(
+    int workOrderId,
+    int materialId,
+    double quantityUsed,
+  ) async {
+    try {
+      final uri = Uri.parse('$baseUrl/workorders/$workOrderId/materials');
+      final response = await _post(
+        uri,
+        body: jsonEncode({
+          'material_id': materialId,
+          'quantity_used': quantityUsed,
+        }),
+      );
+
+      if (response.statusCode != 201) {
+        throw ApiException(
+          _extractError(response, 'Malzeme kullanımı kaydedilemedi.'),
+        );
+      }
+
+      return WorkOrderMaterialUsage.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// DELETE /api/workorders/:id/materials/:usageId — dispeçer/yönetici.
+  /// Kaydı siler VE düşülen stoğu geri ekler (bkz. routes/materials.js).
+  Future<void> removeMaterialUsage(int workOrderId, int usageId) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/workorders/$workOrderId/materials/$usageId',
+      );
+      final response = await http.delete(uri, headers: _headers());
+      _reportIfUnauthorized(response);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'Malzeme kullanım kaydı silinemedi.'),
+        );
+      }
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// GET /api/dashboard/low-stock-materials — Dashboard "Kritik Stoktaki
+  /// Malzemeler" widget'ı için.
+  Future<List<MaterialItem>> getLowStockMaterials({int limit = 5}) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/dashboard/low-stock-materials',
+      ).replace(queryParameters: {'limit': '$limit'});
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'Kritik stoktaki malzemeler alınamadı.'),
+        );
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => MaterialItem.fromJson(json)).toList();
     } on ApiException {
       rethrow;
     } catch (e) {

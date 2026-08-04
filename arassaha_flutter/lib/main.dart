@@ -9,6 +9,7 @@ import 'providers/equipment_provider.dart';
 import 'providers/isg_provider.dart';
 import 'providers/maintenance_provider.dart';
 import 'providers/map_provider.dart';
+import 'providers/material_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/risk_provider.dart';
 import 'providers/theme_provider.dart';
@@ -49,7 +50,9 @@ class _ArasSahaAppState extends State<ArasSahaApp> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => FlutterNativeSplash.remove());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => FlutterNativeSplash.remove(),
+    );
   }
 
   @override
@@ -66,6 +69,7 @@ class _ArasSahaAppState extends State<ArasSahaApp> {
         ChangeNotifierProvider(create: (_) => AnomalyProvider()),
         ChangeNotifierProvider(create: (_) => IsgProvider()),
         ChangeNotifierProvider(create: (_) => MaintenanceProvider()),
+        ChangeNotifierProvider(create: (_) => MaterialProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider.value(value: widget.themeProvider),

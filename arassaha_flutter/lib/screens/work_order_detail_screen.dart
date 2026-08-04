@@ -5,9 +5,11 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/equipment.dart' show EquipmentType;
 import '../models/equipment_risk.dart' show RiskLevel;
+import '../models/material.dart';
 import '../models/work_order.dart';
 import '../providers/auth_provider.dart';
 import '../providers/maintenance_provider.dart';
+import '../providers/material_provider.dart';
 import '../providers/risk_provider.dart';
 import '../providers/work_order_detail_provider.dart';
 import '../services/api_service.dart';
@@ -16,7 +18,9 @@ import '../theme/app_text_styles.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_top_bar.dart';
+import '../widgets/material_picker_field.dart';
 import '../widgets/status_badge.dart';
+import '../widgets/work_order_card.dart' show formatRelativeTime;
 import 'equipment/equipment_detail_screen.dart';
 
 class WorkOrderDetailScreen extends StatelessWidget {
@@ -27,7 +31,16 @@ class WorkOrderDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => WorkOrderDetailProvider(workOrderId)..loadDetail(),
+      create: (context) {
+        // Malzeme / Yedek Parça Stok Takibi (Modül 13) — "Kullanılan
+        // Malzemeler" bölümü kendi verisini iş emri detayının yüklenmesini
+        // BEKLEMEDEN çekebilir (workOrderId zaten burada biliniyor, ekipman
+        // ilişkisine bağlı değil) — bkz. _MaterialsSection.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          context.read<MaterialProvider>().fetchWorkOrderMaterials(workOrderId);
+        });
+        return WorkOrderDetailProvider(workOrderId)..loadDetail();
+      },
       child: const _WorkOrderDetailBody(),
     );
   }
@@ -225,6 +238,13 @@ class _WorkOrderDetailBody extends StatelessWidget {
                   title: 'Fotoğraflar',
                   icon: Icons.photo_library_outlined,
                   child: _PhotoSection(workOrder: workOrder),
+                ),
+                const SizedBox(height: 16),
+
+                _SectionCard(
+                  title: 'Kullanılan Malzemeler',
+                  icon: Icons.inventory_2_outlined,
+                  child: _MaterialsSection(workOrder: workOrder),
                 ),
               ],
             ),
@@ -735,6 +755,321 @@ class _PhotoSection extends StatelessWidget {
               : () => _showSourcePicker(context),
         ),
       ],
+    );
+  }
+}
+
+/// Malzeme / Yedek Parça Stok Takibi (Modül 13) — "Kullanılan Malzemeler"
+/// bölümü. Kayıt (Malzeme Ekle) giriş yapmış HERKESE açıktır (teknisyen
+/// dahil — sahada malzemeyi kullanan kişi odur); silme yalnızca dispeçer/
+/// yönetici (backend requireRole ile de zorunlu kılınır, bkz. routes/materials.js).
+class _MaterialsSection extends StatelessWidget {
+  final WorkOrder workOrder;
+  const _MaterialsSection({required this.workOrder});
+
+  void _showAddMaterialSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => _AddMaterialSheet(
+        workOrderId: workOrder.id,
+        equipmentTypeHint: workOrder.equipmentType?.name,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<MaterialProvider>();
+    final scheme = Theme.of(context).colorScheme;
+    // İş emri oluşturma yetkisiyle AYNI rol seti (dispeçer/yönetici) —
+    // teknisyen bu ikonu hiç görmez.
+    final canDelete = context.watch<AuthProvider>().canCreateWorkOrders;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (provider.isLoadingWorkOrderMaterials &&
+            provider.workOrderMaterials.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          )
+        else if (provider.workOrderMaterialsErrorMessage != null)
+          Text(
+            provider.workOrderMaterialsErrorMessage!,
+            style: TextStyle(color: scheme.error, fontSize: 13),
+          )
+        else if (provider.workOrderMaterials.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'Henüz malzeme kaydedilmedi.',
+              style: TextStyle(color: scheme.onSurfaceVariant),
+            ),
+          )
+        else
+          Column(
+            children: [
+              for (int i = 0; i < provider.workOrderMaterials.length; i++) ...[
+                if (i > 0) const Divider(height: 20),
+                _MaterialUsageRow(
+                  usage: provider.workOrderMaterials[i],
+                  workOrderId: workOrder.id,
+                  canDelete: canDelete,
+                ),
+              ],
+            ],
+          ),
+        const SizedBox(height: AppSpacing.sm + 4),
+        SizedBox(
+          width: double.infinity,
+          child: AppButton(
+            label: 'Malzeme Ekle',
+            icon: Icons.add_box_outlined,
+            variant: AppButtonVariant.secondary,
+            onPressed: () => _showAddMaterialSheet(context),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MaterialUsageRow extends StatelessWidget {
+  final WorkOrderMaterialUsage usage;
+  final int workOrderId;
+  final bool canDelete;
+  const _MaterialUsageRow({
+    required this.usage,
+    required this.workOrderId,
+    required this.canDelete,
+  });
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final provider = context.read<MaterialProvider>();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Malzeme Kaydını Sil'),
+        content: Text(
+          '${usage.materialName} (${formatMaterialQuantity(usage.quantityUsed)} ${usage.materialUnit.label}) '
+          'kullanım kaydını silmek istediğinize emin misiniz? Düşülen stok geri eklenecek.',
+        ),
+        actions: [
+          AppButton(
+            label: 'Vazgeç',
+            variant: AppButtonVariant.text,
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+          ),
+          AppButton(
+            label: 'Sil',
+            variant: AppButtonVariant.destructive,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await provider.removeMaterialUsage(workOrderId, usage.id);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Malzeme kaydı silindi, stok geri eklendi.'
+              : (provider.submitErrorMessage ?? 'Kayıt silinemedi.'),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.inventory_2_outlined,
+          size: 16,
+          color: scheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${usage.materialName} · ${formatMaterialQuantity(usage.quantityUsed)} ${usage.materialUnit.label}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${usage.recordedByName} · ${formatRelativeTime(usage.createdAt)}',
+                style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+        if (canDelete)
+          IconButton(
+            tooltip: 'Sil',
+            icon: Icon(Icons.delete_outline, size: 20, color: scheme.error),
+            onPressed: () => _confirmDelete(context),
+            constraints: const BoxConstraints(),
+            padding: const EdgeInsets.all(4),
+          ),
+      ],
+    );
+  }
+}
+
+/// "Malzeme Ekle" alt sayfası: [MaterialPickerField] ile malzeme seçimi +
+/// kullanılan miktar girişi + Ekle butonu. Stok yetersizse backend'in net
+/// hata mesajı ("Yetersiz stok: mevcut X birim, istenen Y birim") olduğu
+/// gibi kırmızı bir uyarı olarak gösterilir.
+class _AddMaterialSheet extends StatefulWidget {
+  final int workOrderId;
+  final String? equipmentTypeHint;
+  const _AddMaterialSheet({
+    required this.workOrderId,
+    required this.equipmentTypeHint,
+  });
+
+  @override
+  State<_AddMaterialSheet> createState() => _AddMaterialSheetState();
+}
+
+class _AddMaterialSheetState extends State<_AddMaterialSheet> {
+  final _quantityController = TextEditingController();
+  MaterialItem? _selectedMaterial;
+  bool _isSubmitting = false;
+  String? _errorMessage;
+
+  @override
+  void dispose() {
+    _quantityController.dispose();
+    super.dispose();
+  }
+
+  double? get _parsedQuantity =>
+      double.tryParse(_quantityController.text.replaceAll(',', '.'));
+
+  bool get _canSubmit {
+    final qty = _parsedQuantity;
+    return _selectedMaterial != null &&
+        qty != null &&
+        qty > 0 &&
+        !_isSubmitting;
+  }
+
+  Future<void> _submit() async {
+    final material = _selectedMaterial;
+    final qty = _parsedQuantity;
+    if (material == null || qty == null || qty <= 0) return;
+
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+
+    final provider = context.read<MaterialProvider>();
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final success = await provider.recordMaterialUsage(
+      widget.workOrderId,
+      material.id,
+      qty,
+    );
+
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+
+    if (success) {
+      navigator.pop();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Malzeme kullanımı kaydedildi.')),
+      );
+    } else {
+      setState(
+        () => _errorMessage =
+            provider.submitErrorMessage ?? 'Malzeme kullanımı kaydedilemedi.',
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        MediaQuery.of(context).viewInsets.bottom + AppSpacing.md,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Malzeme Ekle',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          MaterialPickerField(
+            equipmentTypeHint: widget.equipmentTypeHint,
+            onSelected: (material) => setState(() {
+              _selectedMaterial = material;
+              _errorMessage = null;
+            }),
+          ),
+          if (_selectedMaterial != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: _quantityController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                labelText:
+                    'Kullanılan Miktar (${_selectedMaterial!.unit.label})',
+                isDense: true,
+              ),
+            ),
+          ],
+          if (_errorMessage != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.error_outline, size: 16, color: scheme.error),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _errorMessage!,
+                    style: TextStyle(color: scheme.error, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: AppSpacing.lg),
+          SizedBox(
+            width: double.infinity,
+            child: AppButton(
+              label: 'Ekle',
+              icon: Icons.add,
+              isLoading: _isSubmitting,
+              onPressed: _canSubmit ? _submit : null,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

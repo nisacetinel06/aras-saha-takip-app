@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/dashboard_summary.dart';
 import '../models/equipment_risk.dart';
+import '../models/material.dart';
 import '../models/work_order.dart';
 import '../providers/auth_provider.dart';
 import '../providers/dashboard_provider.dart';
+import '../providers/material_provider.dart';
 import '../providers/risk_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
@@ -15,6 +17,8 @@ import '../widgets/app_card.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/work_order_card.dart' show formatRelativeTime;
 import 'equipment/equipment_detail_screen.dart';
+import 'materials/material_detail_screen.dart';
+import 'materials/material_list_screen.dart';
 import 'work_order_detail_screen.dart';
 
 /// Dashboard sekmesi: Modül 2'nin detaylı analiz görünümü (grafikler, son
@@ -43,12 +47,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (context.read<AuthProvider>().isYonetici) {
         context.read<RiskProvider>().fetchRiskyEquipment();
       }
+      // Kritik Stoktaki Malzemeler (Modül 13) — Riskli Ekipmanlar'ın aksine
+      // bir yönetim raporu DEĞİLDİR (backend GET /api/dashboard/low-stock-materials
+      // giriş yapmış HERKESE açık, bkz. routes/materials.js) — teknisyen/
+      // dispeçer için de çekilir.
+      context.read<MaterialProvider>().fetchLowStockMaterials();
     });
   }
 
-  void _openList(WorkOrderStatus status) => widget.onNavigate(1, statusFilter: status);
+  void _openList(WorkOrderStatus status) =>
+      widget.onNavigate(1, statusFilter: status);
 
-  void _openMap(WorkOrderStatus status) => widget.onNavigate(2, statusFilter: status);
+  void _openMap(WorkOrderStatus status) =>
+      widget.onNavigate(2, statusFilter: status);
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +68,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Consumer<DashboardProvider>(
       builder: (context, provider, _) {
         if (provider.errorMessage != null && provider.summary == null) {
-          return _ErrorState(message: provider.errorMessage!, onRetry: provider.fetchSummary);
+          return _ErrorState(
+            message: provider.errorMessage!,
+            onRetry: provider.fetchSummary,
+          );
         }
 
         final summary = provider.summary;
@@ -70,7 +84,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(AppSpacing.md),
             children: [
-              _SummaryCardsRow(summary: summary, onCardTap: _openList, onMapTap: _openMap),
+              _SummaryCardsRow(
+                summary: summary,
+                onCardTap: _openList,
+                onMapTap: _openMap,
+              ),
               const SizedBox(height: AppSpacing.lg),
               const _SectionHeader('Durum Dağılımı'),
               _StatusPieChart(summary: summary),
@@ -87,6 +105,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const _SectionHeader('Riskli Ekipmanlar'),
                 const _RiskyEquipmentSection(),
               ],
+              const SizedBox(height: AppSpacing.lg),
+              const _SectionHeader('Kritik Stoktaki Malzemeler'),
+              const _LowStockMaterialsSection(),
             ],
           ),
         );
@@ -113,7 +134,11 @@ class _SummaryCardsRow extends StatelessWidget {
   final void Function(WorkOrderStatus status) onCardTap;
   final void Function(WorkOrderStatus status) onMapTap;
 
-  const _SummaryCardsRow({required this.summary, required this.onCardTap, required this.onMapTap});
+  const _SummaryCardsRow({
+    required this.summary,
+    required this.onCardTap,
+    required this.onMapTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -189,13 +214,20 @@ class _SummaryCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 value,
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 label,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -227,7 +259,9 @@ class _StatusPieChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entries = summary.statusBreakdown.entries.where((e) => e.value > 0).toList();
+    final entries = summary.statusBreakdown.entries
+        .where((e) => e.value > 0)
+        .toList();
     final total = entries.fold<int>(0, (sum, e) => sum + e.value);
 
     if (total == 0) {
@@ -273,7 +307,10 @@ class _StatusPieChart extends StatelessWidget {
                       Container(
                         width: 12,
                         height: 12,
-                        decoration: BoxDecoration(color: statusColor(context, e.key), shape: BoxShape.circle),
+                        decoration: BoxDecoration(
+                          color: statusColor(context, e.key),
+                          shape: BoxShape.circle,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(child: Text('${e.key.label}: ${e.value}')),
@@ -298,7 +335,10 @@ class _PriorityBarChart extends StatelessWidget {
     final entries = WorkOrderPriority.values
         .map((p) => MapEntry(p, summary.priorityBreakdown[p] ?? 0))
         .toList();
-    final maxVal = entries.fold<int>(0, (max, e) => e.value > max ? e.value : max);
+    final maxVal = entries.fold<int>(
+      0,
+      (max, e) => e.value > max ? e.value : max,
+    );
 
     if (maxVal == 0) {
       return const _EmptyChartCard(message: 'Gösterilecek veri yok.');
@@ -316,15 +356,22 @@ class _PriorityBarChart extends StatelessWidget {
             gridData: const FlGridData(show: false),
             borderData: FlBorderData(show: false),
             titlesData: FlTitlesData(
-              leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              leftTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              topTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              rightTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
               bottomTitles: AxisTitles(
                 sideTitles: SideTitles(
                   showTitles: true,
                   getTitlesWidget: (value, meta) {
                     final index = value.toInt();
-                    if (index < 0 || index >= entries.length) return const SizedBox.shrink();
+                    if (index < 0 || index >= entries.length)
+                      return const SizedBox.shrink();
                     return Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
@@ -376,12 +423,19 @@ class _RecentActivityList extends StatelessWidget {
           for (int i = 0; i < items.length; i++) ...[
             if (i > 0) const Divider(height: 1),
             ListTile(
-              title: Text(items[i].title, maxLines: 1, overflow: TextOverflow.ellipsis),
+              title: Text(
+                items[i].title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               subtitle: Text(formatRelativeTime(items[i].updatedAt)),
               trailing: StatusBadge(status: items[i].status),
               onTap: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => WorkOrderDetailScreen(workOrderId: items[i].id)),
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        WorkOrderDetailScreen(workOrderId: items[i].id),
+                  ),
                 );
               },
             ),
@@ -425,12 +479,15 @@ class _RiskyEquipmentSection extends StatelessWidget {
       );
     }
 
-    if (provider.riskyListErrorMessage != null && provider.riskyEquipment.isEmpty) {
+    if (provider.riskyListErrorMessage != null &&
+        provider.riskyEquipment.isEmpty) {
       return _EmptyChartCard(message: provider.riskyListErrorMessage!);
     }
 
     if (provider.riskyEquipment.isEmpty) {
-      return const _EmptyChartCard(message: 'Henüz risk skoru hesaplanmış ekipman yok.');
+      return const _EmptyChartCard(
+        message: 'Henüz risk skoru hesaplanmış ekipman yok.',
+      );
     }
 
     return AppCard(
@@ -464,7 +521,11 @@ class _RiskyEquipmentTile extends StatelessWidget {
         radius: 18,
         child: Text(
           '${item.riskScore}',
-          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
       title: Text(
@@ -480,10 +541,111 @@ class _RiskyEquipmentTile extends StatelessWidget {
       ),
       trailing: Text(
         item.riskLevel.label,
-        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700),
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
       ),
       onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => EquipmentDetailScreen(equipmentId: item.id)),
+        MaterialPageRoute(
+          builder: (_) => EquipmentDetailScreen(equipmentId: item.id),
+        ),
+      ),
+    );
+  }
+}
+
+/// Kritik Stoktaki Malzemeler (Modül 13) — [_RiskyEquipmentSection] ile AYNI
+/// desen (loading/error/empty/list durumları, AppCard + Divider satırları),
+/// yalnızca farklı bir provider/veri kaynağından besleniyor. Riskli
+/// Ekipmanlar'dan FARKLI olarak yönetici gated değildir — herkese görünür.
+class _LowStockMaterialsSection extends StatelessWidget {
+  const _LowStockMaterialsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<MaterialProvider>();
+
+    if (provider.isLoadingLowStock && provider.lowStockMaterials.isEmpty) {
+      return const AppCard(
+        padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (provider.lowStockErrorMessage != null &&
+        provider.lowStockMaterials.isEmpty) {
+      return _EmptyChartCard(message: provider.lowStockErrorMessage!);
+    }
+
+    if (provider.lowStockMaterials.isEmpty) {
+      return const _EmptyChartCard(message: 'Kritik stokta malzeme yok.');
+    }
+
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          for (int i = 0; i < provider.lowStockMaterials.length; i++) ...[
+            if (i > 0) const Divider(height: 1),
+            _LowStockMaterialTile(material: provider.lowStockMaterials[i]),
+          ],
+          InkWell(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const MaterialListScreen()),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'Tümünü Gör',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LowStockMaterialTile extends StatelessWidget {
+  final MaterialItem material;
+  const _LowStockMaterialTile({required this.material});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = AppColors.danger(context);
+
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: color,
+        radius: 18,
+        child: Icon(material.category.icon, size: 16, color: Colors.white),
+      ),
+      title: Text(material.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        'Eşik: ${formatMaterialQuantity(material.minStockThreshold)} ${material.unit.label}',
+        style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+      ),
+      trailing: Text(
+        '${formatMaterialQuantity(material.stockQuantity)} ${material.unit.label}',
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => MaterialDetailScreen(materialId: material.id),
+        ),
       ),
     );
   }
@@ -500,7 +662,9 @@ class _EmptyChartCard extends StatelessWidget {
       child: Center(
         child: Text(
           message,
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ),
     );
@@ -521,7 +685,11 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline, size: 56, color: Theme.of(context).colorScheme.error),
+            Icon(
+              Icons.error_outline,
+              size: 56,
+              color: Theme.of(context).colorScheme.error,
+            ),
             const SizedBox(height: 12),
             Text('Veriler yüklenemedi: $message', textAlign: TextAlign.center),
             const SizedBox(height: 16),
@@ -542,14 +710,17 @@ class _DashboardSkeleton extends StatefulWidget {
   State<_DashboardSkeleton> createState() => _DashboardSkeletonState();
 }
 
-class _DashboardSkeletonState extends State<_DashboardSkeleton> with SingleTickerProviderStateMixin {
+class _DashboardSkeletonState extends State<_DashboardSkeleton>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
-      ..repeat(reverse: true);
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
   }
 
   @override
@@ -560,7 +731,10 @@ class _DashboardSkeletonState extends State<_DashboardSkeleton> with SingleTicke
 
   Widget _box({required double height}) {
     return FadeTransition(
-      opacity: Tween(begin: 0.4, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut)),
+      opacity: Tween(
+        begin: 0.4,
+        end: 1.0,
+      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut)),
       child: Container(
         height: height,
         decoration: BoxDecoration(
