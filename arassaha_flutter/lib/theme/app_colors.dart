@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/equipment.dart';
+import '../models/equipment_risk.dart';
 import '../models/work_order.dart';
 
 /// Uygulamanın tek renk kaynağı. Tüm ekranlar (liste, detay, harita pin'i,
@@ -45,9 +46,13 @@ class AppColors {
   // "kullanıcı rolü" mü gösteriyor karışmasın diye ayrı bir palet. Profil
   // ekranındaki rol rozeti ve Ana Sayfa'daki karşılamadaki rozet hep buradan
   // okur (bkz. roleColor).
-  static const lightRoleTeknisyen = Color(0xFF2563EB); // indigo/mavi — primary'den farklı ton
+  static const lightRoleTeknisyen = Color(
+    0xFF2563EB,
+  ); // indigo/mavi — primary'den farklı ton
   static const lightRoleDispecer = Color(0xFF7C3AED); // mor
-  static const lightRoleYonetici = Color(0xFFC2410C); // koyu/bronz turuncu — accent/warning'den farklı ton
+  static const lightRoleYonetici = Color(
+    0xFFC2410C,
+  ); // koyu/bronz turuncu — accent/warning'den farklı ton
 
   static const darkRoleTeknisyen = Color(0xFF60A5FA);
   static const darkRoleDispecer = Color(0xFFA78BFA);
@@ -58,7 +63,8 @@ class AppColors {
   static Color success(BuildContext c) => _pick(c, lightSuccess, darkSuccess);
   static Color warning(BuildContext c) => _pick(c, lightWarning, darkWarning);
   static Color danger(BuildContext c) => _pick(c, lightDanger, darkDanger);
-  static Color textSecondary(BuildContext c) => _pick(c, lightTextSecondary, darkTextSecondary);
+  static Color textSecondary(BuildContext c) =>
+      _pick(c, lightTextSecondary, darkTextSecondary);
 
   static Color _pick(BuildContext context, Color light, Color dark) {
     return Theme.of(context).brightness == Brightness.dark ? dark : light;
@@ -111,7 +117,9 @@ Color roleColor(BuildContext context, String role) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
   switch (role) {
     case 'teknisyen':
-      return isDark ? AppColors.darkRoleTeknisyen : AppColors.lightRoleTeknisyen;
+      return isDark
+          ? AppColors.darkRoleTeknisyen
+          : AppColors.lightRoleTeknisyen;
     case 'dispecer':
       return isDark ? AppColors.darkRoleDispecer : AppColors.lightRoleDispecer;
     case 'yonetici':
@@ -138,5 +146,21 @@ Color equipmentStatusColor(BuildContext context, EquipmentStatus status) {
       return AppColors.warning(context);
     case EquipmentStatus.devreDisi:
       return AppColors.textSecondary(context);
+  }
+}
+
+/// Risk seviyesi rengi: dusuk=success, orta=warning, yuksek=danger (Modül 9).
+/// Kestirimci Bakım Planlama (Modül 12) önerilerinin urgency_level'ı da AYNI
+/// üç değeri (RiskLevel) kullandığı için (bkz. models/maintenance_recommendation.dart),
+/// bu tek fonksiyon her iki modülde de kullanılır — "Modül 9'daki risk
+/// renkleriyle birebir tutarlı" ilkesi böylece kod düzeyinde garanti edilir.
+Color riskLevelColor(BuildContext context, RiskLevel level) {
+  switch (level) {
+    case RiskLevel.dusuk:
+      return AppColors.success(context);
+    case RiskLevel.orta:
+      return AppColors.warning(context);
+    case RiskLevel.yuksek:
+      return AppColors.danger(context);
   }
 }

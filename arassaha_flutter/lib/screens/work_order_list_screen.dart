@@ -65,7 +65,9 @@ class _WorkOrderListScreenState extends State<WorkOrderListScreen> {
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => WorkOrderDetailScreen(workOrderId: workOrder.id),
+                            builder: (_) => WorkOrderDetailScreen(
+                              workOrderId: workOrder.id,
+                            ),
                           ),
                         );
                       },
@@ -123,19 +125,46 @@ class _FilterBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: ListView(
         scrollDirection: Axis.horizontal,
-        children: filters.entries.map((entry) {
-          final isSelected = provider.filterStatus == entry.value;
-          return Padding(
+        children: [
+          ...filters.entries.map((entry) {
+            final isSelected = provider.filterStatus == entry.value;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              child: ChoiceChip(
+                label: Text(entry.key),
+                selected: isSelected,
+                showCheckmark: false,
+                labelStyle: TextStyle(
+                  color: isSelected
+                      ? scheme.onPrimary
+                      : scheme.onSurfaceVariant,
+                ),
+                onSelected: (_) => provider.setFilter(entry.value),
+              ),
+            );
+          }),
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-            child: ChoiceChip(
-              label: Text(entry.key),
-              selected: isSelected,
+            child: FilterChip(
+              label: const Text('Önleyici Bakım'),
+              avatar: Icon(
+                Icons.build,
+                size: 16,
+                color: provider.onlyPreventiveMaintenance
+                    ? scheme.onPrimary
+                    : scheme.onSurfaceVariant,
+              ),
+              selected: provider.onlyPreventiveMaintenance,
               showCheckmark: false,
-              labelStyle: TextStyle(color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant),
-              onSelected: (_) => provider.setFilter(entry.value),
+              labelStyle: TextStyle(
+                color: provider.onlyPreventiveMaintenance
+                    ? scheme.onPrimary
+                    : scheme.onSurfaceVariant,
+              ),
+              onSelected: provider.setOnlyPreventiveMaintenance,
             ),
-          );
-        }).toList(),
+          ),
+        ],
       ),
     );
   }
@@ -158,9 +187,19 @@ class _EmptyState extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.inbox_outlined, size: 56, color: scheme.onSurfaceVariant),
+                  Icon(
+                    Icons.inbox_outlined,
+                    size: 56,
+                    color: scheme.onSurfaceVariant,
+                  ),
                   const SizedBox(height: 12),
-                  Text('Kayıt bulunamadı', style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 16)),
+                  Text(
+                    'Kayıt bulunamadı',
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 16,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -185,7 +224,11 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline, size: 56, color: Theme.of(context).colorScheme.error),
+            Icon(
+              Icons.error_outline,
+              size: 56,
+              color: Theme.of(context).colorScheme.error,
+            ),
             const SizedBox(height: 12),
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),

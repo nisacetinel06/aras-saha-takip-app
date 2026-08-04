@@ -1,5 +1,21 @@
 import 'equipment.dart' show EquipmentType;
 
+/// Kestirimci Bakım Planlama (Modül 12) — iş emrinin kökeni. Backend'deki
+/// work_orders.source_type ile birebir eşleşir. `ariza`, Modül 12 öncesi
+/// TÜM iş emirlerinin (ve normal "Yeni İş Emri Oluştur" akışının) varsayılan
+/// değeridir; `onlecici_bakim`/`onleyici_bakim` yalnızca bir bakım önerisinden
+/// "Önleyici İş Emri Oluştur" ile dönüştürülen kayıtlarda görülür.
+enum WorkOrderSourceType {
+  ariza,
+  onleyiciBakim;
+
+  static WorkOrderSourceType fromJson(String value) {
+    return value == 'onleyici_bakim'
+        ? WorkOrderSourceType.onleyiciBakim
+        : WorkOrderSourceType.ariza;
+  }
+}
+
 // İş emri statüsü. Backend'deki work_orders.status alanıyla birebir eşleşir.
 enum WorkOrderStatus {
   acik,
@@ -135,6 +151,11 @@ class WorkOrder {
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<WorkOrderPhoto> photos;
+  // Kestirimci Bakım Planlama (Modül 12) — bkz. WorkOrderSourceType. Backend
+  // eski (Modül 12 öncesi) kayıtları geriye dönük 'ariza' ile doldurduğu için
+  // (bkz. database.js migrasyonu) bu alan HER ZAMAN doludur, null değildir.
+  final WorkOrderSourceType sourceType;
+  final int? sourceRecommendationId;
 
   WorkOrder({
     required this.id,
@@ -152,6 +173,8 @@ class WorkOrder {
     required this.createdAt,
     required this.updatedAt,
     this.photos = const [],
+    this.sourceType = WorkOrderSourceType.ariza,
+    this.sourceRecommendationId,
   });
 
   factory WorkOrder.fromJson(Map<String, dynamic> json) {
@@ -169,14 +192,20 @@ class WorkOrder {
           : null,
       equipmentRef: json['equipment_ref'] as String? ?? '',
       equipmentId: json['equipment_id'] as int?,
-      equipmentType: json['equipment_type'] != null ? EquipmentType.fromJson(json['equipment_type'] as String) : null,
+      equipmentType: json['equipment_type'] != null
+          ? EquipmentType.fromJson(json['equipment_type'] as String)
+          : null,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       photos: json['photos'] != null
           ? (json['photos'] as List)
-              .map((p) => WorkOrderPhoto.fromJson(p as Map<String, dynamic>))
-              .toList()
+                .map((p) => WorkOrderPhoto.fromJson(p as Map<String, dynamic>))
+                .toList()
           : const [],
+      sourceType: WorkOrderSourceType.fromJson(
+        json['source_type'] as String? ?? 'ariza',
+      ),
+      sourceRecommendationId: json['source_recommendation_id'] as int?,
     );
   }
 
@@ -216,6 +245,8 @@ class WorkOrder {
       createdAt: createdAt,
       updatedAt: updatedAt,
       photos: photos ?? this.photos,
+      sourceType: sourceType,
+      sourceRecommendationId: sourceRecommendationId,
     );
   }
 }

@@ -2,10 +2,10 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/equipment.dart';
-import '../../models/equipment_risk.dart';
 import '../../models/meter_anomaly.dart';
 import '../../providers/anomaly_provider.dart';
 import '../../providers/equipment_provider.dart';
+import '../../providers/maintenance_provider.dart';
 import '../../providers/risk_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -13,6 +13,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/maintenance_recommendation_card.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 import '../work_order_detail_screen.dart';
@@ -40,6 +41,11 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
       provider.fetchEquipmentDetail(widget.equipmentId);
       provider.fetchEquipmentHistory(widget.equipmentId);
       context.read<RiskProvider>().fetchEquipmentRisk(widget.equipmentId);
+      // Kestirimci Bakım Planlama (Modül 12) — bu ekipman için bekleyen bir
+      // öneri varsa bağlam içi kartta göstermek üzere çekilir (bkz. build).
+      context.read<MaintenanceProvider>().fetchRecommendations(
+        statusFilter: 'onerildi',
+      );
     });
   }
 
@@ -55,7 +61,9 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<EquipmentProvider>();
-    final equipment = provider.selectedEquipment?.id == widget.equipmentId ? provider.selectedEquipment : null;
+    final equipment = provider.selectedEquipment?.id == widget.equipmentId
+        ? provider.selectedEquipment
+        : null;
 
     return Scaffold(
       appBar: const AppTopBar(title: 'Ekipman Detayı'),
@@ -68,13 +76,21 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.error_outline, size: 56, color: Theme.of(context).colorScheme.error),
+                    Icon(
+                      Icons.error_outline,
+                      size: 56,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                     const SizedBox(height: AppSpacing.sm + 4),
-                    Text(provider.detailErrorMessage!, textAlign: TextAlign.center),
+                    Text(
+                      provider.detailErrorMessage!,
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: AppSpacing.md),
                     AppButton(
                       label: 'Tekrar Dene',
-                      onPressed: () => provider.fetchEquipmentDetail(widget.equipmentId),
+                      onPressed: () =>
+                          provider.fetchEquipmentDetail(widget.equipmentId),
                     ),
                   ],
                 ),
@@ -88,14 +104,20 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
 
           final riskProvider = context.read<RiskProvider>();
           final anomalyProvider = context.read<AnomalyProvider>();
+          final maintenanceProvider = context.read<MaintenanceProvider>();
           return RefreshIndicator(
             onRefresh: () async {
               await provider.fetchEquipmentDetail(widget.equipmentId);
               await provider.fetchEquipmentHistory(widget.equipmentId);
               await riskProvider.fetchEquipmentRisk(widget.equipmentId);
+              await maintenanceProvider.fetchRecommendations(
+                statusFilter: 'onerildi',
+              );
               if (equipment.equipmentType == EquipmentType.sayac) {
                 await anomalyProvider.fetchEquipmentAnomaly(widget.equipmentId);
-                await anomalyProvider.fetchEquipmentConsumption(widget.equipmentId);
+                await anomalyProvider.fetchEquipmentConsumption(
+                  widget.equipmentId,
+                );
               }
             },
             child: ListView(
@@ -104,10 +126,17 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
               children: [
                 Row(
                   children: [
-                    Icon(equipment.equipmentType.icon, size: 28, color: Theme.of(context).colorScheme.primary),
+                    Icon(
+                      equipment.equipmentType.icon,
+                      size: 28,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
-                      child: Text(equipment.equipmentType.label, style: Theme.of(context).textTheme.headlineMedium),
+                      child: Text(
+                        equipment.equipmentType.label,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
                     ),
                     _EquipmentStatusBadge(status: equipment.status),
                   ],
@@ -115,11 +144,17 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                 const SizedBox(height: AppSpacing.sm),
                 Row(
                   children: [
-                    Icon(Icons.qr_code_2_outlined, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    Icon(
+                      Icons.qr_code_2_outlined,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       equipment.qrCode,
-                      style: AppTextStyles.dataMono(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      style: AppTextStyles.dataMono(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -131,7 +166,11 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _InfoRow(icon: Icons.location_on_outlined, label: 'Konum', value: equipment.locationName),
+                      _InfoRow(
+                        icon: Icons.location_on_outlined,
+                        label: 'Konum',
+                        value: equipment.locationName,
+                      ),
                       _InfoRow(
                         icon: Icons.event_outlined,
                         label: 'Kurulum Tarihi',
@@ -149,12 +188,16 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                       _InfoRow(
                         icon: Icons.factory_outlined,
                         label: 'Üretici',
-                        value: equipment.manufacturer.isNotEmpty ? equipment.manufacturer : 'Bilinmiyor',
+                        value: equipment.manufacturer.isNotEmpty
+                            ? equipment.manufacturer
+                            : 'Bilinmiyor',
                       ),
                       _InfoRow(
                         icon: Icons.settings_outlined,
                         label: 'Kapasite',
-                        value: equipment.capacityInfo?.isNotEmpty == true ? equipment.capacityInfo! : '—',
+                        value: equipment.capacityInfo?.isNotEmpty == true
+                            ? equipment.capacityInfo!
+                            : '—',
                       ),
                     ],
                   ),
@@ -168,6 +211,16 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                 ),
                 const SizedBox(height: AppSpacing.md),
 
+                // Kestirimci Bakım Planlama (Modül 12) — bu ekipman için
+                // bekleyen ('onerildi') bir öneri varsa bağlam içi gösterilir;
+                // kullanıcı merkezi Bakım Planlama listesine gitmeden,
+                // doğrudan burada "Önleyici İş Emri Oluştur" aksiyonunu
+                // alabilir. Öneri yoksa hiçbir şey render edilmez (bkz.
+                // _MaintenanceRecommendationSection).
+                _MaintenanceRecommendationSection(
+                  equipmentId: widget.equipmentId,
+                ),
+
                 // Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) — yalnızca
                 // sayaç tipi ekipmanlar için anlamlıdır (bkz. routes/anomaly.js
                 // equipment_type kontrolü). Farklı bir ikon (büyüteç) kullanılır
@@ -176,7 +229,9 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                   _SectionCard(
                     title: 'Tüketim Analizi',
                     icon: Icons.search,
-                    child: _ConsumptionAnalysisSection(equipmentId: widget.equipmentId),
+                    child: _ConsumptionAnalysisSection(
+                      equipmentId: widget.equipmentId,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.md),
                 ],
@@ -208,10 +263,17 @@ class _EquipmentStatusBadge extends StatelessWidget {
     final color = equipmentStatusColor(context, status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(AppRadius.pill)),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
       child: Text(
         status.label,
-        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -221,7 +283,11 @@ class _SectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
   final Widget child;
-  const _SectionCard({required this.title, required this.icon, required this.child});
+  const _SectionCard({
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -231,7 +297,11 @@ class _SectionCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+              Icon(
+                icon,
+                size: 18,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 8),
               Text(title, style: Theme.of(context).textTheme.headlineSmall),
             ],
@@ -248,7 +318,11 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _InfoRow({required this.icon, required this.label, required this.value});
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -262,9 +336,14 @@ class _InfoRow extends StatelessWidget {
           const SizedBox(width: 8),
           SizedBox(
             width: 100,
-            child: Text(label, style: AppTextStyles.caption(color: scheme.onSurfaceVariant)),
+            child: Text(
+              label,
+              style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+            ),
           ),
-          Expanded(child: Text(value, style: TextStyle(color: scheme.onSurface))),
+          Expanded(
+            child: Text(value, style: TextStyle(color: scheme.onSurface)),
+          ),
         ],
       ),
     );
@@ -280,7 +359,9 @@ class _HistorySection extends StatelessWidget {
     final provider = context.watch<EquipmentProvider>();
     final scheme = Theme.of(context).colorScheme;
 
-    if (provider.isHistoryLoading && provider.history.isEmpty && provider.historyErrorMessage == null) {
+    if (provider.isHistoryLoading &&
+        provider.history.isEmpty &&
+        provider.historyErrorMessage == null) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
         child: Center(child: CircularProgressIndicator()),
@@ -291,7 +372,10 @@ class _HistorySection extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(provider.historyErrorMessage!, style: TextStyle(color: scheme.error)),
+          Text(
+            provider.historyErrorMessage!,
+            style: TextStyle(color: scheme.error),
+          ),
           const SizedBox(height: AppSpacing.sm),
           AppButton(
             label: 'Tekrar Dene',
@@ -330,17 +414,6 @@ class _RiskAnalysisSection extends StatelessWidget {
   final int equipmentId;
   const _RiskAnalysisSection({required this.equipmentId});
 
-  Color _colorFor(BuildContext context, RiskLevel level) {
-    switch (level) {
-      case RiskLevel.dusuk:
-        return AppColors.success(context);
-      case RiskLevel.orta:
-        return AppColors.warning(context);
-      case RiskLevel.yuksek:
-        return AppColors.danger(context);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<RiskProvider>();
@@ -374,7 +447,7 @@ class _RiskAnalysisSection extends StatelessWidget {
       );
     }
 
-    final color = _colorFor(context, risk.riskLevel);
+    final color = riskLevelColor(context, risk.riskLevel);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,7 +459,11 @@ class _RiskAnalysisSection extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           child: Text(
             '${risk.riskScore}',
-            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
         const SizedBox(width: AppSpacing.md),
@@ -396,7 +473,11 @@ class _RiskAnalysisSection extends StatelessWidget {
             children: [
               Text(
                 risk.riskLevel.label,
-                style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 16),
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
@@ -406,6 +487,31 @@ class _RiskAnalysisSection extends StatelessWidget {
             ],
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// Kestirimci Bakım Planlama (Modül 12) — bu ekipman için bekleyen bir öneri
+/// varsa AYNI [MaintenanceRecommendationCard] bileşenini (Bakım Planlama
+/// listesiyle paylaşılan) gösterir; yoksa hiçbir şey render etmez (SizedBox.shrink) —
+/// spec gereği bu kart yalnızca KOŞULLU görünür, boş bir "öneri yok" durumu
+/// göstermez (o zaten merkezi listede ele alınıyor).
+class _MaintenanceRecommendationSection extends StatelessWidget {
+  final int equipmentId;
+  const _MaintenanceRecommendationSection({required this.equipmentId});
+
+  @override
+  Widget build(BuildContext context) {
+    final recommendation = context
+        .watch<MaintenanceProvider>()
+        .recommendationForEquipment(equipmentId);
+    if (recommendation == null) return const SizedBox.shrink();
+
+    return Column(
+      children: [
+        MaintenanceRecommendationCard(recommendation: recommendation),
+        const SizedBox(height: AppSpacing.md),
       ],
     );
   }
@@ -424,10 +530,12 @@ class _ConsumptionAnalysisSection extends StatefulWidget {
   const _ConsumptionAnalysisSection({required this.equipmentId});
 
   @override
-  State<_ConsumptionAnalysisSection> createState() => _ConsumptionAnalysisSectionState();
+  State<_ConsumptionAnalysisSection> createState() =>
+      _ConsumptionAnalysisSectionState();
 }
 
-class _ConsumptionAnalysisSectionState extends State<_ConsumptionAnalysisSection> {
+class _ConsumptionAnalysisSectionState
+    extends State<_ConsumptionAnalysisSection> {
   @override
   void initState() {
     super.initState();
@@ -444,7 +552,9 @@ class _ConsumptionAnalysisSectionState extends State<_ConsumptionAnalysisSection
     final anomaly = provider.anomalyFor(widget.equipmentId);
     final isAnomalyLoading = provider.isAnomalyLoading(widget.equipmentId);
     final consumption = provider.consumptionFor(widget.equipmentId);
-    final isConsumptionLoading = provider.isConsumptionLoading(widget.equipmentId);
+    final isConsumptionLoading = provider.isConsumptionLoading(
+      widget.equipmentId,
+    );
     final scheme = Theme.of(context).colorScheme;
 
     if (isAnomalyLoading && anomaly == null) {
@@ -459,7 +569,8 @@ class _ConsumptionAnalysisSectionState extends State<_ConsumptionAnalysisSection
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            provider.anomalyErrorMessage ?? 'Tüketim analizi henüz hesaplanmadı.',
+            provider.anomalyErrorMessage ??
+                'Tüketim analizi henüz hesaplanmadı.',
             style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -473,7 +584,9 @@ class _ConsumptionAnalysisSectionState extends State<_ConsumptionAnalysisSection
       );
     }
 
-    final color = anomaly.isSuspicious ? AppColors.danger(context) : AppColors.success(context);
+    final color = anomaly.isSuspicious
+        ? AppColors.danger(context)
+        : AppColors.success(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -488,7 +601,11 @@ class _ConsumptionAnalysisSectionState extends State<_ConsumptionAnalysisSection
               decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               child: Text(
                 '${anomaly.anomalyScore}',
-                style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -498,12 +615,19 @@ class _ConsumptionAnalysisSectionState extends State<_ConsumptionAnalysisSection
                 children: [
                   Text(
                     anomaly.isSuspicious ? 'Şüpheli Tüketim' : 'Normal Tüketim',
-                    style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 16),
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    anomaly.detectedReason ?? 'Tüketim örüntüsü, model tarafından normal aralıkta değerlendirildi.',
-                    style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                    anomaly.detectedReason ??
+                        'Tüketim örüntüsü, model tarafından normal aralıkta değerlendirildi.',
+                    style: AppTextStyles.caption(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -519,7 +643,10 @@ class _ConsumptionAnalysisSectionState extends State<_ConsumptionAnalysisSection
         else if (consumption != null && consumption.isNotEmpty)
           _ConsumptionChart(entries: consumption, lineColor: color)
         else if (provider.consumptionErrorMessage != null)
-          Text(provider.consumptionErrorMessage!, style: TextStyle(color: scheme.error)),
+          Text(
+            provider.consumptionErrorMessage!,
+            style: TextStyle(color: scheme.error),
+          ),
       ],
     );
   }
@@ -535,7 +662,9 @@ class _ConsumptionChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final maxY = entries.map((e) => e.consumptionKwh).fold<double>(0, (max, v) => v > max ? v : max);
+    final maxY = entries
+        .map((e) => e.consumptionKwh)
+        .fold<double>(0, (max, v) => v > max ? v : max);
 
     return SizedBox(
       height: 160,
@@ -546,21 +675,36 @@ class _ConsumptionChart extends StatelessWidget {
           gridData: const FlGridData(show: false),
           borderData: FlBorderData(show: false),
           titlesData: FlTitlesData(
-            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            topTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            rightTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
             bottomTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
                 interval: 3,
                 getTitlesWidget: (value, meta) {
                   final index = value.toInt();
-                  if (index < 0 || index >= entries.length) return const SizedBox.shrink();
+                  if (index < 0 || index >= entries.length)
+                    return const SizedBox.shrink();
                   final parts = entries[index].yearMonth.split('-');
-                  final label = parts.length == 2 ? '${parts[1]}/${parts[0].substring(2)}' : entries[index].yearMonth;
+                  final label = parts.length == 2
+                      ? '${parts[1]}/${parts[0].substring(2)}'
+                      : entries[index].yearMonth;
                   return Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Text(label, style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant)),
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
                   );
                 },
               ),
@@ -569,13 +713,17 @@ class _ConsumptionChart extends StatelessWidget {
           lineBarsData: [
             LineChartBarData(
               spots: [
-                for (int i = 0; i < entries.length; i++) FlSpot(i.toDouble(), entries[i].consumptionKwh),
+                for (int i = 0; i < entries.length; i++)
+                  FlSpot(i.toDouble(), entries[i].consumptionKwh),
               ],
               isCurved: true,
               color: lineColor,
               barWidth: 3,
               dotData: const FlDotData(show: true),
-              belowBarData: BarAreaData(show: true, color: lineColor.withValues(alpha: 0.12)),
+              belowBarData: BarAreaData(
+                show: true,
+                color: lineColor.withValues(alpha: 0.12),
+              ),
             ),
           ],
         ),
@@ -601,7 +749,9 @@ class _HistoryRow extends StatelessWidget {
   Future<void> _openDetail(BuildContext context) async {
     final equipmentProvider = context.read<EquipmentProvider>();
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => WorkOrderDetailScreen(workOrderId: entry.id)),
+      MaterialPageRoute(
+        builder: (_) => WorkOrderDetailScreen(workOrderId: entry.id),
+      ),
     );
     await equipmentProvider.fetchEquipmentDetail(equipmentId);
     await equipmentProvider.fetchEquipmentHistory(equipmentId);
@@ -624,7 +774,10 @@ class _HistoryRow extends StatelessWidget {
                 children: [
                   Text(
                     entry.title,
-                    style: TextStyle(fontWeight: FontWeight.w600, color: scheme.onSurface),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurface,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -635,7 +788,9 @@ class _HistoryRow extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         formatRelativeTime(entry.createdAt),
-                        style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                        style: AppTextStyles.caption(
+                          color: scheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -643,7 +798,11 @@ class _HistoryRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(Icons.arrow_forward_ios, size: 14, color: scheme.onSurfaceVariant),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 14,
+              color: scheme.onSurfaceVariant,
+            ),
           ],
         ),
       ),

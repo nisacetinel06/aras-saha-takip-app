@@ -10,6 +10,7 @@ import '../models/description_classification.dart';
 import '../models/equipment.dart';
 import '../models/equipment_risk.dart';
 import '../models/isg_report.dart';
+import '../models/maintenance_recommendation.dart';
 import '../models/managed_device.dart';
 import '../models/meter_anomaly.dart';
 import '../models/work_order.dart';
@@ -74,13 +75,21 @@ class ApiService {
   }
 
   Future<http.Response> _post(Uri uri, {Object? body}) async {
-    final response = await http.post(uri, headers: _headers(json: body != null), body: body);
+    final response = await http.post(
+      uri,
+      headers: _headers(json: body != null),
+      body: body,
+    );
     _reportIfUnauthorized(response);
     return response;
   }
 
   Future<http.Response> _patch(Uri uri, {Object? body}) async {
-    final response = await http.patch(uri, headers: _headers(json: body != null), body: body);
+    final response = await http.patch(
+      uri,
+      headers: _headers(json: body != null),
+      body: body,
+    );
     _reportIfUnauthorized(response);
     return response;
   }
@@ -109,7 +118,9 @@ class ApiService {
       );
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Sicil no veya şifre hatalı.'));
+        throw ApiException(
+          _extractError(response, 'Sicil no veya şifre hatalı.'),
+        );
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -132,7 +143,10 @@ class ApiService {
   Future<AssignedUser> getMe(String token) async {
     try {
       final uri = Uri.parse('$baseUrl/auth/me');
-      final response = await http.get(uri, headers: {'Authorization': 'Bearer $token'});
+      final response = await http.get(
+        uri,
+        headers: {'Authorization': 'Bearer $token'},
+      );
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Oturum geçersiz.'));
@@ -175,7 +189,9 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Harita verileri alınamadı.'));
+        throw ApiException(
+          _extractError(response, 'Harita verileri alınamadı.'),
+        );
       }
 
       final List<dynamic> data = jsonDecode(response.body);
@@ -193,7 +209,9 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'İş emri detayı alınamadı.'));
+        throw ApiException(
+          _extractError(response, 'İş emri detayı alınamadı.'),
+        );
       }
 
       return WorkOrder.fromJson(jsonDecode(response.body));
@@ -207,7 +225,10 @@ class ApiService {
   Future<WorkOrder> updateStatus(int id, String newStatus) async {
     try {
       final uri = Uri.parse('$baseUrl/workorders/$id/status');
-      final response = await _patch(uri, body: jsonEncode({'status': newStatus}));
+      final response = await _patch(
+        uri,
+        body: jsonEncode({'status': newStatus}),
+      );
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Durum güncellenemedi.'));
@@ -227,10 +248,15 @@ class ApiService {
   Future<WorkOrder> assignWorkOrder(int id, int assignedUserId) async {
     try {
       final uri = Uri.parse('$baseUrl/workorders/$id/assign');
-      final response = await _patch(uri, body: jsonEncode({'assigned_user_id': assignedUserId}));
+      final response = await _patch(
+        uri,
+        body: jsonEncode({'assigned_user_id': assignedUserId}),
+      );
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'İş emri ataması değiştirilemedi.'));
+        throw ApiException(
+          _extractError(response, 'İş emri ataması değiştirilemedi.'),
+        );
       }
 
       return WorkOrder.fromJson(jsonDecode(response.body));
@@ -289,19 +315,22 @@ class ApiService {
       final uri = Uri.parse('$baseUrl/workorders/$id/photos');
       final bytes = await imageFile.readAsBytes();
       final detectedMime = lookupMimeType(imageFile.path, headerBytes: bytes);
-      final mimeType = (detectedMime != null && detectedMime.startsWith('image/'))
+      final mimeType =
+          (detectedMime != null && detectedMime.startsWith('image/'))
           ? detectedMime
           : 'image/jpeg';
       final filename = imageFile.path.split(Platform.pathSeparator).last;
 
       final request = http.MultipartRequest('POST', uri)
         ..headers.addAll(_headers())
-        ..files.add(http.MultipartFile.fromBytes(
-          'photo',
-          bytes,
-          filename: filename,
-          contentType: MediaType.parse(mimeType),
-        ));
+        ..files.add(
+          http.MultipartFile.fromBytes(
+            'photo',
+            bytes,
+            filename: filename,
+            contentType: MediaType.parse(mimeType),
+          ),
+        );
 
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
@@ -324,7 +353,10 @@ class ApiService {
   /// `activeOnly: true` verilirse yalnızca aktif kullanıcılar döner — iş emri
   /// atama/yeniden atama dropdown'larının pasif bir teknisyeni HİÇ göstermemesi
   /// için (bkz. CreateWorkOrderScreen, WorkOrderDetailScreen reassignment).
-  Future<List<AssignedUser>> getUsers({String? roleFilter, bool activeOnly = false}) async {
+  Future<List<AssignedUser>> getUsers({
+    String? roleFilter,
+    bool activeOnly = false,
+  }) async {
     try {
       final uri = Uri.parse('$baseUrl/users').replace(
         queryParameters: {
@@ -361,7 +393,9 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Profil bilgisi alınamadı.'));
+        throw ApiException(
+          _extractError(response, 'Profil bilgisi alınamadı.'),
+        );
       }
 
       return AppUser.fromJson(jsonDecode(response.body));
@@ -401,7 +435,9 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Kullanıcı detayı alınamadı.'));
+        throw ApiException(
+          _extractError(response, 'Kullanıcı detayı alınamadı.'),
+        );
       }
 
       return AppUser.fromJson(jsonDecode(response.body));
@@ -441,7 +477,9 @@ class ApiService {
       );
 
       if (response.statusCode != 201) {
-        throw ApiException(_extractError(response, 'Kullanıcı oluşturulamadı.'));
+        throw ApiException(
+          _extractError(response, 'Kullanıcı oluşturulamadı.'),
+        );
       }
 
       return AppUser.fromJson(jsonDecode(response.body));
@@ -486,7 +524,9 @@ class ApiService {
       );
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Kullanıcı güncellenemedi.'));
+        throw ApiException(
+          _extractError(response, 'Kullanıcı güncellenemedi.'),
+        );
       }
 
       return AppUser.fromJson(jsonDecode(response.body));
@@ -505,26 +545,31 @@ class ApiService {
 
       final bytes = await imageFile.readAsBytes();
       final detectedMime = lookupMimeType(imageFile.path, headerBytes: bytes);
-      final mimeType = (detectedMime != null && detectedMime.startsWith('image/'))
+      final mimeType =
+          (detectedMime != null && detectedMime.startsWith('image/'))
           ? detectedMime
           : 'image/jpeg';
       final filename = imageFile.path.split(Platform.pathSeparator).last;
 
       final request = http.MultipartRequest('POST', uri)
         ..headers.addAll(_headers())
-        ..files.add(http.MultipartFile.fromBytes(
-          'photo',
-          bytes,
-          filename: filename,
-          contentType: MediaType.parse(mimeType),
-        ));
+        ..files.add(
+          http.MultipartFile.fromBytes(
+            'photo',
+            bytes,
+            filename: filename,
+            contentType: MediaType.parse(mimeType),
+          ),
+        );
 
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
       _reportIfUnauthorized(response);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Profil fotoğrafı yüklenemedi.'));
+        throw ApiException(
+          _extractError(response, 'Profil fotoğrafı yüklenemedi.'),
+        );
       }
 
       return AppUser.fromJson(jsonDecode(response.body));
@@ -545,7 +590,9 @@ class ApiService {
       _reportIfUnauthorized(response);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Kullanıcı pasif hale getirilemedi.'));
+        throw ApiException(
+          _extractError(response, 'Kullanıcı pasif hale getirilemedi.'),
+        );
       }
 
       return AppUser.fromJson(jsonDecode(response.body));
@@ -563,7 +610,9 @@ class ApiService {
       final response = await _patch(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Kullanıcı aktif hale getirilemedi.'));
+        throw ApiException(
+          _extractError(response, 'Kullanıcı aktif hale getirilemedi.'),
+        );
       }
 
       return AppUser.fromJson(jsonDecode(response.body));
@@ -581,7 +630,10 @@ class ApiService {
   Future<void> resetUserPassword(int id, String newPassword) async {
     try {
       final uri = Uri.parse('$baseUrl/users/$id/reset-password');
-      final response = await _patch(uri, body: jsonEncode({'password': newPassword}));
+      final response = await _patch(
+        uri,
+        body: jsonEncode({'password': newPassword}),
+      );
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Şifre sıfırlanamadı.'));
@@ -595,7 +647,8 @@ class ApiService {
 
   /// Profil fotoğrafı URL'i — `photo_path` backend'den `/uploads/...` şeklinde
   /// göreli bir yol olarak gelir; sunucu host'uyla birleştirilir (bkz. photoUrl).
-  static String? profilePhotoUrl(String? photoPath) => photoPath != null ? photoUrl(photoPath) : null;
+  static String? profilePhotoUrl(String? photoPath) =>
+      photoPath != null ? photoUrl(photoPath) : null;
 
   /// Dashboard (Modül 2) için özet istatistikleri getirir.
   Future<DashboardSummary> getDashboardSummary() async {
@@ -604,7 +657,9 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Dashboard özeti alınamadı.'));
+        throw ApiException(
+          _extractError(response, 'Dashboard özeti alınamadı.'),
+        );
       }
 
       return DashboardSummary.fromJson(jsonDecode(response.body));
@@ -683,7 +738,10 @@ class ApiService {
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/devices/$id/actions/$actionSlug');
-      final response = await _post(uri, body: body != null ? jsonEncode(body) : null);
+      final response = await _post(
+        uri,
+        body: body != null ? jsonEncode(body) : null,
+      );
 
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, fallbackError));
@@ -699,13 +757,16 @@ class ApiService {
 
   /// Cihazı veritabanında kilitli olarak işaretler. (Gerçek bir cihaza uzaktan
   /// komut gitmez — bkz. DESIGN_SYSTEM.md "Cihaz Yönetimi Modülü" notu.)
-  Future<ManagedDevice> lockDevice(int id) => _performDeviceAction(id, 'lock', 'Cihaz kilitlenemedi.');
+  Future<ManagedDevice> lockDevice(int id) =>
+      _performDeviceAction(id, 'lock', 'Cihaz kilitlenemedi.');
 
   /// Cihazın kilidini veritabanında kaldırır.
-  Future<ManagedDevice> unlockDevice(int id) => _performDeviceAction(id, 'unlock', 'Kilit kaldırılamadı.');
+  Future<ManagedDevice> unlockDevice(int id) =>
+      _performDeviceAction(id, 'unlock', 'Kilit kaldırılamadı.');
 
   /// Cihazı veritabanında "kayıt dışı" (hesap silinmiş) yapar.
-  Future<ManagedDevice> wipeDevice(int id) => _performDeviceAction(id, 'wipe', 'Hesap silinemedi.');
+  Future<ManagedDevice> wipeDevice(int id) =>
+      _performDeviceAction(id, 'wipe', 'Hesap silinemedi.');
 
   /// Senkronizasyonu zorlar. `batteryLevel`/`deviceModel`/`osVersion` verilirse
   /// (yani bu uygulama gerçekten bir fiziksel cihazda çalışıyorsa,
@@ -716,17 +777,16 @@ class ApiService {
     int? batteryLevel,
     String? deviceModel,
     String? osVersion,
-  }) =>
-      _performDeviceAction(
-        id,
-        'force-sync',
-        'Senkronizasyon zorlanamadı.',
-        body: {
-          'battery_level': ?batteryLevel,
-          'device_model': ?deviceModel,
-          'os_version': ?osVersion,
-        },
-      );
+  }) => _performDeviceAction(
+    id,
+    'force-sync',
+    'Senkronizasyon zorlanamadı.',
+    body: {
+      'battery_level': ?batteryLevel,
+      'device_model': ?deviceModel,
+      'os_version': ?osVersion,
+    },
+  );
 
   // --- Ekipman / Envanter (QR Kod) — Modül 4 ---
   // Bu verinin veritabanı şeması (install_date, last_maintenance_date vb.)
@@ -750,7 +810,8 @@ class ApiService {
           if (typeFilter != null) 'type': typeFilter,
           if (statusFilter != null) 'status': statusFilter,
           if (ilFilter != null) 'il': ilFilter,
-          if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+          if (search != null && search.trim().isNotEmpty)
+            'search': search.trim(),
         },
       );
       final response = await _get(uri);
@@ -773,11 +834,15 @@ class ApiService {
   /// bulunamadı." mesajı döner; bu mesaj olduğu gibi ApiException'a taşınır.
   Future<Equipment> getEquipmentByQr(String qrCode) async {
     try {
-      final uri = Uri.parse('$baseUrl/equipment/qr/${Uri.encodeComponent(qrCode)}');
+      final uri = Uri.parse(
+        '$baseUrl/equipment/qr/${Uri.encodeComponent(qrCode)}',
+      );
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Bu QR koda ait ekipman bulunamadı.'));
+        throw ApiException(
+          _extractError(response, 'Bu QR koda ait ekipman bulunamadı.'),
+        );
       }
 
       return Equipment.fromJson(jsonDecode(response.body));
@@ -795,7 +860,9 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Ekipman detayı alınamadı.'));
+        throw ApiException(
+          _extractError(response, 'Ekipman detayı alınamadı.'),
+        );
       }
 
       return Equipment.fromJson(jsonDecode(response.body));
@@ -813,7 +880,9 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Ekipman geçmişi alınamadı.'));
+        throw ApiException(
+          _extractError(response, 'Ekipman geçmişi alınamadı.'),
+        );
       }
 
       final List<dynamic> data = jsonDecode(response.body);
@@ -853,13 +922,15 @@ class ApiService {
   /// sırayla ilk `limit` ekipmanı getirir.
   Future<List<RiskyEquipmentSummary>> getRiskyEquipment({int limit = 5}) async {
     try {
-      final uri = Uri.parse('$baseUrl/dashboard/risky-equipment').replace(
-        queryParameters: {'limit': '$limit'},
-      );
+      final uri = Uri.parse(
+        '$baseUrl/dashboard/risky-equipment',
+      ).replace(queryParameters: {'limit': '$limit'});
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Riskli ekipman listesi alınamadı.'));
+        throw ApiException(
+          _extractError(response, 'Riskli ekipman listesi alınamadı.'),
+        );
       }
 
       final List<dynamic> data = jsonDecode(response.body);
@@ -884,7 +955,9 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Şüpheli sayaç listesi alınamadı.'));
+        throw ApiException(
+          _extractError(response, 'Şüpheli sayaç listesi alınamadı.'),
+        );
       }
 
       final List<dynamic> data = jsonDecode(response.body);
@@ -917,13 +990,17 @@ class ApiService {
 
   /// Bir sayacın son 12 aylık ham tüketim geçmişini getirir (Ekipman
   /// Detayı'ndaki fl_chart grafiği için).
-  Future<List<MeterConsumptionEntry>> getEquipmentConsumption(int equipmentId) async {
+  Future<List<MeterConsumptionEntry>> getEquipmentConsumption(
+    int equipmentId,
+  ) async {
     try {
       final uri = Uri.parse('$baseUrl/equipment/$equipmentId/consumption');
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Tüketim geçmişi alınamadı.'));
+        throw ApiException(
+          _extractError(response, 'Tüketim geçmişi alınamadı.'),
+        );
       }
 
       final List<dynamic> data = jsonDecode(response.body);
@@ -948,7 +1025,9 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'İSG bildirimleri alınamadı.'));
+        throw ApiException(
+          _extractError(response, 'İSG bildirimleri alınamadı.'),
+        );
       }
 
       final List<dynamic> data = jsonDecode(response.body);
@@ -966,7 +1045,9 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'İSG bildirimi detayı alınamadı.'));
+        throw ApiException(
+          _extractError(response, 'İSG bildirimi detayı alınamadı.'),
+        );
       }
 
       return IsgReport.fromJson(jsonDecode(response.body));
@@ -999,7 +1080,8 @@ class ApiService {
 
       final bytes = await photo.readAsBytes();
       final detectedMime = lookupMimeType(photo.path, headerBytes: bytes);
-      final mimeType = (detectedMime == 'image/jpeg' || detectedMime == 'image/png')
+      final mimeType =
+          (detectedMime == 'image/jpeg' || detectedMime == 'image/png')
           ? detectedMime!
           : 'image/jpeg';
       final filename = photo.path.split(Platform.pathSeparator).last;
@@ -1010,12 +1092,14 @@ class ApiService {
         ..fields['category'] = category.toJson()
         ..fields['lat'] = '$lat'
         ..fields['lng'] = '$lng'
-        ..files.add(http.MultipartFile.fromBytes(
-          'photo',
-          bytes,
-          filename: filename,
-          contentType: MediaType.parse(mimeType),
-        ));
+        ..files.add(
+          http.MultipartFile.fromBytes(
+            'photo',
+            bytes,
+            filename: filename,
+            contentType: MediaType.parse(mimeType),
+          ),
+        );
 
       if (locationName != null && locationName.trim().isNotEmpty) {
         request.fields['location_name'] = locationName.trim();
@@ -1026,7 +1110,9 @@ class ApiService {
       _reportIfUnauthorized(response);
 
       if (response.statusCode != 201) {
-        throw ApiException(_extractError(response, 'İSG bildirimi gönderilemedi.'));
+        throw ApiException(
+          _extractError(response, 'İSG bildirimi gönderilemedi.'),
+        );
       }
 
       return IsgReport.fromJson(jsonDecode(response.body));
@@ -1037,19 +1123,26 @@ class ApiService {
     }
   }
 
-  Future<IsgReport> updateIsgReportStatus(int id, IsgStatus newStatus, {String? reviewerNote}) async {
+  Future<IsgReport> updateIsgReportStatus(
+    int id,
+    IsgStatus newStatus, {
+    String? reviewerNote,
+  }) async {
     try {
       final uri = Uri.parse('$baseUrl/isg-reports/$id/status');
       final response = await _patch(
         uri,
         body: jsonEncode({
           'status': newStatus.toJson(),
-          if (reviewerNote != null && reviewerNote.trim().isNotEmpty) 'reviewer_note': reviewerNote.trim(),
+          if (reviewerNote != null && reviewerNote.trim().isNotEmpty)
+            'reviewer_note': reviewerNote.trim(),
         }),
       );
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'İSG bildirimi durumu güncellenemedi.'));
+        throw ApiException(
+          _extractError(response, 'İSG bildirimi durumu güncellenemedi.'),
+        );
       }
 
       return IsgReport.fromJson(jsonDecode(response.body));
@@ -1065,11 +1158,13 @@ class ApiService {
   // tarafından hem periyodik yoklama (unread-count, her 30 sn) hem de
   // Bildirimler ekranının tam listesi için kullanılır (bkz. ARCHITECTURE.md).
 
-  Future<List<AppNotification>> getNotifications({bool unreadOnly = false}) async {
+  Future<List<AppNotification>> getNotifications({
+    bool unreadOnly = false,
+  }) async {
     try {
-      final uri = Uri.parse('$baseUrl/notifications').replace(
-        queryParameters: unreadOnly ? {'unread_only': 'true'} : null,
-      );
+      final uri = Uri.parse(
+        '$baseUrl/notifications',
+      ).replace(queryParameters: unreadOnly ? {'unread_only': 'true'} : null);
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
@@ -1092,7 +1187,9 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Okunmamış bildirim sayısı alınamadı.'));
+        throw ApiException(
+          _extractError(response, 'Okunmamış bildirim sayısı alınamadı.'),
+        );
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -1110,7 +1207,9 @@ class ApiService {
       final response = await _patch(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Bildirim okundu olarak işaretlenemedi.'));
+        throw ApiException(
+          _extractError(response, 'Bildirim okundu olarak işaretlenemedi.'),
+        );
       }
 
       return AppNotification.fromJson(jsonDecode(response.body));
@@ -1127,7 +1226,9 @@ class ApiService {
       final response = await _patch(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Bildirimler okundu olarak işaretlenemedi.'));
+        throw ApiException(
+          _extractError(response, 'Bildirimler okundu olarak işaretlenemedi.'),
+        );
       }
     } on ApiException {
       rethrow;
@@ -1145,16 +1246,148 @@ class ApiService {
   /// kapalıysa ya da metin çok kısaysa/güven düşükse backend zaten
   /// `suggested_type: null` döner — bu durumda çağıran taraf öneri kutusunu
   /// hiç göstermemelidir (bkz. DescriptionClassification.hasSuggestion).
-  Future<DescriptionClassification> classifyDescription(String description) async {
+  Future<DescriptionClassification> classifyDescription(
+    String description,
+  ) async {
     try {
       final uri = Uri.parse('$baseUrl/ml/classify-description');
-      final response = await _post(uri, body: jsonEncode({'description': description}));
+      final response = await _post(
+        uri,
+        body: jsonEncode({'description': description}),
+      );
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Açıklama sınıflandırılamadı.'));
+        throw ApiException(
+          _extractError(response, 'Açıklama sınıflandırılamadı.'),
+        );
       }
 
       return DescriptionClassification.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  // --- Kestirimci Bakım Planlama — Modül 12 ---
+  // AYRIM: Bu modül bir ML modeli İÇERMEZ. Modül 9'un ürettiği risk_score,
+  // backend'de (routes/maintenance.js) SABİT eşiklerle bir bakım önerisine
+  // çevrilir — burası yalnızca o iş kuralının sonucunu okuyan/tetikleyen bir
+  // HTTP istemcisidir (Modül 9'daki risk skoru çağrılarıyla aynı desen).
+
+  /// POST /api/maintenance/refresh-recommendations — yalnızca yönetici.
+  /// Modül 9'un güncel risk skorlarını okuyup önerileri yeniden hesaplar.
+  /// ÇOĞALTMA YOK: aynı ekipman için zaten bekleyen bir öneri varsa backend
+  /// yeni bir satır AÇMAZ, yalnızca günceller (bkz. routes/maintenance.js).
+  Future<({int created, int updated, int skipped})>
+  refreshMaintenanceRecommendations() async {
+    try {
+      final uri = Uri.parse('$baseUrl/maintenance/refresh-recommendations');
+      final response = await _post(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'Bakım önerileri yeniden hesaplanamadı.'),
+        );
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return (
+        created: data['created'] as int,
+        updated: data['updated'] as int,
+        skipped: data['skipped'] as int,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// GET /api/maintenance/recommendations?status=&urgency= — giriş yapmış herkes.
+  Future<List<MaintenanceRecommendation>> getMaintenanceRecommendations({
+    String? statusFilter,
+    String? urgencyFilter,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/maintenance/recommendations').replace(
+        queryParameters: {
+          if (statusFilter != null) 'status': statusFilter,
+          if (urgencyFilter != null) 'urgency': urgencyFilter,
+        },
+      );
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'Bakım önerileri alınamadı.'),
+        );
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data
+          .map((json) => MaintenanceRecommendation.fromJson(json))
+          .toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// POST /api/maintenance/recommendations/:id/create-work-order — dispeçer/
+  /// yönetici. Öneriyi gerçek bir iş emrine dönüştürür (source_type=
+  /// 'onleyici_bakim'); `priority` verilmezse backend urgency_level'dan türetir.
+  Future<WorkOrder> createWorkOrderFromRecommendation(
+    int recommendationId, {
+    int? assignedUserId,
+    String? priority,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/maintenance/recommendations/$recommendationId/create-work-order',
+      );
+      final response = await _post(
+        uri,
+        body: jsonEncode({
+          if (assignedUserId != null) 'assigned_user_id': assignedUserId,
+          if (priority != null) 'priority': priority,
+        }),
+      );
+
+      if (response.statusCode != 201) {
+        throw ApiException(
+          _extractError(response, 'Önleyici iş emri oluşturulamadı.'),
+        );
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return WorkOrder.fromJson(data['work_order'] as Map<String, dynamic>);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// PATCH /api/maintenance/recommendations/:id/dismiss — dispeçer/yönetici.
+  Future<MaintenanceRecommendation> dismissMaintenanceRecommendation(
+    int recommendationId,
+  ) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/maintenance/recommendations/$recommendationId/dismiss',
+      );
+      final response = await _patch(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'Bakım önerisi reddedilemedi.'),
+        );
+      }
+
+      return MaintenanceRecommendation.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
     } catch (e) {

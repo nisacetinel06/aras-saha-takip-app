@@ -238,3 +238,7 @@ router.get('/dashboard/risky-equipment', requireRole('yonetici'), (req, res) => 
 
 module.exports = router;
 module.exports.refreshAllRiskScores = refreshAllRiskScores;
+// Modül 12 (Kestirimci Bakım Planlama) öneri gerekçesi metninde ("son
+// bakımdan bu yana X ay geçmiş") AYNI hesaplamayı tekrar yazmak yerine
+// burada zaten var olanı yeniden kullanır — bkz. routes/maintenance.js.
+module.exports.calculateMonthsSinceMaintenance = calculateMonthsSinceMaintenance;

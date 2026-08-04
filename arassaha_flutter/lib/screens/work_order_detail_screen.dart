@@ -4,8 +4,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/equipment.dart' show EquipmentType;
+import '../models/equipment_risk.dart' show RiskLevel;
 import '../models/work_order.dart';
 import '../providers/auth_provider.dart';
+import '../providers/maintenance_provider.dart';
+import '../providers/risk_provider.dart';
 import '../providers/work_order_detail_provider.dart';
 import '../services/api_service.dart';
 import '../theme/app_spacing.dart';
@@ -50,11 +53,18 @@ class _WorkOrderDetailBody extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.error_outline, size: 56, color: Theme.of(context).colorScheme.error),
+                    Icon(
+                      Icons.error_outline,
+                      size: 56,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                     const SizedBox(height: 12),
                     Text(provider.errorMessage!, textAlign: TextAlign.center),
                     const SizedBox(height: 16),
-                    AppButton(label: 'Tekrar Dene', onPressed: provider.loadDetail),
+                    AppButton(
+                      label: 'Tekrar Dene',
+                      onPressed: provider.loadDetail,
+                    ),
                   ],
                 ),
               ),
@@ -68,7 +78,10 @@ class _WorkOrderDetailBody extends StatelessWidget {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
               children: [
-                Text(workOrder.title, style: Theme.of(context).textTheme.headlineMedium),
+                Text(
+                  workOrder.title,
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 8,
@@ -92,11 +105,15 @@ class _WorkOrderDetailBody extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _InfoRow(icon: Icons.place_outlined, text: workOrder.locationName),
+                      _InfoRow(
+                        icon: Icons.place_outlined,
+                        text: workOrder.locationName,
+                      ),
                       const SizedBox(height: 4),
                       _InfoRow(
                         icon: Icons.map_outlined,
-                        text: 'Lat: ${workOrder.lat.toStringAsFixed(5)}, Lng: ${workOrder.lng.toStringAsFixed(5)}',
+                        text:
+                            'Lat: ${workOrder.lat.toStringAsFixed(5)}, Lng: ${workOrder.lng.toStringAsFixed(5)}',
                         mono: true,
                       ),
                       const SizedBox(height: 10),
@@ -104,7 +121,8 @@ class _WorkOrderDetailBody extends StatelessWidget {
                         label: 'Haritada Aç',
                         icon: Icons.directions_outlined,
                         variant: AppButtonVariant.secondary,
-                        onPressed: () => _openInMaps(context, workOrder.lat, workOrder.lng),
+                        onPressed: () =>
+                            _openInMaps(context, workOrder.lat, workOrder.lng),
                       ),
                     ],
                   ),
@@ -125,13 +143,17 @@ class _WorkOrderDetailBody extends StatelessWidget {
                           children: [
                             Text(
                               workOrder.assignedUser?.name ?? 'Henüz atanmadı',
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             if (workOrder.assignedUser != null)
                               Text(
                                 workOrder.assignedUser!.role,
                                 style: TextStyle(
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                   fontSize: 12,
                                 ),
                               ),
@@ -147,7 +169,9 @@ class _WorkOrderDetailBody extends StatelessWidget {
                                       borderRadius: BorderRadius.circular(6),
                                       onTap: () => Navigator.of(context).push(
                                         MaterialPageRoute(
-                                          builder: (_) => EquipmentDetailScreen(equipmentId: workOrder.equipmentId!),
+                                          builder: (_) => EquipmentDetailScreen(
+                                            equipmentId: workOrder.equipmentId!,
+                                          ),
                                         ),
                                       ),
                                       child: _EquipmentChip(
@@ -155,7 +179,23 @@ class _WorkOrderDetailBody extends StatelessWidget {
                                         type: workOrder.equipmentType,
                                       ),
                                     )
-                                  : _EquipmentChip(code: workOrder.equipmentRef, type: workOrder.equipmentType),
+                                  : _EquipmentChip(
+                                      code: workOrder.equipmentRef,
+                                      type: workOrder.equipmentType,
+                                    ),
+                              // Kestirimci Bakım Planlama (Modül 12) bağlamı:
+                              // bu bir ARIZA iş emri ise (önleyici bakımdan
+                              // dönüştürülmüş bir iş emri zaten kendisi bir
+                              // öneriyi temsil ettiği için burada tekrar
+                              // gösterilmez), bağlı ekipmanın risk skoruna göre
+                              // neden bir bakım önerisi olup olmadığını açıklayan
+                              // küçük bir not gösterilir.
+                              if (workOrder.equipmentId != null &&
+                                  workOrder.sourceType ==
+                                      WorkOrderSourceType.ariza)
+                                _RiskContextNote(
+                                  equipmentId: workOrder.equipmentId!,
+                                ),
                             ],
                           ],
                         ),
@@ -166,7 +206,8 @@ class _WorkOrderDetailBody extends StatelessWidget {
                         IconButton(
                           tooltip: 'Atanan Kişiyi Değiştir',
                           icon: const Icon(Icons.edit_outlined, size: 20),
-                          onPressed: () => _showReassignSheet(context, workOrder),
+                          onPressed: () =>
+                              _showReassignSheet(context, workOrder),
                         ),
                     ],
                   ),
@@ -198,17 +239,25 @@ class _WorkOrderDetailBody extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) => _ReassignSheet(provider: provider, currentAssignedUserId: workOrder.assignedUser?.id),
+      builder: (sheetContext) => _ReassignSheet(
+        provider: provider,
+        currentAssignedUserId: workOrder.assignedUser?.id,
+      ),
     );
   }
 
   Future<void> _openInMaps(BuildContext context, double lat, double lng) async {
     final messenger = ScaffoldMessenger.of(context);
     final geoUri = Uri.parse('geo:$lat,$lng?q=$lat,$lng');
-    final webUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+    final webUri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=$lat,$lng',
+    );
 
     try {
-      final opened = await launchUrl(geoUri, mode: LaunchMode.externalApplication);
+      final opened = await launchUrl(
+        geoUri,
+        mode: LaunchMode.externalApplication,
+      );
       if (!opened) {
         await launchUrl(webUri, mode: LaunchMode.externalApplication);
       }
@@ -225,7 +274,11 @@ class _SectionCard extends StatelessWidget {
   final IconData icon;
   final Widget child;
 
-  const _SectionCard({required this.title, required this.icon, required this.child});
+  const _SectionCard({
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +288,11 @@ class _SectionCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+              Icon(
+                icon,
+                size: 18,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 8),
               Text(title, style: Theme.of(context).textTheme.headlineSmall),
             ],
@@ -260,7 +317,9 @@ class _QuoteBox extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.04) : scheme.surfaceContainerLow,
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.04)
+            : scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(10),
         border: Border(left: BorderSide(color: scheme.primary, width: 3)),
       ),
@@ -287,15 +346,115 @@ class _EquipmentChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(type?.icon ?? Icons.qr_code_2_outlined, size: 14, color: scheme.onSurfaceVariant),
+          Icon(
+            type?.icon ?? Icons.qr_code_2_outlined,
+            size: 14,
+            color: scheme.onSurfaceVariant,
+          ),
           const SizedBox(width: 4),
           if (type != null) ...[
-            Text(type!.label, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
+            Text(
+              type!.label,
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(width: 4),
-            Text('·', style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+            Text(
+              '·',
+              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+            ),
             const SizedBox(width: 4),
           ],
-          Text(code, style: AppTextStyles.dataMono(color: scheme.onSurfaceVariant).copyWith(fontSize: 12)),
+          Text(
+            code,
+            style: AppTextStyles.dataMono(
+              color: scheme.onSurfaceVariant,
+            ).copyWith(fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _riskAdjective(RiskLevel level) {
+  switch (level) {
+    case RiskLevel.dusuk:
+      return 'düşük';
+    case RiskLevel.orta:
+      return 'orta';
+    case RiskLevel.yuksek:
+      return 'yüksek';
+  }
+}
+
+/// Kestirimci Bakım Planlama (Modül 12) bağlam notu — "acil" bir ARIZA iş
+/// emrinin bağlı olduğu ekipman için neden bir bakım önerisi olup olmadığını
+/// açıklar. Bu iki kavram KASITLI olarak bağımsızdır: bir iş emrinin önceliği
+/// (dispeçerin seçtiği) ile bağlı ekipmanın risk skoru (Modül 9'un geçmiş
+/// yaş/bakım/arıza verisinden hesapladığı) aynı şey değildir — örn. ani bir
+/// fırtına hasarı "acil" olabilir ama o ekipmanın risk skoru düşük olabilir,
+/// çünkü risk modeli anlık olayları değil yapısal geçmişi öngörür.
+class _RiskContextNote extends StatefulWidget {
+  final int equipmentId;
+  const _RiskContextNote({required this.equipmentId});
+
+  @override
+  State<_RiskContextNote> createState() => _RiskContextNoteState();
+}
+
+class _RiskContextNoteState extends State<_RiskContextNote> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<RiskProvider>().fetchEquipmentRisk(widget.equipmentId);
+      context.read<MaintenanceProvider>().fetchRecommendations(
+        statusFilter: 'onerildi',
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final risk = context.watch<RiskProvider>().riskFor(widget.equipmentId);
+    if (risk == null) return const SizedBox.shrink();
+
+    final hasRecommendation =
+        context.watch<MaintenanceProvider>().recommendationForEquipment(
+          widget.equipmentId,
+        ) !=
+        null;
+    final scheme = Theme.of(context).colorScheme;
+
+    final String text;
+    if (risk.riskLevel == RiskLevel.dusuk) {
+      text =
+          'Bu ekipmanın risk skoru düşük (${risk.riskScore}) — kestirimci bakım önerisi bulunmuyor.';
+    } else if (hasRecommendation) {
+      text =
+          'Bu ekipmanın risk skoru ${_riskAdjective(risk.riskLevel)} (${risk.riskScore}) — bekleyen bir bakım önerisi var.';
+    } else {
+      text =
+          'Bu ekipmanın risk skoru ${_riskAdjective(risk.riskLevel)} (${risk.riskScore}) ancak henüz bir bakım önerisi oluşturulmamış.';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, size: 14, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+          ),
         ],
       ),
     );
@@ -318,7 +477,13 @@ class _InitialsAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: 20,
       backgroundColor: Theme.of(context).colorScheme.primary,
-      child: Text(_initials, style: TextStyle(color: Theme.of(context).colorScheme.onPrimary, fontWeight: FontWeight.bold)),
+      child: Text(
+        _initials,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onPrimary,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 }
@@ -338,7 +503,10 @@ class _InfoRow extends StatelessWidget {
         const SizedBox(width: 6),
         Expanded(
           child: mono
-              ? Text(text, style: AppTextStyles.dataMono(color: scheme.onSurface))
+              ? Text(
+                  text,
+                  style: AppTextStyles.dataMono(color: scheme.onSurface),
+                )
               : Text(text),
         ),
       ],
@@ -356,9 +524,18 @@ class _NextStatusAction {
 }
 
 const _nextStatusActions = <WorkOrderStatus, _NextStatusAction>{
-  WorkOrderStatus.yolda: _NextStatusAction('Yolda', Icons.directions_car_outlined),
-  WorkOrderStatus.sahada: _NextStatusAction('Sahadayım', Icons.location_on_outlined),
-  WorkOrderStatus.cozuldu: _NextStatusAction('Çözüldü', Icons.check_circle_outline),
+  WorkOrderStatus.yolda: _NextStatusAction(
+    'Yolda',
+    Icons.directions_car_outlined,
+  ),
+  WorkOrderStatus.sahada: _NextStatusAction(
+    'Sahadayım',
+    Icons.location_on_outlined,
+  ),
+  WorkOrderStatus.cozuldu: _NextStatusAction(
+    'Çözüldü',
+    Icons.check_circle_outline,
+  ),
 };
 
 class _StatusUpdateSection extends StatelessWidget {
@@ -409,11 +586,19 @@ class _StatusUpdateSection extends StatelessWidget {
               final success = await provider.updateStatus(nextStatus);
               if (success) {
                 messenger.showSnackBar(
-                  SnackBar(content: Text('Durum "${nextStatus.label}" olarak güncellendi.')),
+                  SnackBar(
+                    content: Text(
+                      'Durum "${nextStatus.label}" olarak güncellendi.',
+                    ),
+                  ),
                 );
               } else {
                 messenger.showSnackBar(
-                  SnackBar(content: Text(provider.errorMessage ?? 'Durum güncellenemedi.')),
+                  SnackBar(
+                    content: Text(
+                      provider.errorMessage ?? 'Durum güncellenemedi.',
+                    ),
+                  ),
                 );
               }
             },
@@ -433,15 +618,22 @@ class _PhotoSection extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
     final provider = context.read<WorkOrderDetailProvider>();
 
-    final XFile? file = await picker.pickImage(source: source, imageQuality: 80);
+    final XFile? file = await picker.pickImage(
+      source: source,
+      imageQuality: 80,
+    );
     if (file == null) return;
 
     final success = await provider.addPhoto(File(file.path));
     if (success) {
-      messenger.showSnackBar(const SnackBar(content: Text('Fotoğraf eklendi.')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Fotoğraf eklendi.')),
+      );
     } else {
       messenger.showSnackBar(
-        SnackBar(content: Text(provider.errorMessage ?? 'Fotoğraf eklenemedi.')),
+        SnackBar(
+          content: Text(provider.errorMessage ?? 'Fotoğraf eklenemedi.'),
+        ),
       );
     }
   }
@@ -485,7 +677,10 @@ class _PhotoSection extends StatelessWidget {
         if (workOrder.photos.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text('Henüz fotoğraf eklenmemiş.', style: TextStyle(color: scheme.onSurfaceVariant)),
+            child: Text(
+              'Henüz fotoğraf eklenmemiş.',
+              style: TextStyle(color: scheme.onSurfaceVariant),
+            ),
           )
         else
           GridView.builder(
@@ -520,7 +715,10 @@ class _PhotoSection extends StatelessWidget {
                       );
                     },
                     errorBuilder: (context, error, stackTrace) => Center(
-                      child: Icon(Icons.image_not_supported_outlined, color: scheme.onSurfaceVariant),
+                      child: Icon(
+                        Icons.image_not_supported_outlined,
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ),
@@ -532,7 +730,9 @@ class _PhotoSection extends StatelessWidget {
           label: 'Fotoğraf Ekle',
           icon: Icons.add_a_photo_outlined,
           variant: AppButtonVariant.secondary,
-          onPressed: provider.isUpdating ? null : () => _showSourcePicker(context),
+          onPressed: provider.isUpdating
+              ? null
+              : () => _showSourcePicker(context),
         ),
       ],
     );
@@ -546,7 +746,10 @@ class _PhotoSection extends StatelessWidget {
 class _ReassignSheet extends StatefulWidget {
   final WorkOrderDetailProvider provider;
   final int? currentAssignedUserId;
-  const _ReassignSheet({required this.provider, required this.currentAssignedUserId});
+  const _ReassignSheet({
+    required this.provider,
+    required this.currentAssignedUserId,
+  });
 
   @override
   State<_ReassignSheet> createState() => _ReassignSheetState();
@@ -571,7 +774,10 @@ class _ReassignSheetState extends State<_ReassignSheet> {
       _loadError = null;
     });
     try {
-      final technicians = await ApiService().getUsers(roleFilter: 'teknisyen', activeOnly: true);
+      final technicians = await ApiService().getUsers(
+        roleFilter: 'teknisyen',
+        activeOnly: true,
+      );
       if (!mounted) return;
       AssignedUser? current;
       for (final t in technicians) {
@@ -606,11 +812,19 @@ class _ReassignSheetState extends State<_ReassignSheet> {
     if (success) {
       navigator.pop();
       messenger.showSnackBar(
-        SnackBar(content: Text('İş emri ${_selectedTechnician!.name} kişisine atandı.')),
+        SnackBar(
+          content: Text(
+            'İş emri ${_selectedTechnician!.name} kişisine atandı.',
+          ),
+        ),
       );
     } else {
       messenger.showSnackBar(
-        SnackBar(content: Text(widget.provider.errorMessage ?? 'Atama değiştirilemedi.')),
+        SnackBar(
+          content: Text(
+            widget.provider.errorMessage ?? 'Atama değiştirilemedi.',
+          ),
+        ),
       );
     }
   }
@@ -630,19 +844,37 @@ class _ReassignSheetState extends State<_ReassignSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Atanan Kişiyi Değiştir', style: Theme.of(context).textTheme.headlineSmall),
+          Text(
+            'Atanan Kişiyi Değiştir',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
           const SizedBox(height: AppSpacing.md),
           if (_isLoading)
-            const Center(child: Padding(padding: EdgeInsets.all(AppSpacing.lg), child: CircularProgressIndicator()))
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(AppSpacing.lg),
+                child: CircularProgressIndicator(),
+              ),
+            )
           else if (_loadError != null) ...[
-            Text(_loadError!, style: TextStyle(color: scheme.error, fontSize: 13)),
+            Text(
+              _loadError!,
+              style: TextStyle(color: scheme.error, fontSize: 13),
+            ),
             const SizedBox(height: AppSpacing.sm),
-            AppButton(label: 'Tekrar Dene', variant: AppButtonVariant.secondary, onPressed: _loadTechnicians),
+            AppButton(
+              label: 'Tekrar Dene',
+              variant: AppButtonVariant.secondary,
+              onPressed: _loadTechnicians,
+            ),
           ] else ...[
             DropdownButtonFormField<AssignedUser>(
               initialValue: _selectedTechnician,
               isExpanded: true,
-              decoration: const InputDecoration(hintText: 'Teknisyen seçin', isDense: true),
+              decoration: const InputDecoration(
+                hintText: 'Teknisyen seçin',
+                isDense: true,
+              ),
               items: _technicians
                   .map((t) => DropdownMenuItem(value: t, child: Text(t.name)))
                   .toList(),

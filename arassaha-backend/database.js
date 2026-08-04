@@ -215,6 +215,30 @@ db.exec(`
     FOREIGN KEY (equipment_id) REFERENCES equipment (id)
   );
 
+  -- Kestirimci Bakım Planlama (Modül 12) — bkz. routes/maintenance.js.
+  -- ÖNEMLİ AYRIM: Bu tablo bir ML modelinin çıktısı DEĞİLDİR. Modül 9'un
+  -- ürettiği equipment_risk_scores.risk_score'u okuyup SABİT eşiklerle
+  -- (kural tabanlı) bir bakım önerisine çeviren bir iş mantığı/otomasyon
+  -- katmanıdır — bkz. routes/maintenance.js üstündeki not.
+  -- risk_score_at_creation: önerinin üretildiği/son güncellendiği andaki skor
+  -- (geçmişe dönük "neden önerildi" sorusuna cevap verebilmek için donmuş bir
+  -- kopyadır; equipment_risk_scores güncellenmeye devam etse de bu değişmez).
+  -- related_work_order_id: öneri bir iş emrine dönüştürüldüğünde doldurulur,
+  -- aksi halde NULL kalır.
+  CREATE TABLE IF NOT EXISTS maintenance_recommendations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    equipment_id INTEGER NOT NULL,
+    risk_score_at_creation INTEGER NOT NULL,
+    urgency_level TEXT NOT NULL,
+    recommended_date TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'onerildi',
+    related_work_order_id INTEGER,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (equipment_id) REFERENCES equipment (id),
+    FOREIGN KEY (related_work_order_id) REFERENCES work_orders (id)
+  );
+
   -- Bildirim Sistemi (Modül 6) — bkz. utils/notify.js ve routes/notifications.js.
   -- Gerçek bir push (FCM vb.) altyapısı KURULMADI: bu tablo, Flutter tarafının
   -- periyodik olarak (30 sn) yokladığı (polling) GET /api/notifications/unread-count
@@ -286,6 +310,18 @@ for (const [column, type] of Object.entries(workOrderColumnAdditions)) {
   if (!workOrderColumns.some((col) => col.name === column)) {
     db.exec(`ALTER TABLE work_orders ADD COLUMN ${column} ${type}`);
   }
+}
+
+// Migrasyon: Kestirimci Bakım Planlama (Modül 12) — arıza iş emirlerini
+// önleyici bakım iş emirlerinden ayırt etmek için sonradan eklenen sütunlar.
+// source_type'ı olmayan (yani sütun yeni eklenmiş) TÜM mevcut kayıtlar geriye
+// dönük uyumluluk için 'ariza' kabul edilir — bu proje Modül 12'den önce
+// yalnızca arıza iş emirleri üretiyordu, bu yüzden bu varsayım kesindir.
+const hasSourceType = workOrderColumns.some((col) => col.name === 'source_type');
+if (!hasSourceType) {
+  db.exec("ALTER TABLE work_orders ADD COLUMN source_type TEXT NOT NULL DEFAULT 'ariza'");
+  db.exec("ALTER TABLE work_orders ADD COLUMN source_recommendation_id INTEGER REFERENCES maintenance_recommendations (id)");
+  db.exec("UPDATE work_orders SET source_type = 'ariza' WHERE source_type IS NULL");
 }
 
 module.exports = db;

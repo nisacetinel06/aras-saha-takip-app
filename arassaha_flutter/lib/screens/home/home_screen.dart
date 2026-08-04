@@ -19,14 +19,33 @@ import '../equipment/equipment_home_screen.dart';
 import '../equipment/qr_scanner_screen.dart';
 import '../equipment/suspicious_meters_screen.dart';
 import '../isg/isg_report_list_screen.dart';
+import '../maintenance/maintenance_recommendations_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../work_order_detail_screen.dart';
 import '../work_orders/create_work_order_screen.dart';
 
-const _weekdays = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
+const _weekdays = [
+  'Pazartesi',
+  'Salı',
+  'Çarşamba',
+  'Perşembe',
+  'Cuma',
+  'Cumartesi',
+  'Pazar',
+];
 const _months = [
-  'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-  'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+  'Ocak',
+  'Şubat',
+  'Mart',
+  'Nisan',
+  'Mayıs',
+  'Haziran',
+  'Temmuz',
+  'Ağustos',
+  'Eylül',
+  'Ekim',
+  'Kasım',
+  'Aralık',
 ];
 
 String _formatToday() {
@@ -95,17 +114,21 @@ class _HomeScreenState extends State<HomeScreen> {
     final summary = context.watch<DashboardProvider>().summary;
     final auth = context.watch<AuthProvider>();
     final myProfile = context.watch<UserProvider>().myProfile;
-    final unreadNotifications = context.watch<NotificationProvider>().unreadCount;
+    final unreadNotifications = context
+        .watch<NotificationProvider>()
+        .unreadCount;
 
     // Rol bazlı görünürlük (Modül 7 — RBAC): backend zaten bu endpoint'leri
     // rol bazlı engelliyor (requireRole), burada UI tarafında da aynı
     // ayrımı yansıtıyoruz — teknisyen/dispeçer bu kartları hiç görmez.
-    final workOrdersCardTitle = auth.isTeknisyen ? 'Görevlerim' : 'Tüm İş Emirleri';
+    final workOrdersCardTitle = auth.isTeknisyen
+        ? 'Görevlerim'
+        : 'Tüm İş Emirleri';
     final acilCount = summary?.priorityBreakdown[WorkOrderPriority.acil] ?? 0;
 
-    void goToCreateWorkOrder() => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const CreateWorkOrderScreen()),
-        );
+    void goToCreateWorkOrder() => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const CreateWorkOrderScreen()));
 
     return Scaffold(
       body: SafeArea(
@@ -116,28 +139,43 @@ class _HomeScreenState extends State<HomeScreen> {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [scheme.primaryContainer.withValues(alpha: isDark ? 0.35 : 0.6), scheme.surface],
+              colors: [
+                scheme.primaryContainer.withValues(alpha: isDark ? 0.35 : 0.6),
+                scheme.surface,
+              ],
               stops: const [0.0, 0.22],
             ),
           ),
           child: RefreshIndicator(
             onRefresh: context.read<DashboardProvider>().fetchSummary,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xl + 56),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.xl + 56,
+              ),
               children: [
                 _GreetingRow(
                   name: auth.currentUser?.name ?? '',
                   role: auth.currentUser?.role ?? '',
                   roleLabel: auth.roleLabel,
                   photoPath: myProfile?.photoPath,
-                  initials: myProfile?.initials ?? (auth.currentUser?.name.isNotEmpty == true ? auth.currentUser!.name[0].toUpperCase() : '?'),
+                  initials:
+                      myProfile?.initials ??
+                      (auth.currentUser?.name.isNotEmpty == true
+                          ? auth.currentUser!.name[0].toUpperCase()
+                          : '?'),
                   onAvatarTap: () => widget.onNavigate(4),
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 _StatsRow(summary: summary, acilCount: acilCount),
                 const SizedBox(height: AppSpacing.lg),
 
-                Text('Hızlı İşlemler', style: AppTextStyles.headingMedium(color: scheme.onSurface)),
+                Text(
+                  'Hızlı İşlemler',
+                  style: AppTextStyles.headingMedium(color: scheme.onSurface),
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 _QuickActionsRow(
                   canCreateWorkOrder: auth.canCreateWorkOrders,
@@ -146,13 +184,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     MaterialPageRoute(builder: (_) => const QrScannerScreen()),
                   ),
                   onReportIssue: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const IsgReportListScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const IsgReportListScreen(),
+                    ),
                   ),
-                  onSync: () => context.read<DashboardProvider>().fetchSummary(),
+                  onSync: () =>
+                      context.read<DashboardProvider>().fetchSummary(),
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
-                Text('Modüller', style: AppTextStyles.headingMedium(color: scheme.onSurface)),
+                Text(
+                  'Modüller',
+                  style: AppTextStyles.headingMedium(color: scheme.onSurface),
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 GridView.count(
                   crossAxisCount: 2,
@@ -166,7 +210,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: Icons.assignment_outlined,
                       title: workOrdersCardTitle,
                       subtitle: summary != null
-                          ? (acilCount > 0 ? '${summary.openCount} Açık, $acilCount Acil' : '${summary.openCount} Açık')
+                          ? (acilCount > 0
+                                ? '${summary.openCount} Açık, $acilCount Acil'
+                                : '${summary.openCount} Açık')
                           : null,
                       color: AppColors.primary(context),
                       onTap: () => widget.onNavigate(1),
@@ -195,7 +241,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         subtitle: 'Kilitle · Senkronize et',
                         color: AppColors.warning(context),
                         onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const DeviceListScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const DeviceListScreen(),
+                          ),
                         ),
                       ),
                     // Kullanıcı Yönetimi de yalnızca yönetici rolüne görünür
@@ -208,7 +256,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         subtitle: 'Ekle · Düzenle',
                         color: roleColor(context, 'yonetici'),
                         onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const UserManagementListScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const UserManagementListScreen(),
+                          ),
                         ),
                       ),
                     // Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) — bir
@@ -223,7 +273,28 @@ class _HomeScreenState extends State<HomeScreen> {
                         subtitle: 'Kayıp-kaçak / anomali tespiti',
                         color: AppColors.danger(context),
                         onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const SuspiciousMetersScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const SuspiciousMetersScreen(),
+                          ),
+                        ),
+                      ),
+                    // Kestirimci Bakım Planlama (Modül 12) — Modül 9'un risk
+                    // skorundan türetilen bakım önerilerini gösterir ve
+                    // "Önleyici İş Emri Oluştur" aksiyonunu barındırır; bu
+                    // yüzden iş emri oluşturma yetkisiyle AYNI role gated'dir
+                    // (dispeçer/yönetici) — backend de aynı requireRole'ü
+                    // kullanır (bkz. routes/maintenance.js).
+                    if (auth.canCreateWorkOrders)
+                      _ModuleCard(
+                        icon: Icons.build_circle_outlined,
+                        title: 'Bakım Planlama',
+                        subtitle: 'Kestirimci bakım önerileri',
+                        color: AppColors.success(context),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const MaintenanceRecommendationsScreen(),
+                          ),
                         ),
                       ),
                     _ModuleCard(
@@ -232,7 +303,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       subtitle: 'Varlıkları tara veya ara',
                       color: AppColors.accent(context),
                       onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const EquipmentHomeScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const EquipmentHomeScreen(),
+                        ),
                       ),
                     ),
                     _ModuleCard(
@@ -241,23 +314,32 @@ class _HomeScreenState extends State<HomeScreen> {
                       subtitle: 'Olay/Tehlike bildir',
                       color: AppColors.danger(context),
                       onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const IsgReportListScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const IsgReportListScreen(),
+                        ),
                       ),
                     ),
                     _ModuleCard(
                       icon: Icons.notifications_outlined,
                       title: 'Bildirimler',
-                      subtitle: unreadNotifications > 0 ? '$unreadNotifications Yeni Uyarı' : 'Güncel',
+                      subtitle: unreadNotifications > 0
+                          ? '$unreadNotifications Yeni Uyarı'
+                          : 'Güncel',
                       color: AppColors.primary(context),
                       onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen(),
+                        ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
-                Text('Son Aktiviteler', style: AppTextStyles.headingMedium(color: scheme.onSurface)),
+                Text(
+                  'Son Aktiviteler',
+                  style: AppTextStyles.headingMedium(color: scheme.onSurface),
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 _RecentActivitySection(items: summary?.recentActivity),
               ],
@@ -314,7 +396,12 @@ class _GreetingRow extends StatelessWidget {
       children: [
         GestureDetector(
           onTap: onAvatarTap,
-          child: UserAvatar(photoPath: photoPath, initials: initials, role: role, radius: 28),
+          child: UserAvatar(
+            photoPath: photoPath,
+            initials: initials,
+            role: role,
+            radius: 28,
+          ),
         ),
         const SizedBox(width: AppSpacing.md),
         Expanded(
@@ -330,7 +417,10 @@ class _GreetingRow extends StatelessWidget {
               const SizedBox(height: 6),
               RoleBadge(role: role, label: roleLabel),
               const SizedBox(height: 6),
-              Text(_formatToday(), style: AppTextStyles.caption(color: scheme.onSurfaceVariant)),
+              Text(
+                _formatToday(),
+                style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+              ),
             ],
           ),
         ),
@@ -356,7 +446,11 @@ class _StatsRow extends StatelessWidget {
       return const AppCard(
         padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
         child: Center(
-          child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
         ),
       );
     }
@@ -428,7 +522,11 @@ class _StatTile extends StatelessWidget {
                 Expanded(
                   child: Text(
                     label,
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurface),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurface,
+                    ),
                     maxLines: 2,
                   ),
                 ),
@@ -436,11 +534,20 @@ class _StatTile extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.sm + 2),
-            Text(value, style: AppTextStyles.headingMedium(color: scheme.onSurface).copyWith(fontSize: 22)),
+            Text(
+              value,
+              style: AppTextStyles.headingMedium(
+                color: scheme.onSurface,
+              ).copyWith(fontSize: 22),
+            ),
             const SizedBox(height: 4),
             Text(
               trend ?? ' ',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: trendColor ?? Colors.transparent),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: trendColor ?? Colors.transparent,
+              ),
             ),
           ],
         ),
@@ -474,17 +581,33 @@ class _QuickActionsRow extends StatelessWidget {
       child: Row(
         children: [
           if (canCreateWorkOrder) ...[
-            _QuickActionChip(icon: Icons.add, label: 'İş Emri Oluştur', onTap: onCreateWorkOrder),
+            _QuickActionChip(
+              icon: Icons.add,
+              label: 'İş Emri Oluştur',
+              onTap: onCreateWorkOrder,
+            ),
             const SizedBox(width: AppSpacing.sm),
           ],
-          _QuickActionChip(icon: Icons.qr_code_scanner_outlined, label: 'QR Kod Tara', onTap: onScanQr),
+          _QuickActionChip(
+            icon: Icons.qr_code_scanner_outlined,
+            label: 'QR Kod Tara',
+            onTap: onScanQr,
+          ),
           const SizedBox(width: AppSpacing.sm),
-          _QuickActionChip(icon: Icons.report_problem_outlined, label: 'Sorun Bildir', onTap: onReportIssue),
+          _QuickActionChip(
+            icon: Icons.report_problem_outlined,
+            label: 'Sorun Bildir',
+            onTap: onReportIssue,
+          ),
           const SizedBox(width: AppSpacing.sm),
           // "Senkronize" burada bir cihaza komut göndermez (bu, DESIGN_SYSTEM.md'de
           // tarif edilen Cihaz Yönetimi'nin işi) — yalnızca Dashboard özetini
           // (zaten var olan fetchSummary) manuel olarak yeniler.
-          _QuickActionChip(icon: Icons.sync, label: 'Senkronize', onTap: onSync),
+          _QuickActionChip(
+            icon: Icons.sync,
+            label: 'Senkronize',
+            onTap: onSync,
+          ),
         ],
       ),
     );
@@ -495,7 +618,11 @@ class _QuickActionChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  const _QuickActionChip({required this.icon, required this.label, required this.onTap});
+  const _QuickActionChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -507,17 +634,29 @@ class _QuickActionChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.pill),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm + 2),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm + 2,
+          ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.pill),
-            border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.6)),
+            border: Border.all(
+              color: scheme.outlineVariant.withValues(alpha: 0.6),
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, size: 18, color: scheme.onSurface),
               const SizedBox(width: AppSpacing.xs),
-              Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: scheme.onSurface)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurface,
+                ),
+              ),
             ],
           ),
         ),
@@ -551,7 +690,10 @@ class _ModuleCard extends StatelessWidget {
 
     return AppCard(
       onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm + 4, vertical: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm + 4,
+        vertical: AppSpacing.sm,
+      ),
       child: Row(
         children: [
           CircleAvatar(
@@ -567,7 +709,11 @@ class _ModuleCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: scheme.onSurface),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -575,7 +721,9 @@ class _ModuleCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     subtitle!,
-                    style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                    style: AppTextStyles.caption(
+                      color: scheme.onSurfaceVariant,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -605,14 +753,21 @@ class _RecentActivitySection extends StatelessWidget {
       return const AppCard(
         padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
         child: Center(
-          child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
         ),
       );
     }
 
     if (items!.isEmpty) {
       return AppCard(
-        child: Text('Henüz bir aktivite yok.', style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant)),
+        child: Text(
+          'Henüz bir aktivite yok.',
+          style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant),
+        ),
       );
     }
 
@@ -640,7 +795,9 @@ class _RecentActivityTile extends StatelessWidget {
 
     return AppCard(
       onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => WorkOrderDetailScreen(workOrderId: item.id)),
+        MaterialPageRoute(
+          builder: (_) => WorkOrderDetailScreen(workOrderId: item.id),
+        ),
       ),
       padding: const EdgeInsets.all(AppSpacing.sm + 4),
       child: Row(
@@ -649,7 +806,9 @@ class _RecentActivityTile extends StatelessWidget {
             radius: 16,
             backgroundColor: color.withValues(alpha: isDark ? 0.28 : 0.15),
             child: Icon(
-              isResolved ? Icons.check_circle_rounded : Icons.play_circle_fill_rounded,
+              isResolved
+                  ? Icons.check_circle_rounded
+                  : Icons.play_circle_fill_rounded,
               color: color,
               size: 20,
             ),
@@ -661,7 +820,11 @@ class _RecentActivityTile extends StatelessWidget {
               children: [
                 Text(
                   item.title,
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: scheme.onSurface),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
