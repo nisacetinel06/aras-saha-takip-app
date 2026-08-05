@@ -15,6 +15,7 @@ import '../models/managed_device.dart';
 import '../models/material.dart';
 import '../models/usage_analytics.dart';
 import '../models/meter_anomaly.dart';
+import '../models/report.dart';
 import '../models/work_order.dart';
 import '../models/work_order_map_pin.dart';
 
@@ -1649,6 +1650,146 @@ class ApiService {
       }
 
       return UsageAnalyticsSummary.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  // --- Raporlar / Analitik Sayfası (Modül 14) — yalnızca yönetici. Backend
+  // her endpoint'te requireRole('yonetici') uyguluyor (bkz. routes/reports.js);
+  // burada ayrıca bir rol kontrolü YOK, 403 gelirse ApiException olarak diğer
+  // tüm metodlarla AYNI şekilde fırlatılır.
+
+  /// GET /api/reports/regional-risk-summary
+  Future<List<RegionalRiskSummary>> getRegionalRiskSummary() async {
+    try {
+      final uri = Uri.parse('$baseUrl/reports/regional-risk-summary');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'Bölgesel risk özeti alınamadı.'),
+        );
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => RegionalRiskSummary.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// GET /api/reports/fault-by-region
+  Future<List<RegionFaultCount>> getFaultByRegion() async {
+    try {
+      final uri = Uri.parse('$baseUrl/reports/fault-by-region');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'Bölgeye göre arıza dağılımı alınamadı.'),
+        );
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => RegionFaultCount.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// GET /api/reports/fault-by-equipment-type
+  Future<List<EquipmentTypeFaultCount>> getFaultByEquipmentType() async {
+    try {
+      final uri = Uri.parse('$baseUrl/reports/fault-by-equipment-type');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(
+            response,
+            'Ekipman tipine göre arıza dağılımı alınamadı.',
+          ),
+        );
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data
+          .map((json) => EquipmentTypeFaultCount.fromJson(json))
+          .toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// GET /api/reports/fault-trend?months=
+  Future<List<MonthlyFaultCount>> getFaultTrend({int months = 6}) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/reports/fault-trend',
+      ).replace(queryParameters: {'months': '$months'});
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'Aylık arıza trendi alınamadı.'),
+        );
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => MonthlyFaultCount.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// GET /api/reports/anomaly-by-region
+  Future<List<RegionAnomalySummary>> getAnomalyByRegion() async {
+    try {
+      final uri = Uri.parse('$baseUrl/reports/anomaly-by-region');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'Bölgeye göre anomali dağılımı alınamadı.'),
+        );
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => RegionAnomalySummary.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// GET /api/reports/material-usage-top?limit=
+  Future<List<TopMaterialUsage>> getTopMaterialUsage({int limit = 10}) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/reports/material-usage-top',
+      ).replace(queryParameters: {'limit': '$limit'});
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'En çok kullanılan malzemeler alınamadı.'),
+        );
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => TopMaterialUsage.fromJson(json)).toList();
     } on ApiException {
       rethrow;
     } catch (e) {

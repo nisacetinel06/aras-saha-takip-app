@@ -24,6 +24,7 @@ import '../isg/isg_report_list_screen.dart';
 import '../maintenance/maintenance_recommendations_screen.dart';
 import '../materials/material_list_screen.dart';
 import '../notifications/notifications_screen.dart';
+import '../reports/reports_screen.dart';
 import '../work_order_detail_screen.dart';
 import '../work_orders/create_work_order_screen.dart';
 
@@ -303,6 +304,24 @@ class _HomeScreenState extends State<HomeScreen> {
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => const AnalyticsScreen(),
+                              ),
+                            ),
+                          ),
+                        // Raporlar / Analitik Sayfası (Modül 14) — Modül 9
+                        // (risk) ve Modül 11'in (anomali) verilerini bölgesel/
+                        // zamansal kırılımlarla sunan bir yönetim raporudur;
+                        // Şüpheli Sayaçlar/Kullanım Analitiği ile AYNI RBAC
+                        // deseniyle yalnızca yöneticiye gösterilir (backend de
+                        // routes/reports.js'te requireRole('yonetici') uygular).
+                        if (auth.isYonetici)
+                          _ModuleCard(
+                            icon: Icons.query_stats_outlined,
+                            title: 'Raporlar',
+                            subtitle: 'Bölgesel risk · Eğilimler',
+                            color: AppColors.primary(context),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const ReportsScreen(),
                               ),
                             ),
                           ),

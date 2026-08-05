@@ -11,6 +11,7 @@ import 'providers/maintenance_provider.dart';
 import 'providers/map_provider.dart';
 import 'providers/material_provider.dart';
 import 'providers/notification_provider.dart';
+import 'providers/reports_provider.dart';
 import 'providers/risk_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/user_provider.dart';
@@ -72,6 +73,7 @@ class _ArasSahaAppState extends State<ArasSahaApp> {
         ChangeNotifierProvider(create: (_) => MaterialProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => ReportsProvider()),
         ChangeNotifierProvider.value(value: widget.themeProvider),
       ],
       child: Consumer<ThemeProvider>(
