@@ -29,14 +29,13 @@ class ApiException implements Exception {
 
 class ApiService {
   // Backend Railway'de canlı: https://arassaha-backend-production.up.railway.app
-  // Lokal test için gerekirse aşağıdakilerle değiştir:
-  // - Android emulator:      http://10.0.2.2:3000/api
-  // - Gerçek cihaz + USB kablo: http://localhost:3000/api (+ adb reverse tcp:3000 tcp:3000)
-  // - Gerçek cihaz + aynı WiFi ağı: http://<bilgisayarın-yerel-IP'si>:3000/api
-  // GEÇİCİ: Modül 6 (Bildirim Sistemi) yerel test için Railway yerine yerel
-  // backend'e yönlendirildi — Railway'de henüz bu modülün kodu yok. Test
-  // bitince yukarıdaki Railway URL'sine geri alınmalı.
-  static const String host = 'http://localhost:3000';
+  // Lokal test için geçici olarak değiştirmek istersen (yerelde test bitince
+  // MUTLAKA Railway URL'sine geri al, aksi halde bilgisayar kapalıyken veya
+  // farklı bir ağdayken uygulama sunucuya ulaşamaz):
+  // - Android emulator:      http://10.0.2.2:3000
+  // - Gerçek cihaz + USB kablo: http://localhost:3000 (+ adb reverse tcp:3000 tcp:3000)
+  // - Gerçek cihaz + aynı WiFi ağı: http://<bilgisayarın-yerel-IP'si>:3000
+  static const String host = 'https://arassaha-backend-production.up.railway.app';
   static const String baseUrl = '$host/api';
 
   /// `work_order_photos.photo_path` backend'den `/uploads/...` şeklinde göreli
