@@ -159,7 +159,22 @@ class _IsgReportDetailScreenState extends State<IsgReportDetailScreen> {
                 _SectionCard(
                   title: 'Fotoğraf',
                   icon: Icons.photo_outlined,
-                  child: _PhotoPreview(photoPath: report.photoPath),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _PhotoPreview(photoPath: report.photoPath),
+                      // Görüntü Tabanlı Hasar Tespiti (Modül 15) — cvIsDamaged
+                      // null ise (CV servisi kapalıydı/hata döndü) HİÇBİR
+                      // rozet gösterilmez, bkz. models/isg_report.dart.
+                      if (report.cvIsDamaged != null) ...[
+                        const SizedBox(height: AppSpacing.sm + 2),
+                        _DamageBadge(
+                          isDamaged: report.cvIsDamaged!,
+                          probability: report.cvDamageProbability,
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.md),
 
@@ -240,6 +255,98 @@ class _IsgReportDetailScreenState extends State<IsgReportDetailScreen> {
           );
         },
       ),
+    );
+  }
+}
+
+/// Görüntü Tabanlı Hasar Tespiti (Modül 15) — CV analiz sonucu rozeti.
+/// hasarlı=danger (turuncu/kırmızı), hasarsız=soluk yeşil (success, düşük
+/// alpha) — mevcut statü/risk renk paletiyle AYNI kaynak (theme/app_colors.dart),
+/// yeni bir renk icat edilmedi. (i) ikonu, modelin kesin teşhis yerine
+/// geçmediğini açıklayan bir uyarı diyaloğu açar.
+class _DamageBadge extends StatelessWidget {
+  final bool isDamaged;
+  final double? probability;
+  const _DamageBadge({required this.isDamaged, required this.probability});
+
+  void _showInfo(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Otomatik Görüntü Analizi'),
+        content: const Text(
+          'MobileNetV2 tabanlı görüntü sınıflandırma modeliyle otomatik '
+          'analiz edilmiştir, kesin teşhis yerine geçmez.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Tamam'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = isDamaged
+        ? AppColors.danger(context)
+        : AppColors.success(context);
+    final percentText = probability != null
+        ? ' (%${(probability! * 100).round()})'
+        : '';
+    final label = isDamaged
+        ? 'Olası Hasar Tespit Edildi$percentText'
+        : 'Belirgin Hasar Görülmedi';
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: isDark ? 0.28 : 0.15),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(color: color.withValues(alpha: 0.6)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isDamaged
+                      ? Icons.warning_amber_rounded
+                      : Icons.verified_outlined,
+                  size: 15,
+                  color: color,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: color,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        IconButton(
+          onPressed: () => _showInfo(context),
+          icon: Icon(Icons.info_outline, size: 16, color: color),
+          tooltip: 'Bu analiz hakkında',
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          padding: EdgeInsets.zero,
+        ),
+      ],
     );
   }
 }

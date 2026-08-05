@@ -4,3 +4,8 @@ scikit-learn
 pandas
 numpy
 joblib
+tensorflow==2.18.0
+pillow
+matplotlib
+kaggle
+python-multipart

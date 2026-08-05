@@ -3,3 +3,4 @@ npm-debug.log
 .env
 aras_saha.db
 uploads/
+*_log.txt

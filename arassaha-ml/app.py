@@ -25,11 +25,15 @@ train_text_model.py + generate_text_training_data.py, train_anomaly_model.py
 + generate_consumption_data.py, README.md). Modellerin kendisi ve tahmin
 ardışık düzeni gerçektir; eğitim verisi değildir.
 """
+import io
 import json
 from pathlib import Path
 
 import joblib
-from fastapi import FastAPI, HTTPException
+import numpy as np
+import tensorflow as tf
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from PIL import Image
 from pydantic import BaseModel, Field
 
 from consumption_feature_utils import FEATURE_COLUMNS as ANOMALY_FEATURE_COLUMNS
@@ -46,6 +50,15 @@ TEXT_PRIORITY_MODEL_PATH = Path(__file__).parent / "models" / "text_priority_mod
 # Modül 11 — bkz. generate_consumption_data.py / train_anomaly_model.py.
 ANOMALY_MODEL_PATH = Path(__file__).parent / "models" / "anomaly_model.pkl"
 ANOMALY_METADATA_PATH = Path(__file__).parent / "models" / "anomaly_model_metadata.json"
+
+# Modül 15 — bkz. organize_dataset.py / train_damage_model.py. Diğer üç model
+# ailesinden (.pkl, scikit-learn) FARKLI olarak bu bir Keras/TensorFlow
+# modelidir (MobileNetV2 transfer learning) ve dosyası çok daha büyüktür — bu
+# yüzden diğerleri gibi İLK İSTEKTE lazy-load edilmez, uygulama başlarken BİR
+# KEZ belleğe yüklenir (bkz. aşağıdaki startup event), her istekte yeniden
+# yükleme maliyetinden (birkaç saniye) kaçınmak için.
+DAMAGE_MODEL_PATH = Path(__file__).parent / "models" / "damage_model.keras"
+DAMAGE_IMG_SIZE = (224, 224)
 
 # Ay-ay tüketim değişiminin bu değeri AŞMASI "düzensiz/tutarsız tüketim
 # örüntüsü" kural açıklamasını tetikler. Sentetik veri ölçeğine göre (normal
@@ -71,6 +84,26 @@ _text_type_model = None
 _text_priority_model = None
 _anomaly_model = None
 _anomaly_score_bounds = None
+_damage_model = None
+
+
+@app.on_event("startup")
+def load_damage_model():
+    """Modül 15 — bkz. DAMAGE_MODEL_PATH üstündeki not: diğer modellerin
+    aksine burada lazy-load YOK, uygulama ayağa kalkarken bir kez yüklenir.
+    Model dosyası henüz üretilmediyse (train_damage_model.py hiç
+    çalıştırılmadıysa) sessizce None bırakılır — bu, sunucunun başlamasını
+    ENGELLEMEZ (risk/anomali modelleriyle AYNI "eksik model = 503, servis
+    çökmesin" ilkesi, bkz. get_model/get_anomaly_model)."""
+    global _damage_model
+    if DAMAGE_MODEL_PATH.exists():
+        _damage_model = tf.keras.models.load_model(DAMAGE_MODEL_PATH)
+        print(f"Hasar tespit modeli yüklendi: {DAMAGE_MODEL_PATH}")
+    else:
+        print(
+            f"UYARI: {DAMAGE_MODEL_PATH} bulunamadı — /classify-image 503 dönecek. "
+            "Önce 'python organize_dataset.py' ve 'python train_damage_model.py' çalıştırılmalı."
+        )
 
 
 def get_model():
@@ -156,6 +189,7 @@ def health():
         "status": "ok",
         "model_loaded": MODEL_PATH.exists(),
         "anomaly_model_loaded": ANOMALY_MODEL_PATH.exists(),
+        "damage_model_loaded": _damage_model is not None,
     }
 
 
@@ -307,4 +341,54 @@ def detect_anomaly(features: ConsumptionFeatures):
         anomaly_score=anomaly_score,
         is_suspicious=is_suspicious,
         detected_reason=detected_reason_for(features, is_suspicious),
+    )
+
+
+# --- Modül 15: Görüntü Tabanlı Hasar Tespiti ---
+#
+# DÜRÜSTLÜK NOTU: Modül 9/10/11'in aksine bu model SENTETİK değil, Kaggle'daki
+# gerçek/halka açık "Power Line Components Images Dataset" (abdulbasit89,
+# CC0-1.0) ile eğitildi — bkz. models/damage_model_metadata.json. Ama bu veri
+# setindeki "hasarlı" görseller de yapay olarak üretilmiş (defective)
+# versiyonlar, ArasSaha'nın kendi sahasından toplanmış gerçek arıza
+# fotoğrafları değil; üretimde gerçek İSG/iş emri fotoğraflarıyla yeniden
+# eğitilmesi gerekir (bkz. train_damage_model.py başındaki not).
+
+
+class ImageClassificationResponse(BaseModel):
+    is_damaged: bool
+    damage_probability: float
+    model_type: str
+
+
+@app.post("/classify-image", response_model=ImageClassificationResponse)
+async def classify_image(file: UploadFile = File(...)):
+    if _damage_model is None:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Hasar tespit modeli yüklenmemiş. Önce 'python organize_dataset.py' ve "
+                "'python train_damage_model.py' komutlarını çalıştırıp servisi yeniden başlatın."
+            ),
+        )
+
+    contents = await file.read()
+    try:
+        # train_damage_model.py'deki model, ham [0,255] piksel değeri BEKLER —
+        # preprocess_input (MobileNetV2 normalizasyonu) modelin KENDİ grafiğinin
+        # içinde uygulanıyor (bkz. train_damage_model.py), burada AYRICA
+        # normalize etmeye gerek yok/etmemek gerekir.
+        image = Image.open(io.BytesIO(contents)).convert("RGB").resize(DAMAGE_IMG_SIZE)
+    except Exception:
+        raise HTTPException(status_code=422, detail="Geçersiz veya bozuk görsel dosyası.")
+
+    batch = np.expand_dims(np.array(image, dtype=np.float32), axis=0)  # (1, 224, 224, 3)
+    # Eğitimde etiketler TERS ÇEVRİLMİŞTİ (bkz. train_damage_model.py load_split):
+    # sigmoid çıktısı burada zaten 1.0=hasarlı, 0.0=hasarsız anlamına gelir.
+    probability = float(_damage_model.predict(batch, verbose=0)[0][0])
+
+    return ImageClassificationResponse(
+        is_damaged=probability >= 0.5,
+        damage_probability=round(probability, 4),
+        model_type="MobileNetV2 (transfer learning + fine-tuning)",
     )

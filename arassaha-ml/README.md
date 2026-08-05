@@ -125,3 +125,54 @@ Flutter entegrasyonu gerçektir; gerçek üretim ortamında tek yapılması gere
 `generate_consumption_data.py` yerine ArasSaha'nın gerçek AMI/sayaç okuma
 sisteminden türetilmiş bir tüketim geçmişi vermek ve `train_anomaly_model.py`'yi
 bununla yeniden çalıştırmaktır.
+
+## Modül 15 — Görüntü Tabanlı Hasar Tespiti
+
+**Veri seti kaynağı:** [Power Line Components Images Dataset](https://www.kaggle.com/datasets/abdulbasit89/power-line-components-images-dataset)
+(Kaggle kullanıcısı: **abdulbasit89**), lisans **CC0-1.0** (kamu malı — atıf
+zorunlu değil, yine de akademik/staj dürüstlüğü açısından burada ve
+`train_damage_model.py`/`organize_dataset.py` içinde açıkça belirtilir). Veri
+seti, bir elektrik dağıtım sistemindeki izolatör, dropout-cutout, trafo
+bushing, direk ve çapraz kol bileşenlerinin görsellerini; disk izolatör, pin
+izolatör, dropout ve trafo bushing için ayrıca yapay olarak üretilmiş hasarlı
+("defective") versiyonlarıyla birlikte içerir (10.343 görsel, ~%40 hasarlı /
+%60 hasarsız).
+
+```bash
+# 1) Kaggle API token'ı ~/.kaggle/kaggle.json'a yerleştirildikten sonra:
+kaggle datasets download -d abdulbasit89/power-line-components-images-dataset -p raw_dataset --unzip
+
+# 2) Ham veri setini train/hasarli|hasarsiz, val/..., test/... yapısına dönüştürür
+python organize_dataset.py
+
+# 3) MobileNetV2 transfer learning + fine-tuning (models/damage_model.keras,
+#    models/damage_model_metadata.json, training_history.png, confusion_matrix.png,
+#    misclassified_examples.png üretir) — CPU'da ~30-70 dakika sürebilir.
+python train_damage_model.py
+```
+
+**Mimari — 2 aşamalı Transfer Learning:** MobileNetV2 (ImageNet ağırlıkları,
+`include_top=False`) temel alınır. Aşama 1'de yalnızca eklenen
+`GlobalAveragePooling2D -> Dropout(0.3) -> Dense(1, sigmoid)` katmanları
+eğitilir (MobileNetV2 dondurulmuş, `lr=1e-3`). Aşama 2'de (fine-tuning)
+MobileNetV2'nin son 30 katmanı çözülüp çok düşük bir öğrenme oranıyla
+(`lr=1e-5`) birkaç epoch daha eğitilir — transfer learning'in en performans
+artırıcı adımı budur. `EarlyStopping`(val_loss, patience=5) ve
+`ModelCheckpoint`(en iyi val_accuracy) her iki aşamada da kullanılır.
+
+**Diğer modellerden mimari fark — build zamanında YENİDEN EĞİTİLMEZ:** Modül
+9/10/11'in `.pkl` modelleri sentetik veriyle saniyeler içinde eğitildiği için
+Dockerfile'da her build'de yeniden üretilir. `damage_model.keras` gerçek bir
+veri setiyle ve ~30-70 dakika süren bir süreçle eğitildiği için bu desenin
+DIŞINDA tutulur: yalnızca LOKALDE bir kez eğitilir, sonuç dosyası
+(`models/damage_model.keras` + `models/damage_model_metadata.json`) git'e
+commit edilir (bkz. `.gitignore` içindeki istisna), Dockerfile bunu build
+zamanında yeniden eğitmek yerine olduğu gibi imaja kopyalar.
+
+**Dürüstlük Notu:** Bu modül, Modül 9/10/11'den FARKLI olarak sentetik değil
+gerçek/halka açık bir veri setiyle eğitildi — ama bu veri setindeki "hasarlı"
+görseller de yapay olarak üretilmiş (defective) versiyonlar, ArasSaha'nın
+kendi sahasından toplanmış gerçek arıza fotoğrafları değil. Model
+eğitimi/servis/entegrasyon süreci gerçektir; gerçek üretimde bu model,
+ArasSaha'nın gerçek İSG/iş emri fotoğraflarıyla (zamanla biriktikçe) yeniden
+eğitilmelidir — mimari/entegrasyon hiçbir değişiklik gerektirmez.

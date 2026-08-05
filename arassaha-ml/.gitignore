@@ -9,3 +9,15 @@ __pycache__/
 training_data.csv
 models/*.pkl
 models/*.json
+
+# İSTİSNA (Modül 15 — Görüntü Tabanlı Hasar Tespiti): damage_model, yukarıdaki
+# .pkl/.json modellerin aksine SENTETİK değil GERÇEK bir veri setiyle (Kaggle)
+# ve ~20-40dk süren bir transfer learning/fine-tuning süreciyle üretildi —
+# "build zamanında ucuza yeniden üretilebilir" değil. Bu yüzden Dockerfile onu
+# YENİDEN EĞİTMEK yerine doğrudan git'ten kopyalar; bu ikisi git'e commit edilir.
+!models/damage_model.keras
+!models/damage_model_metadata.json
+raw_dataset/
+dataset/
+test_images/
+*_log.txt

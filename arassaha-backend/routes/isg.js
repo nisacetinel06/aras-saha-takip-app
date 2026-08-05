@@ -4,12 +4,14 @@
 // gerçektir: fotoğraf gerçekten diske yazılır (bkz. work_orders/:id/photos ile
 // aynı desen), lat/lng ise Flutter tarafında cihazın gerçek GPS'inden
 // (geolocator) okunur ve zorunlu alan olarak buraya gelir.
+const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
 const db = require('../database');
 const { createNotification } = require('../utils/notify');
+const { classifyImageForDamage } = require('../utils/damageDetection');
 
 const router = express.Router();
 
@@ -115,7 +117,7 @@ router.get('/:id', (req, res) => {
 // — bu sayede kullanıcı kendi adına değil başkası adına bildirim giremez ve
 // Flutter formunda tekrar "bildiren kişi" seçtirmeye gerek kalmaz.
 router.post('/', (req, res) => {
-  upload.single('photo')(req, res, (uploadErr) => {
+  upload.single('photo')(req, res, async (uploadErr) => {
     if (uploadErr) {
       return res.status(400).json({ error: uploadErr.message || 'Fotoğraf yüklenirken bir hata oluştu.' });
     }
@@ -146,12 +148,25 @@ router.post('/', (req, res) => {
       const photo_path = `/uploads/isg/${req.file.filename}`;
       const created_at = new Date().toISOString();
 
+      // Görüntü Tabanlı Hasar Tespiti (Modül 15) — fotoğraf diske YAZILDIKTAN
+      // hemen sonra, ama INSERT'ten ÖNCE çağrılır (sonuç tek bir INSERT'e
+      // gömülsün diye, ayrı bir UPDATE gerekmesin). classifyImageForDamage
+      // ASLA fırlatmaz — ML servisi kapalıysa cv_* alanları null döner, bu
+      // İSG bildiriminin oluşturulmasını hiçbir şekilde engellemez/geciktirmez
+      // (yalnızca ~15 sn'lik bir zaman aşımı sınırı içinde bekler).
+      const photoBuffer = fs.readFileSync(req.file.path);
+      const { cv_is_damaged, cv_damage_probability } = await classifyImageForDamage(
+        photoBuffer,
+        req.file.originalname,
+        req.file.mimetype
+      );
+
       const info = db
         .prepare(
           `INSERT INTO isg_reports
-             (reported_by_user_id, description, category, photo_path, location_name, lat, lng, status, reviewer_note, created_at, reviewed_at)
+             (reported_by_user_id, description, category, photo_path, location_name, lat, lng, status, reviewer_note, created_at, reviewed_at, cv_is_damaged, cv_damage_probability)
            VALUES
-             (@reported_by_user_id, @description, @category, @photo_path, @location_name, @lat, @lng, 'bekliyor', NULL, @created_at, NULL)`
+             (@reported_by_user_id, @description, @category, @photo_path, @location_name, @lat, @lng, 'bekliyor', NULL, @created_at, NULL, @cv_is_damaged, @cv_damage_probability)`
         )
         .run({
           reported_by_user_id,
@@ -162,6 +177,8 @@ router.post('/', (req, res) => {
           lat: latNum,
           lng: lngNum,
           created_at,
+          cv_is_damaged,
+          cv_damage_probability,
         });
 
       const created = db.prepare(`${SELECT_ISG_WITH_USER} WHERE r.id = ?`).get(info.lastInsertRowid);

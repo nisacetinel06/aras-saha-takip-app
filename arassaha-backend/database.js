@@ -398,6 +398,27 @@ if (!hasSourceType) {
   db.exec("UPDATE work_orders SET source_type = 'ariza' WHERE source_type IS NULL");
 }
 
+// Migrasyon: Görüntü Tabanlı Hasar Tespiti (Modül 15) — İSG bildirimi
+// fotoğrafı VE iş emri fotoğrafları için sonradan eklenen CV analiz sonucu
+// sütunları. İkisi de nullable: arassaha-ml servisi kapalıysa/hata dönerse
+// (bkz. utils/damageDetection.js) bu alanlar null kalır — fotoğraf
+// yükleme/bildirim oluşturma işlemi CV analizinin sonucunu ASLA beklemez.
+const cvColumnAdditions = { cv_is_damaged: 'INTEGER', cv_damage_probability: 'REAL' };
+
+const isgReportColumns = db.prepare('PRAGMA table_info(isg_reports)').all();
+for (const [column, type] of Object.entries(cvColumnAdditions)) {
+  if (!isgReportColumns.some((col) => col.name === column)) {
+    db.exec(`ALTER TABLE isg_reports ADD COLUMN ${column} ${type}`);
+  }
+}
+
+const workOrderPhotoColumns = db.prepare('PRAGMA table_info(work_order_photos)').all();
+for (const [column, type] of Object.entries(cvColumnAdditions)) {
+  if (!workOrderPhotoColumns.some((col) => col.name === column)) {
+    db.exec(`ALTER TABLE work_order_photos ADD COLUMN ${column} ${type}`);
+  }
+}
+
 // Malzeme / Yedek Parça Stok Takibi (Modül 13) — İLK KURULUM tohum verisi.
 // seed.js'teki (work_orders/users/equipment) desenden BİLİNÇLİ olarak farklı:
 // seed.js her çalıştırıldığında önce SİLİP yeniden ekliyor (tam demo sıfırlama

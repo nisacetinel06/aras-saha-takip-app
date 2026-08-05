@@ -124,6 +124,15 @@ class IsgReport {
   final DateTime createdAt;
   final DateTime? reviewedAt;
 
+  /// Görüntü Tabanlı Hasar Tespiti (Modül 15) — backend'in arassaha-ml
+  /// servisine POST /classify-image ile gönderdiği fotoğrafın sonucu.
+  /// Üçü de mümkün: true (hasar tespit edildi), false (belirgin hasar
+  /// görülmedi), null (CV servisi kapalıydı/hata döndü — hiç rozet gösterilmez,
+  /// bkz. isg_report_detail_screen.dart). `cvDamageProbability`, `cvIsDamaged`
+  /// null ise de null'dur (backend'de ikisi birlikte yazılır/null kalır).
+  final bool? cvIsDamaged;
+  final double? cvDamageProbability;
+
   IsgReport({
     required this.id,
     required this.reportedBy,
@@ -137,6 +146,8 @@ class IsgReport {
     required this.reviewerNote,
     required this.createdAt,
     required this.reviewedAt,
+    required this.cvIsDamaged,
+    required this.cvDamageProbability,
   });
 
   factory IsgReport.fromJson(Map<String, dynamic> json) {
@@ -157,6 +168,10 @@ class IsgReport {
       reviewedAt: json['reviewed_at'] != null
           ? DateTime.parse(json['reviewed_at'] as String)
           : null,
+      cvIsDamaged: json['cv_is_damaged'] == null
+          ? null
+          : (json['cv_is_damaged'] as num) == 1,
+      cvDamageProbability: (json['cv_damage_probability'] as num?)?.toDouble(),
     );
   }
 }

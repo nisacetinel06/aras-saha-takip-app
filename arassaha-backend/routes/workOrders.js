@@ -1,4 +1,5 @@
 // İş Emri / Arıza Yönetimi modülüne ait tüm endpoint'ler.
+const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
@@ -6,6 +7,7 @@ const multer = require('multer');
 const db = require('../database');
 const { requireRole } = require('../middleware/auth');
 const { createNotification } = require('../utils/notify');
+const { classifyImageForDamage } = require('../utils/damageDetection');
 
 const router = express.Router();
 
@@ -429,7 +431,7 @@ router.patch('/:id/assign', requireRole('dispecer', 'yonetici'), (req, res) => {
 // Böylece başka bir cihazdan bağlanan kullanıcı (örn. saha amiri) bu fotoğrafı
 // GET /api/workorders/:id üzerinden gerçekten görüntüleyebilir.
 router.post('/:id/photos', (req, res) => {
-  upload.single('photo')(req, res, (err) => {
+  upload.single('photo')(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ error: err.message || 'Fotoğraf yüklenirken bir hata oluştu.' });
     }
@@ -451,9 +453,24 @@ router.post('/:id/photos', (req, res) => {
 
       const photoPath = `/uploads/${req.file.filename}`;
       const createdAt = new Date().toISOString();
+
+      // Görüntü Tabanlı Hasar Tespiti (Modül 15) — routes/isg.js POST / ile
+      // AYNI desen: fotoğraf diske yazıldıktan hemen sonra, INSERT'ten önce
+      // çağrılır; ML servisi kapalıysa/hata dönerse cv_* alanları null kalır,
+      // fotoğraf eklenmesi hiçbir şekilde engellenmez/bloklanmaz.
+      const photoBuffer = fs.readFileSync(req.file.path);
+      const { cv_is_damaged, cv_damage_probability } = await classifyImageForDamage(
+        photoBuffer,
+        req.file.originalname,
+        req.file.mimetype
+      );
+
       const info = db
-        .prepare('INSERT INTO work_order_photos (work_order_id, photo_path, created_at) VALUES (?, ?, ?)')
-        .run(id, photoPath, createdAt);
+        .prepare(
+          `INSERT INTO work_order_photos (work_order_id, photo_path, created_at, cv_is_damaged, cv_damage_probability)
+           VALUES (?, ?, ?, ?, ?)`
+        )
+        .run(id, photoPath, createdAt, cv_is_damaged, cv_damage_probability);
 
       const photo = db.prepare('SELECT * FROM work_order_photos WHERE id = ?').get(info.lastInsertRowid);
       res.status(201).json(photo);

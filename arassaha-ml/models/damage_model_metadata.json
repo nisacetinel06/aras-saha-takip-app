@@ -1,0 +1,48 @@
+{
+  "dataset_source": {
+    "name": "Power Line Components Images Dataset",
+    "kaggle_user": "abdulbasit89",
+    "url": "https://www.kaggle.com/datasets/abdulbasit89/power-line-components-images-dataset",
+    "license": "CC0-1.0"
+  },
+  "split_counts": {
+    "train": {
+      "hasarli": 2908,
+      "hasarsiz": 4333
+    },
+    "val": {
+      "hasarli": 620,
+      "hasarsiz": 933
+    },
+    "test": {
+      "hasarli": 616,
+      "hasarsiz": 933
+    }
+  },
+  "architecture": {
+    "base_model": "MobileNetV2 (ImageNet ağırlıkları)",
+    "input_size": [
+      224,
+      224,
+      3
+    ],
+    "head": "GlobalAveragePooling2D -> Dropout(0.3) -> Dense(1, sigmoid)",
+    "training": "2 aşamalı transfer learning: (1) yalnızca head, (2) son 30 katman fine-tuning",
+    "phase1_epochs_run": 12,
+    "phase2_epochs_run": 8
+  },
+  "test_metrics": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "n_test_images": 1549,
+    "n_misclassified": 0
+  },
+  "label_convention": "sigmoid çıktısı: 1.0 = hasarlı olasılığı, 0.0 = hasarsız olasılığı",
+  "data_leakage_check": {
+    "hash_cross_split_collisions": 0,
+    "naming_pattern_cross_split_variant_groups": 0,
+    "clean": true
+  }
+}
