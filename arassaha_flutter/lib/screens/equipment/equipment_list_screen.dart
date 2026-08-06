@@ -10,6 +10,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/cache_age_note.dart';
 import 'equipment_detail_screen.dart';
 
 /// Ekipman envanterinin tam listesi — tip ve durum filtresi destekler.
@@ -83,14 +84,38 @@ class _EquipmentListScreenState extends State<EquipmentListScreen> {
                     );
                   }
 
+                  // Okuma Önbelleği (Modül 17) — bkz. work_order_list_screen.dart
+                  // AYNI desen ve gerekçe notu.
+                  final cacheNote = provider.isFromCache
+                      ? CacheAgeNote(cachedAt: provider.cachedAt!)
+                      : null;
+
                   if (provider.equipmentList.isEmpty) {
-                    return Center(
-                      child: Text(
-                        'Bu filtreye uyan ekipman yok.',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    return Column(
+                      children: [
+                        if (cacheNote != null)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpacing.md,
+                              AppSpacing.sm,
+                              AppSpacing.md,
+                              0,
+                            ),
+                            child: cacheNote,
+                          ),
+                        Expanded(
+                          child: Center(
+                            child: Text(
+                              'Bu filtreye uyan ekipman yok.',
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     );
                   }
 
@@ -104,8 +129,14 @@ class _EquipmentListScreenState extends State<EquipmentListScreen> {
                         AppSpacing.md,
                         AppSpacing.md,
                       ),
-                      itemCount: provider.equipmentList.length,
+                      itemCount:
+                          provider.equipmentList.length +
+                          (cacheNote != null ? 1 : 0),
                       itemBuilder: (context, index) {
+                        if (cacheNote != null) {
+                          if (index == 0) return cacheNote;
+                          index -= 1;
+                        }
                         final equipment = provider.equipmentList[index];
                         return Padding(
                           padding: const EdgeInsets.only(

@@ -10,6 +10,7 @@ import '../../widgets/app_card.dart';
 import '../../widgets/role_badge.dart';
 import '../../widgets/user_avatar.dart';
 import '../admin/user_management_list_screen.dart';
+import '../settings/settings_screen.dart';
 
 /// Profil ekranı (Modül 8) — YALNIZCA GÖRÜNTÜLEME. Kullanıcı kendi özlük
 /// bilgilerini (fotoğraf, telefon, e-posta) burada DÜZENLEYEMEZ; bu bilgiler
@@ -171,6 +172,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
+          SizedBox(
+            width: double.infinity,
+            child: AppButton(
+              label: 'Ayarlar',
+              icon: Icons.settings_outlined,
+              variant: AppButtonVariant.secondary,
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           SizedBox(
             width: double.infinity,
             child: AppButton(

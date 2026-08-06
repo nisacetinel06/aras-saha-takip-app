@@ -30,6 +30,7 @@ const maintenanceRouter = require('./routes/maintenance');
 const materialsRouter = require('./routes/materials');
 const analyticsRouter = require('./routes/analytics');
 const reportsRouter = require('./routes/reports');
+const assistantRouter = require('./routes/assistant');
 const authRouter = require('./routes/auth');
 const { verifyToken } = require('./middleware/auth');
 
@@ -86,6 +87,9 @@ app.use('/api/analytics', verifyToken, analyticsRouter);
 // requireRole('yonetici') uygular (bkz. routes/reports.js), burada yalnızca
 // verifyToken ile diğer tüm router'larla AYNI kimlik doğrulama uygulanır.
 app.use('/api/reports', verifyToken, reportsRouter);
+// AI Asistan / Sohbet Arayüzü (Modül 16) — tüm roller erişebilir (kendi
+// RBAC kapsamındaki veriyi sorgular, bkz. services/assistantQueries.js).
+app.use('/api/assistant', verifyToken, assistantRouter);
 
 app.get('/', (req, res) => {
   res.json({ message: 'ArasSaha backend çalışıyor.' });

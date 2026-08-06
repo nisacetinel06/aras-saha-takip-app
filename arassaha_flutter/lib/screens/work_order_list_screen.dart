@@ -4,6 +4,7 @@ import '../models/work_order.dart';
 import '../providers/work_order_list_provider.dart';
 import '../services/analytics_service.dart';
 import '../widgets/app_button.dart';
+import '../widgets/cache_age_note.dart';
 import '../widgets/work_order_card.dart';
 import 'work_order_detail_screen.dart';
 
@@ -50,17 +51,43 @@ class _WorkOrderListScreenState extends State<WorkOrderListScreen> {
                 );
               }
 
+              // Okuma Önbelleği (Modül 17): önbellekten dönüldüğünde
+              // ("Kayıt bulunamadı" YA DA gerçek liste) her iki durumda da
+              // önce bu not gösterilir — kullanıcı gördüğü verinin NE KADAR
+              // eski olduğunu bilsin.
+              final cacheNote = provider.isFromCache
+                  ? CacheAgeNote(cachedAt: provider.cachedAt!)
+                  : null;
+
               if (provider.workOrders.isEmpty) {
-                return const _EmptyState();
+                return Column(
+                  children: [
+                    if (cacheNote != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: cacheNote,
+                      ),
+                    const Expanded(child: _EmptyState()),
+                  ],
+                );
               }
 
               return RefreshIndicator(
                 onRefresh: provider.loadWorkOrders,
                 child: ListView.builder(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.only(bottom: 12),
-                  itemCount: provider.workOrders.length,
+                  padding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
+                  itemCount: provider.workOrders.length + (cacheNote != null ? 1 : 0),
                   itemBuilder: (context, index) {
+                    if (cacheNote != null) {
+                      if (index == 0) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: cacheNote,
+                        );
+                      }
+                      index -= 1;
+                    }
                     final workOrder = provider.workOrders[index];
                     return WorkOrderCard(
                       workOrder: workOrder,

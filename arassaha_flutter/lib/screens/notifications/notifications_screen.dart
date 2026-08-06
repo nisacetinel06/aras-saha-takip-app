@@ -9,6 +9,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/cache_age_note.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 import '../equipment/equipment_detail_screen.dart';
 import '../isg/isg_report_detail_screen.dart';
@@ -155,6 +156,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         AppSpacing.xl,
       ),
       children: [
+        // Okuma Önbelleği (Modül 17) — bkz. work_order_list_screen.dart
+        // AYNI desen ve gerekçe notu.
+        if (provider.isFromCache) ...[
+          CacheAgeNote(cachedAt: provider.cachedAt!),
+          const SizedBox(height: AppSpacing.sm),
+        ],
         if (provider.unreadCount > 0) ...[
           Align(
             alignment: Alignment.centerRight,

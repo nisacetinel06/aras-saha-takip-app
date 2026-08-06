@@ -225,6 +225,15 @@ class WorkOrder {
       'equipment_type': equipmentType?.name,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
+      // Modül 17 (Okuma Önbelleği) — Kestirimci Bakım Planlama (Modül 12)
+      // filtresinin (WorkOrderListProvider.onlyPreventiveMaintenance)
+      // önbellekten yüklenen listelerde de doğru çalışması için source_type
+      // AYRICA serileştirilir; yoksa fromJson bunu varsayılan 'ariza' kabul
+      // ederdi (bkz. fromJson'daki `?? 'ariza'`).
+      'source_type': sourceType == WorkOrderSourceType.onleyiciBakim
+          ? 'onleyici_bakim'
+          : 'ariza',
+      'source_recommendation_id': sourceRecommendationId,
     };
   }
 

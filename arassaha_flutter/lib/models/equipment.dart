@@ -195,4 +195,29 @@ class Equipment {
           : null,
     );
   }
+
+  /// Ayarlar ve Çevrimdışı Mod (Modül 17) — Okuma Önbelleği için: EquipmentProvider
+  /// bir liste çektiğinde bu şekli `CacheService.set` ile saklar, bağlantı
+  /// koptuğunda `fromJson` ile AYNI şekli geri okuyup listeyi yeniden kurar.
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'qr_code': qrCode,
+      'equipment_type': equipmentType.name,
+      'il': il,
+      'ilce': ilce,
+      'mahalle': mahalle,
+      'location_name': locationName,
+      'lat': lat,
+      'lng': lng,
+      'install_date': installDate?.toIso8601String(),
+      'last_maintenance_date': lastMaintenanceDate?.toIso8601String(),
+      'manufacturer': manufacturer,
+      'capacity_info': capacityInfo,
+      'status': status.apiValue,
+      'created_at': createdAt.toIso8601String(),
+      'risk_score': riskScore,
+      'risk_level': riskLevel?.name,
+    };
+  }
 }

@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/app_user.dart';
 import '../models/work_order.dart';
 import '../providers/map_provider.dart';
 import '../providers/notification_provider.dart';
+import '../providers/settings_provider.dart';
 import '../providers/user_provider.dart';
 import '../providers/work_order_list_provider.dart';
 import '../services/local_notification_service.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/app_top_bar.dart';
+import '../widgets/arasai_floating_button.dart';
+import '../widgets/offline_banner.dart';
 import '../widgets/user_avatar.dart';
 import 'dashboard_screen.dart';
 import 'home/home_screen.dart';
@@ -65,8 +69,19 @@ class _MainShellState extends State<MainShell> {
       // login öncesi (LoginScreen) hiç çalışmaz. Kullanıcı çıkış yaptığında
       // (ya da 401 ile oturumu düşünce) AuthGate bu widget'ı unmount eder,
       // dispose() timer'ı otomatik durdurur — ayrı bir logout hook'una gerek yok.
+      //
+      // Ayarlar ekranındaki "Bildirimler" tercihi (Modül 17) kapalıysa
+      // polling hiç başlatılmaz — kullanıcı Ayarlar'dan tekrar açarsa
+      // SettingsScreen doğrudan NotificationProvider.startPolling()'i
+      // çağırır (bkz. settings_screen.dart).
       await LocalNotificationService.instance.requestPermission();
-      if (mounted) context.read<NotificationProvider>().startPolling();
+      if (!mounted) return;
+      final notificationsEnabled = context
+          .read<SettingsProvider>()
+          .notificationsEnabled;
+      if (notificationsEnabled) {
+        context.read<NotificationProvider>().startPolling();
+      }
     });
   }
 
@@ -97,6 +112,18 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final myProfile = context.watch<UserProvider>().myProfile;
 
+    return Stack(
+      children: [
+        _buildScaffold(context, myProfile),
+        // ArasAI (Modül 16) — her sekmede erişilebilir, sürüklenebilir
+        // yuvarlak asistan başlatıcısı. Scaffold'ın ÜSTÜNDE, ayrı bir
+        // katmanda durur; hiçbir sekmenin kendi layout'unu etkilemez.
+        ArasAiFloatingButton(onNavigateToTab: _navigateToTab),
+      ],
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context, AppUser? myProfile) {
     final tabs = <Widget>[
       HomeScreen(onNavigate: _navigateToTab),
       const WorkOrderListScreen(),
@@ -126,7 +153,12 @@ class _MainShellState extends State<MainShell> {
           SizedBox(width: 4),
         ],
       ),
-      body: IndexedStack(index: _index, children: tabs),
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(child: IndexedStack(index: _index, children: tabs)),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),

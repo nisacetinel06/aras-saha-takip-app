@@ -8,17 +8,20 @@ import '../models/equipment_risk.dart' show RiskLevel;
 import '../models/material.dart';
 import '../models/work_order.dart';
 import '../providers/auth_provider.dart';
+import '../providers/connectivity_provider.dart';
 import '../providers/maintenance_provider.dart';
 import '../providers/material_provider.dart';
 import '../providers/risk_provider.dart';
 import '../providers/work_order_detail_provider.dart';
 import '../services/analytics_service.dart';
 import '../services/api_service.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_top_bar.dart';
+import '../widgets/cache_age_note.dart';
 import '../widgets/material_picker_field.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/work_order_card.dart' show formatRelativeTime;
@@ -95,6 +98,12 @@ class _WorkOrderDetailBody extends StatelessWidget {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 children: [
+                  // Okuma Önbelleği (Modül 17) — bkz. work_order_list_screen.dart
+                  // AYNI desen ve gerekçe notu.
+                  if (provider.isFromCache) ...[
+                    CacheAgeNote(cachedAt: provider.cachedAt!),
+                    const SizedBox(height: 4),
+                  ],
                   Text(
                     workOrder.title,
                     style: Theme.of(context).textTheme.headlineMedium,
@@ -600,11 +609,19 @@ class _StatusUpdateSection extends StatelessWidget {
     }
 
     final action = _nextStatusActions[nextStatus]!;
+    final isOnline = context.watch<ConnectivityProvider>().isOnline;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Mevcut durum: ${workOrder.status.label}'),
+        Row(
+          children: [
+            Expanded(child: Text('Mevcut durum: ${workOrder.status.label}')),
+            // Modül 17 — çevrimdışıyken kuyruğa alınmış, henüz gerçek
+            // sunucu yanıtıyla doğrulanmamış bir güncelleme varken gösterilir.
+            if (provider.hasPendingStatusUpdate) const _PendingSyncBadge(),
+          ],
+        ),
         const SizedBox(height: AppSpacing.sm + 4),
         SizedBox(
           width: double.infinity,
@@ -614,12 +631,19 @@ class _StatusUpdateSection extends StatelessWidget {
             isLoading: provider.isUpdating,
             onPressed: () async {
               final messenger = ScaffoldMessenger.of(context);
+              // Kullanıcının tıkladığı ANDAKİ bağlantı durumu — updateStatus
+              // içindeki kontrolle AYNI an, mesaj metninin hangi yolun
+              // izlendiğiyle tutarlı kalması için burada da okunur.
+              final wasOnline = isOnline;
               final success = await provider.updateStatus(nextStatus);
               if (success) {
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text(
-                      'Durum "${nextStatus.label}" olarak güncellendi.',
+                      wasOnline
+                          ? 'Durum "${nextStatus.label}" olarak güncellendi.'
+                          : 'Bağlantı olmadığı için bu işlem kuyruğa alındı, '
+                                'bağlantı gelince otomatik gönderilecek.',
                     ),
                   ),
                 );
@@ -640,13 +664,67 @@ class _StatusUpdateSection extends StatelessWidget {
   }
 }
 
+/// Modül 17 — İş Emri Detay ekranındaki "bekliyor" rozeti. Optimistic UI'ın
+/// (durum hemen güncellenmiş GÖRÜNÜR) sessizce gerçek senkronizasyon
+/// bekliyor olduğunu unutturmamak için.
+class _PendingSyncBadge extends StatelessWidget {
+  const _PendingSyncBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final warning = AppColors.warning(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: warning.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 10,
+            height: 10,
+            child: CircularProgressIndicator(strokeWidth: 1.5, color: warning),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'Senkronizasyon bekliyor',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: warning,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PhotoSection extends StatelessWidget {
   final WorkOrder workOrder;
   const _PhotoSection({required this.workOrder});
 
   Future<void> _pickAndUpload(BuildContext context, ImageSource source) async {
-    final picker = ImagePicker();
     final messenger = ScaffoldMessenger.of(context);
+
+    // Modül 17 — bkz. isg_report_form_screen.dart üstündeki AYNI kapsam
+    // notu: fotoğraf yükleme çevrimdışı kuyruğa hiç alınmaz, kullanıcı net
+    // bir mesajla engellenir.
+    if (!ConnectivityProvider.instance.isOnline) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Bu işlem internet bağlantısı gerektirir — fotoğraflar çevrimdışı '
+            'kuyruğa alınmaz. Lütfen bağlantı geldiğinde tekrar deneyin.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final picker = ImagePicker();
     final provider = context.read<WorkOrderDetailProvider>();
 
     final XFile? file = await picker.pickImage(
@@ -701,6 +779,7 @@ class _PhotoSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<WorkOrderDetailProvider>();
     final scheme = Theme.of(context).colorScheme;
+    final isOnline = context.watch<ConnectivityProvider>().isOnline;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -765,10 +844,10 @@ class _PhotoSection extends StatelessWidget {
           ),
         const SizedBox(height: 12),
         AppButton(
-          label: 'Fotoğraf Ekle',
+          label: isOnline ? 'Fotoğraf Ekle' : 'Fotoğraf Ekle (İnternet Gerekli)',
           icon: Icons.add_a_photo_outlined,
           variant: AppButtonVariant.secondary,
-          onPressed: provider.isUpdating
+          onPressed: (provider.isUpdating || !isOnline)
               ? null
               : () => _showSourcePicker(context),
         ),

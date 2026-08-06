@@ -306,10 +306,19 @@ router.get('/:id', (req, res) => {
 });
 
 // PATCH /api/workorders/:id/status — yalnızca teknisyen/dispeçer.
-// Body: { "status": "yolda" }
+// Body: { "status": "yolda", "client_action_id"?: "<uuid>" }
 // Yönetici bu işi SAHADA yapmadığı için durumu bizzat değiştiremez; onun
 // rolü yalnızca takip/raporlamadır (Flutter tarafında da bu ekranda "Durum
 // Güncelle" aksiyonu yöneticiye hiç gösterilmez — bkz. work_order_detail_screen.dart).
+//
+// İDEMPOTENCY (Modül 17 — Çevrimdışı Yazma Kuyruğu): client_action_id yalnızca
+// çevrimdışı kuyruktan senkronize edilen istekler tarafından gönderilir (bkz.
+// offline_queue_service.dart); normal, çevrimiçi güncellemeler bu alanı hiç
+// göndermez ve aşağıdaki kontrol atlanır. Bir client_action_id daha önce
+// işlenmişse (processed_client_actions'da varsa), işlem TEKRAR UYGULANMAZ —
+// ilk seferki kaydedilmiş yanıt aynen döner. Bu, "kuyruktaki işlem ağ hatası
+// nedeniyle iki kez gönderilirse aynı durum güncellemesi veritabanına iki kez
+// yazılır (örn. iki bildirim gider)" riskini önler.
 router.patch('/:id/status', requireRole('teknisyen', 'dispecer'), (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -317,11 +326,20 @@ router.patch('/:id/status', requireRole('teknisyen', 'dispecer'), (req, res) => 
       return res.status(400).json({ error: 'Geçersiz iş emri id değeri.' });
     }
 
-    const { status } = req.body;
+    const { status, client_action_id: clientActionId } = req.body;
     if (!status || !VALID_STATUSES.includes(status)) {
       return res.status(400).json({
         error: `Geçersiz status değeri. Geçerli değerler: ${VALID_STATUSES.join(', ')}`,
       });
+    }
+
+    if (clientActionId) {
+      const alreadyProcessed = db
+        .prepare('SELECT response_json FROM processed_client_actions WHERE client_action_id = ?')
+        .get(clientActionId);
+      if (alreadyProcessed) {
+        return res.status(200).json(JSON.parse(alreadyProcessed.response_json));
+      }
     }
 
     const existing = db.prepare('SELECT id, equipment_id FROM work_orders WHERE id = ?').get(id);
@@ -356,7 +374,15 @@ router.patch('/:id/status', requireRole('teknisyen', 'dispecer'), (req, res) => 
     }
 
     const updated = db.prepare(`${SELECT_WORK_ORDER_WITH_USER} WHERE wo.id = ?`).get(id);
-    res.json(mapWorkOrderRow(updated));
+    const responseBody = mapWorkOrderRow(updated);
+
+    if (clientActionId) {
+      db.prepare(
+        'INSERT INTO processed_client_actions (client_action_id, response_json, created_at) VALUES (?, ?, ?)'
+      ).run(clientActionId, JSON.stringify(responseBody), updatedAt);
+    }
+
+    res.json(responseBody);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'İş emri durumu güncellenirken bir hata oluştu.' });
@@ -482,3 +508,9 @@ router.post('/:id/photos', (req, res) => {
 });
 
 module.exports = router;
+// AI Asistan (Modül 16) — services/assistantIntents.js kendi enum kopyasını
+// tutmak yerine buradaki TEK gerçek kaynağı içe aktarır (bkz. risk.js'teki
+// module.exports.refreshAllRiskScores ile AYNI "router objesine ek statik
+// alan ekleme" deseni — routing davranışını etkilemez).
+module.exports.VALID_STATUSES = VALID_STATUSES;
+module.exports.VALID_PRIORITIES = VALID_PRIORITIES;

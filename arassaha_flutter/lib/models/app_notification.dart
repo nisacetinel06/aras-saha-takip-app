@@ -78,4 +78,24 @@ class AppNotification {
       createdAt: createdAt,
     );
   }
+
+  static const _relatedTypeApiValues = {
+    NotificationRelatedType.workOrder: 'work_order',
+    NotificationRelatedType.isgReport: 'isg_report',
+    NotificationRelatedType.equipment: 'equipment',
+  };
+
+  /// Ayarlar ve Çevrimdışı Mod (Modül 17) — Okuma Önbelleği için: NotificationProvider
+  /// bir liste çektiğinde bu şekli `CacheService.set` ile saklar, bağlantı
+  /// koptuğunda `fromJson` ile AYNI şekli geri okuyup listeyi yeniden kurar.
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'message': message,
+      'related_type': _relatedTypeApiValues[relatedType],
+      'related_id': relatedId,
+      'is_read': isRead,
+      'created_at': createdAt.toIso8601String(),
+    };
+  }
 }

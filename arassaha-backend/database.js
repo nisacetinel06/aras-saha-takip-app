@@ -333,6 +333,37 @@ db.exec(`
     created_at TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users (id)
   );
+
+  -- AI Asistan / Sohbet Arayüzü (Modül 16) — bkz. routes/assistant.js ve
+  -- services/assistantService.js. Hem kullanıcı mesajlarını hem asistan
+  -- yanıtlarını (role='user'|'assistant') AYNI tabloda, gönderilme sırasına
+  -- göre tutar — Flutter tarafı GET /api/assistant/history ile tek bir
+  -- sorguda tüm sohbeti kronolojik çekip render eder, ayrı bir "eşleştirme"
+  -- mantığına gerek kalmaz.
+  CREATE TABLE IF NOT EXISTS chat_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    message TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id)
+  );
+
+  -- Ayarlar / Çevrimdışı Mod (Modül 17) — bkz. routes/workOrders.js
+  -- PATCH /:id/status ve arassaha_flutter/lib/services/offline_queue_service.dart.
+  -- Flutter tarafındaki çevrimdışı kuyruk, bağlantı geri geldiğinde bekleyen
+  -- bir işlemi (örn. durum güncellemesi) senkronize eder; bu istek ağ
+  -- hatası/timeout nedeniyle sunucuda BAŞARIYLA işlenip yanıtı istemciye hiç
+  -- ulaşmayabilir — istemci bunu "başarısız" sanıp AYNI client_action_id ile
+  -- tekrar dener. response_json, ikinci denemede işlemi TEKRAR UYGULAMADAN
+  -- (örn. iki kez bildirim göndermeden) İLK seferki gerçek sonucu aynen geri
+  -- dönebilmek için saklanır — bkz. PATCH /:id/status üzerindeki not.
+  CREATE TABLE IF NOT EXISTS processed_client_actions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_action_id TEXT NOT NULL UNIQUE,
+    response_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
 `);
 
 // Migrasyon: bu proje ilk kurulduğunda `users` tablosu `password_hash`

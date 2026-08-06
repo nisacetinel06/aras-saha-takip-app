@@ -15,6 +15,7 @@ import '../../widgets/role_badge.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 import '../admin/analytics_screen.dart';
+import '../assistant/assistant_chat_screen.dart';
 import '../admin/user_management_list_screen.dart';
 import '../devices/device_list_screen.dart';
 import '../equipment/equipment_home_screen.dart';
@@ -243,6 +244,24 @@ class _HomeScreenState extends State<HomeScreen> {
                           subtitle: 'Performans özeti',
                           color: AppColors.success(context),
                           onTap: () => widget.onNavigate(3),
+                        ),
+                        // AI Asistan / Sohbet Arayüzü (Modül 16) — TÜM roller
+                        // erişebilir; asistan her kullanıcının SADECE kendi RBAC
+                        // kapsamındaki veriyi döner (bkz. services/assistantQueries.js),
+                        // bu yüzden Cihaz/Kullanıcı Yönetimi gibi yönetici-only
+                        // kartların AKSİNE burada bir `auth.isYonetici` koşulu yok.
+                        _ModuleCard(
+                          icon: Icons.smart_toy_outlined,
+                          title: 'AI Asistan',
+                          subtitle: 'Sorularını doğal dilde sor',
+                          color: AppColors.primary(context),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => AssistantChatScreen(
+                                onNavigateToTab: widget.onNavigate,
+                              ),
+                            ),
+                          ),
                         ),
                         // Cihaz Yönetimi yalnızca yönetici rolüne görünür — dispeçer
                         // ve teknisyen bu kartı hiç görmez (backend zaten requireRole

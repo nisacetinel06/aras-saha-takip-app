@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../models/isg_report.dart';
+import '../../providers/connectivity_provider.dart';
 import '../../providers/isg_provider.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
@@ -154,8 +155,29 @@ class _IsgReportFormScreenState extends State<IsgReportFormScreen> {
   Future<void> _submit() async {
     if (!_canSubmit) return;
 
-    final provider = context.read<IsgProvider>();
     final messenger = ScaffoldMessenger.of(context);
+
+    // Modül 17 — KAPSAM BİLİNÇLİ OLARAK SINIRLI: fotoğraf yükleme gerektiren
+    // işlemler (bu form dahil) çevrimdışı yazma kuyruğuna HİÇ ALINMAZ; büyük
+    // bir dosyayı güvenilir şekilde kuyruklayıp senkronize etmek (kısmi
+    // yükleme, bozuk dosya, disk alanı) tam bir offline-first mimarinin
+    // çözmesi gereken ayrı bir problemdir — bkz. OfflineQueueService
+    // üstündeki kapsam notu. Kullanıcı çevrimdışıyken NET bir mesajla
+    // engellenir; istek backend'e hiç atılmaz, "gönderildi sanma" riski
+    // oluşmaz.
+    if (!ConnectivityProvider.instance.isOnline) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Bu işlem internet bağlantısı gerektirir — fotoğraflı bildirimler '
+            'çevrimdışı kuyruğa alınmaz. Lütfen bağlantı geldiğinde tekrar deneyin.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final provider = context.read<IsgProvider>();
     final navigator = Navigator.of(context);
 
     final success = await provider.submitReport(
@@ -209,6 +231,7 @@ class _IsgReportFormScreenState extends State<IsgReportFormScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<IsgProvider>();
     final scheme = Theme.of(context).colorScheme;
+    final isOnline = context.watch<ConnectivityProvider>().isOnline;
 
     return Scaffold(
       appBar: const AppTopBar(title: 'İSG Bildirimi Oluştur'),
@@ -267,14 +290,36 @@ class _IsgReportFormScreenState extends State<IsgReportFormScreen> {
         ),
       ),
       bottomNavigationBar: StickyFormFooter(
-        child: SizedBox(
-          width: double.infinity,
-          child: AppButton(
-            label: 'Bildirimi Gönder',
-            icon: Icons.send_outlined,
-            isLoading: provider.isSubmitting,
-            onPressed: _canSubmit ? _submit : null,
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Modül 17 — fotoğraflı bu işlem çevrimdışı kuyruğa alınmadığı
+            // için kullanıcı butona basmadan ÖNCE net bir uyarı görür.
+            if (!isOnline) ...[
+              Row(
+                children: [
+                  Icon(Icons.cloud_off_outlined, size: 14, color: AppColors.warning(context)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Çevrimdışısınız — bu işlem internet bağlantısı gerektirir.',
+                      style: TextStyle(fontSize: 12, color: AppColors.warning(context)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+            SizedBox(
+              width: double.infinity,
+              child: AppButton(
+                label: 'Bildirimi Gönder',
+                icon: Icons.send_outlined,
+                isLoading: provider.isSubmitting,
+                onPressed: (_canSubmit && isOnline) ? _submit : null,
+              ),
+            ),
+          ],
         ),
       ),
     );

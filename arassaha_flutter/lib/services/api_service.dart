@@ -5,6 +5,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import '../models/app_notification.dart';
 import '../models/app_user.dart';
+import '../models/chat_message.dart';
 import '../models/dashboard_summary.dart';
 import '../models/description_classification.dart';
 import '../models/equipment.dart';
@@ -224,12 +225,24 @@ class ApiService {
     }
   }
 
-  Future<WorkOrder> updateStatus(int id, String newStatus) async {
+  /// [clientActionId] yalnızca çevrimdışı yazma kuyruğundan senkronize
+  /// edilen istekler tarafından gönderilir (bkz. offline_queue_service.dart)
+  /// — backend'in idempotency kontrolü bu alan doluysa devreye girer, aynı
+  /// işlemin ağ hatası nedeniyle iki kez gönderilmesi durumunda durumun
+  /// veritabanında iki kez uygulanmasını önler.
+  Future<WorkOrder> updateStatus(
+    int id,
+    String newStatus, {
+    String? clientActionId,
+  }) async {
     try {
       final uri = Uri.parse('$baseUrl/workorders/$id/status');
       final response = await _patch(
         uri,
-        body: jsonEncode({'status': newStatus}),
+        body: jsonEncode({
+          'status': newStatus,
+          if (clientActionId != null) 'client_action_id': clientActionId,
+        }),
       );
 
       if (response.statusCode != 200) {
@@ -1790,6 +1803,56 @@ class ApiService {
 
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => TopMaterialUsage.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  // AI Asistan / Sohbet Arayüzü (Modül 16).
+
+  /// GET /api/assistant/history — kullanıcının son 50 mesajı, kronolojik sırada.
+  Future<List<ChatMessage>> getAssistantHistory() async {
+    try {
+      final uri = Uri.parse('$baseUrl/assistant/history');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Sohbet geçmişi alınamadı.'));
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => ChatMessage.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// POST /api/assistant/query — kullanıcı mesajını gönderir, asistanın
+  /// (Gemini API + güvenli sorgu fonksiyonları ile üretilmiş) yanıtını,
+  /// varsa bir uygulama-içi yönlendirme talebiyle ([AssistantReply.
+  /// navigateScreen]) birlikte döner (bkz. routes/assistant.js
+  /// navigate_to_screen özel durumu). Backend 200 ile döner (Gemini'ye
+  /// ulaşılamasa bile zarif bir hata mesajı `reply` içinde gelir), bu
+  /// yüzden burada ayrı bir "asistan hatası" dalı yok, yalnızca ağ/sunucu
+  /// hatası ele alınır.
+  Future<AssistantReply> sendAssistantMessage(String message) async {
+    try {
+      final uri = Uri.parse('$baseUrl/assistant/query');
+      final response = await _post(
+        uri,
+        body: jsonEncode({'message': message}),
+      );
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Asistan yanıtı alınamadı.'));
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return AssistantReply.fromJson(data);
     } on ApiException {
       rethrow;
     } catch (e) {

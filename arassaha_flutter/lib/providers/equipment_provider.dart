@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/equipment.dart';
 import '../services/api_service.dart';
+import '../services/cache_service.dart';
 
 /// Ekipman / Envanter (QR Kod) modülünün (Modül 4) state'ini yönetir:
 /// ekipman listesi, QR/manuel kod ile sorgulama, id ile detay ve geçmiş arıza
@@ -35,12 +36,19 @@ class EquipmentProvider extends ChangeNotifier {
   bool _isSearching = false;
   String? _searchErrorMessage;
 
+  // Ayarlar ve Çevrimdışı Mod (Modül 17) — Okuma Önbelleği. bkz.
+  // WorkOrderListProvider'daki AYNI desen ve gerekçe notu.
+  bool _isFromCache = false;
+  DateTime? _cachedAt;
+
   List<Equipment> get equipmentList => _equipmentList;
   bool get isListLoading => _isListLoading;
   String? get listErrorMessage => _listErrorMessage;
   EquipmentType? get typeFilter => _typeFilter;
   EquipmentStatus? get statusFilter => _statusFilter;
   String? get ilFilter => _ilFilter;
+  bool get isFromCache => _isFromCache;
+  DateTime? get cachedAt => _cachedAt;
 
   List<Equipment> get searchResults => _searchResults;
   bool get isSearching => _isSearching;
@@ -57,6 +65,11 @@ class EquipmentProvider extends ChangeNotifier {
   bool get isQrLookupLoading => _isQrLookupLoading;
   String? get qrLookupErrorMessage => _qrLookupErrorMessage;
 
+  /// Okuma Önbelleği (Modül 17) anahtarı — aktif tip/statü/il filtrelerini
+  /// İÇERİR, bkz. WorkOrderListProvider._cacheKey'deki AYNI gerekçe.
+  String get _cacheKey =>
+      'equipment_list:${_typeFilter?.name ?? '-'}:${_statusFilter?.apiValue ?? '-'}:${_ilFilter ?? '-'}';
+
   Future<void> fetchEquipmentList() async {
     _isListLoading = true;
     _listErrorMessage = null;
@@ -68,8 +81,24 @@ class EquipmentProvider extends ChangeNotifier {
         statusFilter: _statusFilter?.apiValue,
         ilFilter: _ilFilter,
       );
+      _isFromCache = false;
+      _cachedAt = null;
+      await CacheService.set(
+        _cacheKey,
+        _equipmentList.map((e) => e.toJson()).toList(),
+      );
     } catch (e) {
-      _listErrorMessage = e.toString();
+      final cached = CacheService.get(_cacheKey);
+      if (cached != null) {
+        final rawList = cached.data as List<dynamic>;
+        _equipmentList = rawList
+            .map((json) => Equipment.fromJson(json as Map<String, dynamic>))
+            .toList();
+        _isFromCache = true;
+        _cachedAt = cached.cachedAt;
+      } else {
+        _listErrorMessage = e.toString();
+      }
     } finally {
       _isListLoading = false;
       notifyListeners();

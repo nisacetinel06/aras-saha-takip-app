@@ -239,3 +239,6 @@ router.patch('/:id/status', (req, res) => {
 });
 
 module.exports = router;
+// AI Asistan (Modül 16) — bkz. routes/workOrders.js'teki aynı desen.
+module.exports.VALID_CATEGORIES = VALID_CATEGORIES;
+module.exports.VALID_STATUSES = VALID_STATUSES;

@@ -73,6 +73,22 @@ dependencies:
   # YEREL bir bildirim yaklaşımı kullanılıyor (bkz. services/local_notification_service.dart).
   flutter_local_notifications: ^22.2.0
 
+  # Ayarlar ve Çevrimdışı Mod (Modül 17) — bkz. services/cache_service.dart,
+  # services/offline_queue_service.dart, providers/connectivity_provider.dart.
+  # hive/hive_flutter: yerel önbellek ve çevrimdışı yazma kuyruğu için
+  # shared_preferences'tan daha esnek, JSON benzeri (Map) veri saklar.
+  # connectivity_plus: bağlantı durumu (var/yok) değişikliklerini dinlemek için.
+  # uuid: çevrimdışı kuyruğa eklenen her işlem için istemci tarafında üretilen,
+  # idempotency'nin dayandığı benzersiz client_action_id için (bkz. backend
+  # processed_client_actions tablosu).
+  # package_info_plus: Ayarlar ekranındaki "Hakkında" bölümünde uygulama
+  # sürümünü elle sabit yazmak yerine gerçek build bilgisinden okumak için.
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  connectivity_plus: ^6.1.3
+  uuid: ^4.5.1
+  package_info_plus: ^9.0.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

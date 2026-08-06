@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/app_notification.dart';
 import '../services/api_service.dart';
+import '../services/cache_service.dart';
 import '../services/local_notification_service.dart';
 
 /// Bildirim Sistemi (Modül 6) — bildirim listesi/sayısı state'i VE cihaz içi
@@ -32,10 +33,19 @@ class NotificationProvider extends ChangeNotifier {
   Timer? _pollTimer;
   bool _isPolling = false;
 
+  // Ayarlar ve Çevrimdışı Mod (Modül 17) — Okuma Önbelleği. bkz.
+  // WorkOrderListProvider'daki AYNI desen ve gerekçe notu.
+  bool _isFromCache = false;
+  DateTime? _cachedAt;
+
   List<AppNotification> get notifications => _notifications;
   int get unreadCount => _unreadCount;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  bool get isFromCache => _isFromCache;
+  DateTime? get cachedAt => _cachedAt;
+
+  static const _cacheKey = 'notifications:all';
 
   Future<void> fetchNotifications() async {
     _isLoading = true;
@@ -45,8 +55,27 @@ class NotificationProvider extends ChangeNotifier {
     try {
       _notifications = await _apiService.getNotifications();
       _unreadCount = _notifications.where((n) => !n.isRead).length;
+      _isFromCache = false;
+      _cachedAt = null;
+      await CacheService.set(
+        _cacheKey,
+        _notifications.map((n) => n.toJson()).toList(),
+      );
     } catch (e) {
-      _errorMessage = e.toString();
+      final cached = CacheService.get(_cacheKey);
+      if (cached != null) {
+        final rawList = cached.data as List<dynamic>;
+        _notifications = rawList
+            .map(
+              (json) => AppNotification.fromJson(json as Map<String, dynamic>),
+            )
+            .toList();
+        _unreadCount = _notifications.where((n) => !n.isRead).length;
+        _isFromCache = true;
+        _cachedAt = cached.cachedAt;
+      } else {
+        _errorMessage = e.toString();
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
