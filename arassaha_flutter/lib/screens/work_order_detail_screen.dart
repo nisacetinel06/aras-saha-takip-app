@@ -844,7 +844,9 @@ class _PhotoSection extends StatelessWidget {
           ),
         const SizedBox(height: 12),
         AppButton(
-          label: isOnline ? 'Fotoğraf Ekle' : 'Fotoğraf Ekle (İnternet Gerekli)',
+          label: isOnline
+              ? 'Fotoğraf Ekle'
+              : 'Fotoğraf Ekle (İnternet Gerekli)',
           icon: Icons.add_a_photo_outlined,
           variant: AppButtonVariant.secondary,
           onPressed: (provider.isUpdating || !isOnline)

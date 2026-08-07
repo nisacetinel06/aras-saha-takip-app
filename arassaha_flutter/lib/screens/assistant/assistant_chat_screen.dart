@@ -3,19 +3,22 @@ import 'package:provider/provider.dart';
 import '../../models/chat_message.dart';
 import '../../models/work_order.dart';
 import '../../providers/assistant_provider.dart';
+import '../../providers/map_provider.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
-import '../../widgets/app_top_bar.dart';
+import '../../widgets/app_logo.dart';
 import '../admin/analytics_screen.dart';
 import '../admin/user_management_list_screen.dart';
+import '../dashboard_screen.dart';
 import '../devices/device_list_screen.dart';
 import '../equipment/equipment_home_screen.dart';
 import '../equipment/qr_scanner_screen.dart';
 import '../equipment/suspicious_meters_screen.dart';
 import '../isg/isg_report_list_screen.dart';
 import '../maintenance/maintenance_recommendations_screen.dart';
+import '../map/map_screen.dart';
 import '../materials/material_list_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../reports/reports_screen.dart';
@@ -28,6 +31,11 @@ import '../work_orders/create_work_order_screen.dart';
 /// çözer, yetki kontrolünü ZATEN backend yapmıştır (asistan yalnızca
 /// erişimi olan bir ekran için `action` döner) — bu yüzden burada AYRICA
 /// bir rol kontrolü yok.
+///
+/// Marka/Ana Sayfa revizyonu: MainShell alt navigasyonu artık 4 sekme
+/// (0 Ana Sayfa, 1 İş Emirleri, 2 ArasAI, 3 Profil) — Harita/Dashboard
+/// sekmeden çıkarıldığı için `tabIndex` bu ikisini KAPSAMAZ, ilgili
+/// hedeflerde ayrıca sayfa push edilir (bkz. _handleNavigation).
 typedef AssistantTabNavigator =
     void Function(int tabIndex, {WorkOrderStatus? statusFilter});
 
@@ -39,16 +47,21 @@ const _exampleQuestions = [
   'Beni iş emirlerine götür',
 ];
 
-/// AI Asistan / Sohbet Arayüzü (Modül 16). Tüm roller erişebilir — asistan
-/// her kullanıcının SADECE kendi RBAC kapsamındaki veriyi döner (bkz.
+/// ArasAI / Sohbet Arayüzü (Modül 16). Tüm roller erişebilir — asistan her
+/// kullanıcının SADECE kendi RBAC kapsamındaki veriyi döner (bkz.
 /// services/assistantQueries.js), bu yüzden ekranın kendisinde ayrıca bir rol
 /// kısıtlaması yok.
+///
+/// Ana Sayfa revizyonu: bu ekran artık MainShell'in KALICI bir sekmesi
+/// (index 2) — eskiden olduğu gibi ayrı bir sayfa olarak push EDİLMEZ, bu
+/// yüzden kendi Scaffold/AppBar'ı yoktur (diğer sekmelerle — WorkOrderListScreen
+/// vb. — AYNI desen); başlık ve ArasAI rozeti MainShell'in ortak app bar'ından
+/// gelir (bkz. main_shell.dart).
 class AssistantChatScreen extends StatefulWidget {
   /// MainShell'in sekme geçiş callback'i (bkz. main_shell.dart
-  /// _navigateToTab) — asistan "beni iş emirlerine/haritaya/panele/profile
-  /// götür" derse bu ÇAĞRILIR. `null` bırakılırsa (örn. bu ekran bir
-  /// MainShell sekmesi bağlamı olmadan açıldıysa) tab tabanlı hedefler
-  /// sessizce yok sayılır — yalnızca sayfa açan (pushed) hedefler çalışır.
+  /// _navigateToTab) — asistan "beni iş emirlerine/profile götür" derse bu
+  /// ÇAĞRILIR. Harita/Dashboard artık sekme olmadığı için o hedeflerde
+  /// doğrudan sayfa push edilir (bkz. _handleNavigation).
   final AssistantTabNavigator? onNavigateToTab;
 
   const AssistantChatScreen({super.key, this.onNavigateToTab});
@@ -113,16 +126,17 @@ class _AssistantChatScreenState extends State<AssistantChatScreen> {
   }
 
   /// Asistanın navigate_to_screen yanıtını gerçek bir ekran geçişine çevirir.
-  /// Önce sohbet ekranını kapatır (kullanıcı hedef ekrandan "geri" bastığında
-  /// sohbete değil, altındaki asıl ekrana dönsün diye), sonra hedefe göre ya
-  /// MainShell sekmesi değiştirir ya da yeni bir ekran push eder.
+  /// Bu ekran artık MainShell'in KALICI bir sekmesi olduğu için (pushed bir
+  /// sayfa DEĞİL), önceden burada olan "önce sohbeti kapat" (navigator.pop())
+  /// adımı KALDIRILDI — kapatılacak bir pushed route yok, kapatmaya çalışmak
+  /// yanlışlıkla MainShell'in kendisini kapatırdı. Sekme hedefleri doğrudan
+  /// `onNavigateToTab` ile değiştirilir; Harita/Dashboard artık sekme olmadığı
+  /// için o iki hedef normal bir sayfa push'u ile açılır.
   void _handleNavigation(
     NavigatorState navigator,
     String screen,
     String? status,
   ) {
-    navigator.pop();
-
     switch (screen) {
       case 'ana_sayfa':
         widget.onNavigateToTab?.call(0);
@@ -130,17 +144,30 @@ class _AssistantChatScreenState extends State<AssistantChatScreen> {
       case 'is_emirleri':
         widget.onNavigateToTab?.call(
           1,
-          statusFilter: status != null ? WorkOrderStatus.fromJson(status) : null,
+          statusFilter: status != null
+              ? WorkOrderStatus.fromJson(status)
+              : null,
         );
         return;
       case 'harita':
-        widget.onNavigateToTab?.call(2);
+        if (status != null) {
+          navigator.context.read<MapProvider>().fetchMapData(
+            statusFilter: status,
+          );
+        }
+        navigator.push(MaterialPageRoute(builder: (_) => const MapScreen()));
         return;
       case 'dashboard':
-        widget.onNavigateToTab?.call(3);
+        final onNavigateToTab = widget.onNavigateToTab;
+        if (onNavigateToTab == null) return;
+        navigator.push(
+          MaterialPageRoute(
+            builder: (_) => DashboardScreen(onNavigate: onNavigateToTab),
+          ),
+        );
         return;
       case 'profil':
-        widget.onNavigateToTab?.call(4);
+        widget.onNavigateToTab?.call(3);
         return;
       case 'ekipman':
         navigator.push(
@@ -180,7 +207,9 @@ class _AssistantChatScreenState extends State<AssistantChatScreen> {
         );
         return;
       case 'raporlar':
-        navigator.push(MaterialPageRoute(builder: (_) => const ReportsScreen()));
+        navigator.push(
+          MaterialPageRoute(builder: (_) => const ReportsScreen()),
+        );
         return;
       case 'cihaz_yonetimi':
         navigator.push(
@@ -208,36 +237,32 @@ class _AssistantChatScreenState extends State<AssistantChatScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AssistantProvider>();
-    final scheme = Theme.of(context).colorScheme;
 
     // Provider her notifyListeners()'da (yeni mesaj/typing/history) burası
     // yeniden çizilir — her seferinde en alta kaydırmak, kullanıcı yeni bir
     // mesaj gördüğü anda otomatik scroll standart sohbet UX'idir.
     _scrollToBottom();
 
-    return Scaffold(
-      appBar: const AppTopBar(title: 'AI Asistan'),
-      body: Column(
-        children: [
-          Expanded(child: _buildBody(context, provider)),
-          if (provider.isTyping) _TypingIndicator(),
-          if (provider.sendErrorMessage != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.xs,
-              ),
-              child: Text(
-                provider.sendErrorMessage!,
-                style: AppTextStyles.caption(
-                  color: AppColors.danger(context),
-                ),
-              ),
+    // Artık kendi Scaffold/AppBar'ı YOK (bkz. sınıf dokümantasyonu) —
+    // WorkOrderListScreen/MapScreen ile AYNI desen: MainShell'in ortak
+    // Scaffold'ının body'sine doğrudan bir Column döner.
+    return Column(
+      children: [
+        Expanded(child: _buildBody(context, provider)),
+        if (provider.isTyping) _TypingIndicator(),
+        if (provider.sendErrorMessage != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.xs,
             ),
-          _InputBar(controller: _inputController, onSend: () => _send()),
-        ],
-      ),
-      backgroundColor: scheme.surface,
+            child: Text(
+              provider.sendErrorMessage!,
+              style: AppTextStyles.caption(color: AppColors.danger(context)),
+            ),
+          ),
+        _InputBar(controller: _inputController, onSend: () => _send()),
+      ],
     );
   }
 
@@ -290,14 +315,10 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.smart_toy_outlined,
-              size: 48,
-              color: AppColors.primary(context),
-            ),
+            const ArasAiLogo(size: 56),
             const SizedBox(height: AppSpacing.md),
             Text(
-              'ArasSaha Asistanına Sor',
+              "ArasAI'ya Sor",
               style: AppTextStyles.headingMedium(color: scheme.onSurface),
               textAlign: TextAlign.center,
             ),
@@ -329,7 +350,8 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-/// Mesaj baloncuğu: kullanıcı sağda (accent), asistan solda (nötr/gri).
+/// Mesaj baloncuğu: kullanıcı sağda (birincil mavi), asistan solda
+/// (nötr/gri) + küçük bir ArasAI rozeti ile.
 class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
   const _MessageBubble({required this.message});
@@ -338,37 +360,56 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isUser = message.isUser;
+    // Marka revizyonu: kullanıcı baloncuğu artık "accent" (turuncu) değil,
+    // birincil marka rengi (mavi) — genel arayüzde tek bir aksiyon/vurgu
+    // rengi kuralı sohbet baloncukları için de geçerli.
     final bubbleColor = isUser
-        ? AppColors.accent(context)
+        ? AppColors.primary(context)
         : scheme.surfaceContainerLowest;
     final textColor = isUser
-        ? accessibleOnColor(AppColors.accent(context))
+        ? accessibleOnColor(AppColors.primary(context))
         : scheme.onSurface;
 
+    final bubble = Container(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * (isUser ? 0.78 : 0.68),
+      ),
+      margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm + 2,
+      ),
+      decoration: BoxDecoration(
+        color: bubbleColor,
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(AppRadius.card),
+          topRight: const Radius.circular(AppRadius.card),
+          bottomLeft: Radius.circular(isUser ? AppRadius.card : 4),
+          bottomRight: Radius.circular(isUser ? 4 : AppRadius.card),
+        ),
+      ),
+      child: Text(
+        message.message,
+        style: AppTextStyles.bodyMedium(color: textColor),
+      ),
+    );
+
+    if (isUser) {
+      return Align(alignment: Alignment.centerRight, child: bubble);
+    }
+
+    // Asistan mesajlarının yanında küçük bir ArasAI rozeti — kullanıcı
+    // baloncuğunda avatar YOK (zaten sağda, "ben" olduğu bariz).
     return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.78,
-        ),
-        margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.sm + 2,
-        ),
-        decoration: BoxDecoration(
-          color: bubbleColor,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(AppRadius.card),
-            topRight: const Radius.circular(AppRadius.card),
-            bottomLeft: Radius.circular(isUser ? AppRadius.card : 4),
-            bottomRight: Radius.circular(isUser ? 4 : AppRadius.card),
-          ),
-        ),
-        child: Text(
-          message.message,
-          style: AppTextStyles.bodyMedium(color: textColor),
-        ),
+      alignment: Alignment.centerLeft,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const ArasAiLogo(size: 24),
+          const SizedBox(width: AppSpacing.xs),
+          Flexible(child: bubble),
+        ],
       ),
     );
   }

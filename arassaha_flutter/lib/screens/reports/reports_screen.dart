@@ -174,7 +174,10 @@ class _ReportSection extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: Text(title, style: Theme.of(context).textTheme.headlineSmall),
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
           ),
           content,
         ],
@@ -409,7 +412,9 @@ class _RiskBubbleMap extends StatelessWidget {
                         Text(
                           'Bu ildeki ekipmanlar için risk skoru henüz hesaplanmamış.',
                           style: AppTextStyles.caption(
-                            color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                            color: Theme.of(
+                              sheetContext,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ] else ...[
@@ -417,7 +422,9 @@ class _RiskBubbleMap extends StatelessWidget {
                         Text(
                           'Bu ilde henüz ekipman kaydı yok.',
                           style: AppTextStyles.caption(
-                            color: Theme.of(sheetContext).colorScheme.onSurfaceVariant,
+                            color: Theme.of(
+                              sheetContext,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -460,7 +467,11 @@ class _RiskBubbleMap extends StatelessWidget {
     );
   }
 
-  Marker _buildRegionMarker(BuildContext context, RegionalRiskSummary region, int maxEquipmentCount) {
+  Marker _buildRegionMarker(
+    BuildContext context,
+    RegionalRiskSummary region,
+    int maxEquipmentCount,
+  ) {
     final hasEquipment = region.equipmentCount > 0;
     final level = region.riskLevel;
     // Büyüklük ekipman sayısıyla orantılı ("nerede daha fazla altyapı var"
@@ -469,7 +480,10 @@ class _RiskBubbleMap extends StatelessWidget {
     // alanına sahip; büyüklük farkı yalnızca GÖRSELDİR (36-68dp aralığı),
     // GestureDetector her zaman tüm daireyi kaplar.
     final size = hasEquipment
-        ? (36 + (region.equipmentCount / maxEquipmentCount) * 32).clamp(36.0, 68.0)
+        ? (36 + (region.equipmentCount / maxEquipmentCount) * 32).clamp(
+            36.0,
+            68.0,
+          )
         : 32.0;
     final color = level != null
         ? riskLevelColor(context, level)
@@ -486,10 +500,7 @@ class _RiskBubbleMap extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: color.withValues(alpha: level != null ? 0.55 : 0.18),
-            border: Border.all(
-              color: color,
-              width: level != null ? 2.5 : 1.5,
-            ),
+            border: Border.all(color: color, width: level != null ? 2.5 : 1.5),
           ),
           alignment: Alignment.center,
           child: hasEquipment
@@ -539,7 +550,10 @@ class _RiskBubbleMap extends StatelessWidget {
                 ),
                 MarkerLayer(
                   markers: regions
-                      .map((r) => _buildRegionMarker(context, r, maxEquipmentCount))
+                      .map(
+                        (r) =>
+                            _buildRegionMarker(context, r, maxEquipmentCount),
+                      )
                       .toList(),
                 ),
               ],
@@ -556,7 +570,10 @@ class _RiskBubbleMap extends StatelessWidget {
                 top: 10,
                 left: 12,
                 right: 12,
-                child: _MapErrorBanner(message: errorMessage!, onRetry: onRetry),
+                child: _MapErrorBanner(
+                  message: errorMessage!,
+                  onRetry: onRetry,
+                ),
               ),
           ],
         ),
@@ -599,7 +616,10 @@ class _MapStatusChip extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            Text(message, style: TextStyle(fontSize: 12, color: scheme.onSurface)),
+            Text(
+              message,
+              style: TextStyle(fontSize: 12, color: scheme.onSurface),
+            ),
           ],
         ),
       ),
@@ -631,17 +651,27 @@ class _MapErrorBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.warning_amber_rounded, color: scheme.onErrorContainer, size: 20),
+          Icon(
+            Icons.warning_amber_rounded,
+            color: scheme.onErrorContainer,
+            size: 20,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
-              style: TextStyle(color: scheme.onErrorContainer, fontWeight: FontWeight.w600, fontSize: 13),
+              style: TextStyle(
+                color: scheme.onErrorContainer,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
             ),
           ),
           TextButton(
             onPressed: onRetry,
-            style: TextButton.styleFrom(foregroundColor: scheme.onErrorContainer),
+            style: TextButton.styleFrom(
+              foregroundColor: scheme.onErrorContainer,
+            ),
             child: const Text('Tekrar Dene'),
           ),
         ],
@@ -673,10 +703,16 @@ class _RiskLegend extends StatelessWidget {
             Container(
               width: 12,
               height: 12,
-              decoration: BoxDecoration(color: item.color, shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: item.color,
+                shape: BoxShape.circle,
+              ),
             ),
             const SizedBox(width: 6),
-            Text(item.label, style: AppTextStyles.caption(color: scheme.onSurfaceVariant)),
+            Text(
+              item.label,
+              style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+            ),
           ],
         );
       }).toList(),
@@ -746,7 +782,9 @@ class _TrendsTab extends StatelessWidget {
             onRetry: () => provider.fetchFaultByEquipmentType(force: true),
             isEmpty: provider.faultByEquipmentType.isEmpty,
             emptyMessage: 'Gösterilecek arıza kaydı yok.',
-            child: _FaultByEquipmentTypePieChart(data: provider.faultByEquipmentType),
+            child: _FaultByEquipmentTypePieChart(
+              data: provider.faultByEquipmentType,
+            ),
           ),
           _ReportSection(
             title: 'Anomali / Şüpheli Sayaç Dağılımı',
@@ -785,15 +823,22 @@ class _FaultTrendChart extends StatelessWidget {
             gridData: const FlGridData(show: false),
             borderData: FlBorderData(show: false),
             titlesData: FlTitlesData(
-              leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              leftTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              topTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              rightTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
               bottomTitles: AxisTitles(
                 sideTitles: SideTitles(
                   showTitles: true,
                   getTitlesWidget: (value, meta) {
                     final index = value.toInt();
-                    if (index < 0 || index >= data.length) return const SizedBox.shrink();
+                    if (index < 0 || index >= data.length)
+                      return const SizedBox.shrink();
                     return Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
@@ -807,7 +852,8 @@ class _FaultTrendChart extends StatelessWidget {
             ),
             lineTouchData: LineTouchData(
               touchTooltipData: LineTouchTooltipData(
-                getTooltipColor: (_) => Theme.of(context).colorScheme.surfaceContainerHighest,
+                getTooltipColor: (_) =>
+                    Theme.of(context).colorScheme.surfaceContainerHighest,
               ),
             ),
             lineBarsData: [
@@ -842,7 +888,11 @@ Color _equipmentTypeColor(BuildContext context, EquipmentType type) {
     case EquipmentType.trafo:
       return AppColors.primary(context);
     case EquipmentType.direk:
-      return AppColors.accent(context);
+      // Marka revizyonu: eski "accent" (turuncu) kaldırıldığı için, statü
+      // yeşilinden (success) görsel olarak ayrışan positive tonu kullanılır —
+      // dördüncü kategori için yeni bir hue eklemek yerine mevcut onaylı
+      // paletten (mavi/yeşil/kırmızı/amber) kalıyoruz.
+      return AppColors.positive(context);
     case EquipmentType.kesici:
       return AppColors.danger(context);
     case EquipmentType.sayac:
@@ -902,7 +952,11 @@ class _FaultByEquipmentTypePieChart extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Expanded(child: Text('${d.equipmentType.label}: ${d.faultCount}')),
+                      Expanded(
+                        child: Text(
+                          '${d.equipmentType.label}: ${d.faultCount}',
+                        ),
+                      ),
                     ],
                   ),
                 );
@@ -948,8 +1002,8 @@ class _AnomalyRegionRow extends StatelessWidget {
     final color = item.suspiciousRatio >= 0.5
         ? AppColors.danger(context)
         : item.suspiciousCount > 0
-            ? AppColors.warning(context)
-            : AppColors.success(context);
+        ? AppColors.warning(context)
+        : AppColors.success(context);
 
     return ListTile(
       leading: CircleAvatar(
@@ -971,7 +1025,11 @@ class _AnomalyRegionRow extends StatelessWidget {
       ),
       trailing: Text(
         '%${(item.suspiciousRatio * 100).toStringAsFixed(0)}',
-        style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w700),
+        style: TextStyle(
+          color: color,
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -1000,7 +1058,8 @@ class _MaterialsTab extends StatelessWidget {
             errorMessage: provider.topMaterialUsageErrorMessage,
             onRetry: () => provider.fetchTopMaterialUsage(force: true),
             isEmpty: provider.topMaterialUsage.isEmpty,
-            emptyMessage: 'Henüz bir iş emrinde malzeme kullanımı kaydedilmedi.',
+            emptyMessage:
+                'Henüz bir iş emrinde malzeme kullanımı kaydedilmedi.',
             child: _TopMaterialUsageChart(data: provider.topMaterialUsage),
           ),
         ],

@@ -167,9 +167,7 @@ class _NotificationsSection extends StatelessWidget {
         ),
         value: settings.notificationsEnabled,
         onChanged: (value) async {
-          await context.read<SettingsProvider>().setNotificationsEnabled(
-            value,
-          );
+          await context.read<SettingsProvider>().setNotificationsEnabled(value);
           if (!context.mounted) return;
           final notificationProvider = context.read<NotificationProvider>();
           if (value) {
@@ -210,7 +208,9 @@ class _CacheSection extends StatelessWidget {
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: Text(
               'Temizle',
-              style: TextStyle(color: Theme.of(dialogContext).colorScheme.error),
+              style: TextStyle(
+                color: Theme.of(dialogContext).colorScheme.error,
+              ),
             ),
           ),
         ],
@@ -221,7 +221,9 @@ class _CacheSection extends StatelessWidget {
 
     final messenger = ScaffoldMessenger.of(context);
     await CacheService.clear();
-    messenger.showSnackBar(const SnackBar(content: Text('Önbellek temizlendi.')));
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Önbellek temizlendi.')),
+    );
   }
 
   @override
@@ -289,7 +291,10 @@ class _PendingActionsSection extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.sync_problem_outlined, color: AppColors.warning(context)),
+              Icon(
+                Icons.sync_problem_outlined,
+                color: AppColors.warning(context),
+              ),
               const SizedBox(width: AppSpacing.sm + 4),
               Expanded(
                 child: Text(

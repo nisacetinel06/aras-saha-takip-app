@@ -6,9 +6,9 @@ import '../theme/app_spacing.dart';
 /// Renk kuralı (bkz. DESIGN_SYSTEM.md / app_colors.dart):
 /// - `primary`: birincil/asıl aksiyon ("Kaydet", "Gönder", "Giriş Yap" gibi
 ///   kullanıcıyı asıl harekete geçiren buton) — HER ZAMAN primary (mavi), dolu.
-///   FAB kendi accent (turuncu) rengini korur (bkz. app_theme.dart
-///   floatingActionButtonTheme) — bu bilinçli bir ayrım, FAB'ın ekranda ayrı
-///   bir vurgu olarak öne çıkması isteniyor.
+///   Marka revizyonu: FAB da artık AYNI mavi (bkz. app_theme.dart
+///   floatingActionButtonTheme) — eskiden ayrı bir "accent" (turuncu) tonu
+///   vardı, tek bir birincil aksiyon rengi kuralı gereği kaldırıldı.
 /// - `secondary`: ikincil/nötr/iptal aksiyonu — primary (mavi), outline.
 /// - `text`: en düşük vurgulu aksiyon — primary (mavi), zeminsiz.
 /// - `destructive`: yıkıcı/geri alınamaz aksiyon ("Hesabı Sil", "Çıkış Yap",

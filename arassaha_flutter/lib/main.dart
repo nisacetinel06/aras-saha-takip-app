@@ -55,7 +55,10 @@ Future<void> main() async {
   await LocalNotificationService.instance.initialize();
 
   runApp(
-    ArasSahaApp(themeProvider: themeProvider, settingsProvider: settingsProvider),
+    ArasSahaApp(
+      themeProvider: themeProvider,
+      settingsProvider: settingsProvider,
+    ),
   );
 }
 

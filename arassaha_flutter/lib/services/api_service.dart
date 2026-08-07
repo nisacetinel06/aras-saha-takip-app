@@ -37,7 +37,8 @@ class ApiService {
   // - Android emulator:      http://10.0.2.2:3000
   // - Gerçek cihaz + USB kablo: http://localhost:3000 (+ adb reverse tcp:3000 tcp:3000)
   // - Gerçek cihaz + aynı WiFi ağı: http://<bilgisayarın-yerel-IP'si>:3000
-  static const String host = 'https://arassaha-backend-production.up.railway.app';
+  static const String host =
+      'https://arassaha-backend-production.up.railway.app';
   static const String baseUrl = '$host/api';
 
   /// `work_order_photos.photo_path` backend'den `/uploads/...` şeklinde göreli
@@ -1819,7 +1820,9 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Sohbet geçmişi alınamadı.'));
+        throw ApiException(
+          _extractError(response, 'Sohbet geçmişi alınamadı.'),
+        );
       }
 
       final List<dynamic> data = jsonDecode(response.body);
@@ -1842,13 +1845,12 @@ class ApiService {
   Future<AssistantReply> sendAssistantMessage(String message) async {
     try {
       final uri = Uri.parse('$baseUrl/assistant/query');
-      final response = await _post(
-        uri,
-        body: jsonEncode({'message': message}),
-      );
+      final response = await _post(uri, body: jsonEncode({'message': message}));
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Asistan yanıtı alınamadı.'));
+        throw ApiException(
+          _extractError(response, 'Asistan yanıtı alınamadı.'),
+        );
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;

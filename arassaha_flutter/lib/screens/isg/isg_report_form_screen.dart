@@ -298,12 +298,19 @@ class _IsgReportFormScreenState extends State<IsgReportFormScreen> {
             if (!isOnline) ...[
               Row(
                 children: [
-                  Icon(Icons.cloud_off_outlined, size: 14, color: AppColors.warning(context)),
+                  Icon(
+                    Icons.cloud_off_outlined,
+                    size: 14,
+                    color: AppColors.warning(context),
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'Çevrimdışısınız — bu işlem internet bağlantısı gerektirir.',
-                      style: TextStyle(fontSize: 12, color: AppColors.warning(context)),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.warning(context),
+                      ),
                     ),
                   ),
                 ],

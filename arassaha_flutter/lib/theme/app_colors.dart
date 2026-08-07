@@ -17,8 +17,16 @@ class AppColors {
   // v2 (canlı palet): mobile-design skill'inin "sahada, güneş altında okunabilirlik"
   // önceliğine göre doygunluk artırıldı — pastel/donuk tonlar yerine yüksek
   // kontrastlı, solid renkler (bkz. mobile-color-system.md "Outdoor Visibility").
+  //
+  // v3 (marka revizyonu — turuncu kaldırıldı): `accent` (turuncu) artık genel
+  // arayüzde HİÇBİR yerde kullanılmıyor — mavi (`lightPrimary`) tek birincil
+  // marka/aksiyon rengi. `lightPositive`, durum rengi `lightSuccess`'ten
+  // BİLİNÇLİ olarak farklı, daha canlı bir yeşil: "Aktifleştir" gibi ikincil
+  // olumlu aksiyon butonlarında kullanılır — statü rozetleriyle (çözüldü,
+  // uyumlu, aktif) aynı ton olsaydı "bu bir durum mu yoksa tıklanabilir bir
+  // buton mu" karışıklığı yaratırdı.
   static const lightPrimary = Color(0xFF0D5FA8);
-  static const lightAccent = Color(0xFFFF6A1A);
+  static const lightPositive = Color(0xFF13B562);
   static const lightSuccess = Color(0xFF16A34A);
   static const lightWarning = Color(0xFFF2A900);
   static const lightDanger = Color(0xFFE0263F);
@@ -32,7 +40,7 @@ class AppColors {
   // (bkz. mobile-color-system.md "Color Inversion Rules") — bu yüzden koyu
   // tondaki karşılıklar birebir aynı değil, hafif açılmış/yumuşatılmış.
   static const darkPrimary = Color(0xFF5B9BE0);
-  static const darkAccent = Color(0xFFFF9152);
+  static const darkPositive = Color(0xFF34D980);
   static const darkSuccess = Color(0xFF3ECC7A);
   static const darkWarning = Color(0xFFFBBF24);
   static const darkDanger = Color(0xFFF16B7A);
@@ -66,7 +74,8 @@ class AppColors {
   static const darkRoleYonetici = Color(0xFFFB923C);
 
   static Color primary(BuildContext c) => _pick(c, lightPrimary, darkPrimary);
-  static Color accent(BuildContext c) => _pick(c, lightAccent, darkAccent);
+  static Color positive(BuildContext c) =>
+      _pick(c, lightPositive, darkPositive);
   static Color success(BuildContext c) => _pick(c, lightSuccess, darkSuccess);
   static Color warning(BuildContext c) => _pick(c, lightWarning, darkWarning);
   static Color danger(BuildContext c) => _pick(c, lightDanger, darkDanger);
@@ -124,13 +133,16 @@ Color statusColor(BuildContext context, WorkOrderStatus status) {
 Color onStatusColor(BuildContext context, WorkOrderStatus status) =>
     accessibleOnColor(statusColor(context, status));
 
-/// Öncelik rengi: acil=danger, normal=accent, dusuk=textSecondary.
+/// Öncelik rengi: acil=danger (kırmızı), normal=warning (sarı/amber),
+/// dusuk=textSecondary. `normal` daha önce ayrı bir "accent" (turuncu)
+/// tonundaydı — marka revizyonuyla turuncu tamamen kaldırıldığı için, "orta
+/// öncelik" durum rengi kuralına (sarı/amber) taşındı.
 Color priorityColor(BuildContext context, WorkOrderPriority priority) {
   switch (priority) {
     case WorkOrderPriority.acil:
       return AppColors.danger(context);
     case WorkOrderPriority.normal:
-      return AppColors.accent(context);
+      return AppColors.warning(context);
     case WorkOrderPriority.dusuk:
       return AppColors.textSecondary(context);
   }

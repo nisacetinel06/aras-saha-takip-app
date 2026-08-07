@@ -15,6 +15,7 @@ class RegionalRiskSummary {
   final double centerLat;
   final double centerLng;
   final int equipmentCount;
+
   /// null: bu ilde hiç ekipman/risk skoru yok ("veri yok" durumu) — Flutter
   /// tarafı bunu gri/boş bir bubble olarak gösterir (bkz. reports_screen.dart).
   final double? avgRiskScore;
@@ -127,6 +128,7 @@ class RegionAnomalySummary {
   final String il;
   final int totalMeters;
   final int suspiciousCount;
+
   /// 0.0-1.0 arası oran (örn. 0.5 = %50).
   final double suspiciousRatio;
 

@@ -7,6 +7,7 @@ import '../models/material.dart';
 import '../models/work_order.dart';
 import '../providers/auth_provider.dart';
 import '../providers/dashboard_provider.dart';
+import '../providers/map_provider.dart';
 import '../providers/material_provider.dart';
 import '../providers/risk_provider.dart';
 import '../services/analytics_service.dart';
@@ -15,19 +16,23 @@ import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
+import '../widgets/app_top_bar.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/work_order_card.dart' show formatRelativeTime;
 import 'equipment/equipment_detail_screen.dart';
+import 'map/map_screen.dart';
 import 'materials/material_detail_screen.dart';
 import 'materials/material_list_screen.dart';
 import 'work_order_detail_screen.dart';
 
-/// Dashboard sekmesi: Modül 2'nin detaylı analiz görünümü (grafikler, son
-/// aktiviteler). MainShell'in ortak app bar'ı altında gösterilir; kendi
-/// Scaffold/AppBar'ı yoktur (WorkOrderListScreen ile aynı desen).
+/// Panel (Dashboard): Modül 2'nin detaylı analiz görünümü (grafikler, son
+/// aktiviteler). Ana Sayfa revizyonundan önce MainShell'in kalıcı bir
+/// sekmesiydi; artık Ana Sayfa'nın "öne çıkanlar" kartından ya da "Tüm
+/// Modüller" ekranından normal bir sayfa olarak PUSH ediliyor — bu yüzden
+/// (WorkOrderListScreen/MapScreen'in AKSİNE) kendi Scaffold/AppBar'ı vardır.
 class DashboardScreen extends StatefulWidget {
-  /// Özet kartlardan İş Emirleri/Harita sekmesine, ilgili statü filtresiyle
-  /// geçmek için MainShell'e iletilir.
+  /// Özet kartlardan İş Emirleri sekmesine, ilgili statü filtresiyle geçmek
+  /// için MainShell'e iletilir (bkz. main_shell.dart _navigateToTab).
   final void Function(int tabIndex, {WorkOrderStatus? statusFilter}) onNavigate;
 
   const DashboardScreen({super.key, required this.onNavigate});
@@ -57,63 +62,79 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  void _openList(WorkOrderStatus status) =>
-      widget.onNavigate(1, statusFilter: status);
+  /// Bu ekran artık PUSH edilen bir sayfa olduğu için, İş Emirleri sekmesine
+  /// geçmeden önce kendisini kapatır (aksi halde İş Emirleri sekmesi altında,
+  /// hâlâ ekranda asılı kalırdı) — bkz. AssistantChatScreen._handleNavigation
+  /// içindeki AYNI "önce pop, sonra sekme değiştir" deseni.
+  void _openList(WorkOrderStatus status) {
+    Navigator.of(context).pop();
+    widget.onNavigate(1, statusFilter: status);
+  }
 
-  void _openMap(WorkOrderStatus status) =>
-      widget.onNavigate(2, statusFilter: status);
+  /// Harita artık bir MainShell sekmesi DEĞİL (bkz. main_shell.dart) — bu
+  /// yüzden statü filtresi önce MapProvider'a uygulanır, Dashboard kapatılır,
+  /// sonra Harita normal bir sayfa olarak push edilir.
+  void _openMap(WorkOrderStatus status) {
+    context.read<MapProvider>().fetchMapData(statusFilter: status.toJson());
+    final navigator = Navigator.of(context);
+    navigator.pop();
+    navigator.push(MaterialPageRoute(builder: (_) => const MapScreen()));
+  }
 
   @override
   Widget build(BuildContext context) {
     final isYonetici = context.watch<AuthProvider>().isYonetici;
 
-    return Consumer<DashboardProvider>(
-      builder: (context, provider, _) {
-        if (provider.errorMessage != null && provider.summary == null) {
-          return _ErrorState(
-            message: provider.errorMessage!,
-            onRetry: provider.fetchSummary,
-          );
-        }
+    return Scaffold(
+      appBar: const AppTopBar(title: 'Panel'),
+      body: Consumer<DashboardProvider>(
+        builder: (context, provider, _) {
+          if (provider.errorMessage != null && provider.summary == null) {
+            return _ErrorState(
+              message: provider.errorMessage!,
+              onRetry: provider.fetchSummary,
+            );
+          }
 
-        final summary = provider.summary;
-        if (summary == null) {
-          return const _DashboardSkeleton();
-        }
-        return RefreshIndicator(
-          onRefresh: provider.fetchSummary,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(AppSpacing.md),
-            children: [
-              _SummaryCardsRow(
-                summary: summary,
-                onCardTap: _openList,
-                onMapTap: _openMap,
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              const _SectionHeader('Durum Dağılımı'),
-              _StatusPieChart(summary: summary),
-              const SizedBox(height: AppSpacing.lg),
-              const _SectionHeader('Öncelik Dağılımı'),
-              _PriorityBarChart(summary: summary),
-              const SizedBox(height: AppSpacing.lg),
-              const _SectionHeader('Son Aktiviteler'),
-              _RecentActivityList(items: summary.recentActivity),
-              // Riskli Ekipmanlar bir yönetim raporudur (bkz. initState) —
-              // yalnızca yönetici rolüne gösterilir.
-              if (isYonetici) ...[
+          final summary = provider.summary;
+          if (summary == null) {
+            return const _DashboardSkeleton();
+          }
+          return RefreshIndicator(
+            onRefresh: provider.fetchSummary,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(AppSpacing.md),
+              children: [
+                _SummaryCardsRow(
+                  summary: summary,
+                  onCardTap: _openList,
+                  onMapTap: _openMap,
+                ),
                 const SizedBox(height: AppSpacing.lg),
-                const _SectionHeader('Riskli Ekipmanlar'),
-                const _RiskyEquipmentSection(),
+                const _SectionHeader('Durum Dağılımı'),
+                _StatusPieChart(summary: summary),
+                const SizedBox(height: AppSpacing.lg),
+                const _SectionHeader('Öncelik Dağılımı'),
+                _PriorityBarChart(summary: summary),
+                const SizedBox(height: AppSpacing.lg),
+                const _SectionHeader('Son Aktiviteler'),
+                _RecentActivityList(items: summary.recentActivity),
+                // Riskli Ekipmanlar bir yönetim raporudur (bkz. initState) —
+                // yalnızca yönetici rolüne gösterilir.
+                if (isYonetici) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  const _SectionHeader('Riskli Ekipmanlar'),
+                  const _RiskyEquipmentSection(),
+                ],
+                const SizedBox(height: AppSpacing.lg),
+                const _SectionHeader('Kritik Stoktaki Malzemeler'),
+                const _LowStockMaterialsSection(),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              const _SectionHeader('Kritik Stoktaki Malzemeler'),
-              const _LowStockMaterialsSection(),
-            ],
-          ),
-        );
-      },
+            ),
+          );
+        },
+      ),
     );
   }
 }

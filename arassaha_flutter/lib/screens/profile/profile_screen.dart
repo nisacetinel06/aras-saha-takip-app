@@ -178,9 +178,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label: 'Ayarlar',
               icon: Icons.settings_outlined,
               variant: AppButtonVariant.secondary,
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              ),
+              onPressed: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),

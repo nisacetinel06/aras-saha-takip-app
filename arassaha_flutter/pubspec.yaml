@@ -104,28 +104,32 @@ dev_dependencies:
   # çalışır, uygulamaya gömülmez.
   flutter_launcher_icons: ^0.14.3
 
+# Marka revizyonu: yeni SAHA.png uygulama ikonu olarak kullanılıyor. SAHA.png
+# opak beyaz zeminli tek parça bir görsel (adaptive_icon_foreground gibi ayrı
+# bir şeffaf katmanı yok) — bu yüzden eski adaptive_icon_background/foreground
+# çifti yerine tek `image_path` yeterli.
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "assets/images/aras_icon.png"
-  adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/aras_icon_foreground.png"
+  image_path: "assets/images/SAHA.png"
 
 flutter_native_splash:
-  # Skill-informed karar: logonun orijinal (lacivert) rengi canlı mavi zeminde
-  # kontrastı yetersiz kalıyordu (mobile-color-system.md min 4.5:1 kuralı) —
-  # bu yüzden splash'e ÖZEL, logonun beyaza boyanmış bir kopyası kullanılıyor
-  # (aras_splash_logo_white.png). Beyaz logo hem canlı mavi (açık tema) hem
-  # koyu zemin (koyu tema) üzerinde yüksek kontrastla okunuyor.
-  color: "#0D5FA8"
-  image: assets/images/aras_splash_logo_white.png
-  color_dark: "#121316"
-  image_dark: assets/images/aras_splash_logo_white.png
+  # Marka revizyonu: SAHA.png opak/beyaz zeminli bir görsel (eski
+  # aras_splash_logo_white.png gibi şeffaf/beyaza boyanmış bir splash-özel
+  # varyantı YOK) — bu yüzden splash zemin rengi de logonun kendi beyaz
+  # zeminiyle KAYNAŞSIN diye beyaza çekildi; eski canlı mavi (#0D5FA8) zeminde
+  # bırakılsaydı logo çevresinde belirgin bir beyaz dikdörtgen ("kutu")
+  # görünürdü. Logonun şeffaf/beyaza-boyanmış bir versiyonu sağlanırsa mavi
+  # zemine geri dönülebilir.
+  color: "#FFFFFF"
+  image: assets/images/SAHA.png
+  color_dark: "#FFFFFF"
+  image_dark: assets/images/SAHA.png
   android_12:
-    image: assets/images/aras_splash_logo_white.png
-    icon_background_color: "#0D5FA8"
-    image_dark: assets/images/aras_splash_logo_white.png
-    icon_background_color_dark: "#121316"
+    image: assets/images/SAHA.png
+    icon_background_color: "#FFFFFF"
+    image_dark: assets/images/SAHA.png
+    icon_background_color_dark: "#FFFFFF"
   android: true
   ios: false
 
@@ -142,8 +146,8 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/images/aras_logo.jpg
-    - assets/images/aras_splash_logo_white.png
+    - assets/images/SAHA.png
+    - assets/images/ArasAI_LOGO.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

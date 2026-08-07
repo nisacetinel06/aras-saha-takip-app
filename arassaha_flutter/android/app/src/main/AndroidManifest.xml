@@ -20,7 +20,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
-        android:label="arassaha_flutter"
+        android:label="ArasSaha"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

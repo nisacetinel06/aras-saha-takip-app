@@ -243,11 +243,11 @@ class _TopButtonsList extends StatelessWidget {
             ListTile(
               leading: CircleAvatar(
                 radius: 16,
-                backgroundColor: AppColors.accent(context),
+                backgroundColor: AppColors.primary(context),
                 child: Text(
                   '${i + 1}',
                   style: TextStyle(
-                    color: accessibleOnColor(AppColors.accent(context)),
+                    color: accessibleOnColor(AppColors.primary(context)),
                     fontWeight: FontWeight.w800,
                     fontSize: 13,
                   ),

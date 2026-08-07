@@ -14,6 +14,7 @@ import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/equipment_picker_field.dart';
+import '../../widgets/ml_service_unavailable_notice.dart';
 import '../../widgets/sticky_form_footer.dart';
 
 /// Yeni İş Emri Oluştur/Ata ekranı (Modül 7 — RBAC). Yalnızca dispeçer/yönetici
@@ -60,6 +61,12 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
   DescriptionClassification? _suggestion;
   bool _isClassifying = false;
   bool _suggestionDismissed = false;
+  // UI denetimi bulgusu: ML servisi kapalıyken bu ÖNCEDEN tamamen sessizce
+  // yutuluyordu ("yardımcı özellik formu engellemesin" gerekçesiyle) — artık
+  // Modül 9/11 ile TUTARLI, aynı ortak bileşenle (bkz.
+  // widgets/ml_service_unavailable_notice.dart) açıkça bildiriliyor; form
+  // yine de engellenmiyor, yalnızca kullanıcı NEDEN öneri gelmediğini görüyor.
+  bool _classificationUnavailable = false;
 
   @override
   void initState() {
@@ -82,6 +89,7 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
     setState(() {
       _suggestion = null;
       _suggestionDismissed = false;
+      _classificationUnavailable = false;
     });
 
     _debounceTimer?.cancel();
@@ -98,14 +106,21 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
     if (text.trim().split(RegExp(r'\s+')).length < 3) return;
     if (!mounted) return;
 
-    setState(() => _isClassifying = true);
+    setState(() {
+      _isClassifying = true;
+      _classificationUnavailable = false;
+    });
     try {
       final result = await ApiService().classifyDescription(text);
       if (!mounted || _descriptionController.text != text) return;
       setState(() => _suggestion = result.hasSuggestion ? result : null);
     } catch (_) {
-      // ML servisi kapalıysa/erişilemezse sessizce yutulur — bu bir
-      // yardımcı öneri özelliği, formun geri kalanını engellememeli.
+      // Form yine de ENGELLENMİYOR (bu bir yardımcı öneri özelliği) — ama
+      // artık sessizce yutulmuyor, kullanıcı açık bir bildirim görüyor
+      // (bkz. build() içindeki MlServiceUnavailableNotice).
+      if (mounted && _descriptionController.text == text) {
+        setState(() => _classificationUnavailable = true);
+      }
     } finally {
       if (mounted) setState(() => _isClassifying = false);
     }
@@ -268,6 +283,16 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
                 suggestion: _suggestion!,
                 onApply: _applySuggestion,
                 onDismiss: _dismissSuggestion,
+              ),
+            ],
+            if (_classificationUnavailable) ...[
+              const SizedBox(height: AppSpacing.sm),
+              MlServiceUnavailableNotice(
+                detail:
+                    'Arıza açıklamasına göre otomatik tip/öncelik önerisi (Modül 10) şu anda hesaplanamıyor. '
+                    'Formu bu öneri olmadan da doldurabilirsiniz.',
+                onRetry: () =>
+                    _classifyDescription(_descriptionController.text),
               ),
             ],
             const SizedBox(height: AppSpacing.lg),
@@ -509,10 +534,10 @@ class _ClassificationSuggestionBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final accent = AppColors.accent(context);
+    final tint = AppColors.primary(context);
 
     return AppCard(
-      backgroundTint: accent,
+      backgroundTint: tint,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.sm,
         vertical: AppSpacing.sm,
@@ -523,7 +548,7 @@ class _ClassificationSuggestionBox extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.auto_awesome, size: 16, color: accent),
+              Icon(Icons.auto_awesome, size: 16, color: tint),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(

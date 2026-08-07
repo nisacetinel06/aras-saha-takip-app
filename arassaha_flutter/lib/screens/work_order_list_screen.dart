@@ -77,7 +77,8 @@ class _WorkOrderListScreenState extends State<WorkOrderListScreen> {
                 child: ListView.builder(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
-                  itemCount: provider.workOrders.length + (cacheNote != null ? 1 : 0),
+                  itemCount:
+                      provider.workOrders.length + (cacheNote != null ? 1 : 0),
                   itemBuilder: (context, index) {
                     if (cacheNote != null) {
                       if (index == 0) {

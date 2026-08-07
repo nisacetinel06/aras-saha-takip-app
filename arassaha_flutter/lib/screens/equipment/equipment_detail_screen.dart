@@ -15,6 +15,7 @@ import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/maintenance_recommendation_card.dart';
+import '../../widgets/ml_service_unavailable_notice.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 import '../work_order_detail_screen.dart';
@@ -438,11 +439,22 @@ class _RiskAnalysisSection extends StatelessWidget {
     }
 
     if (risk == null) {
+      // Ekran mount olur olmaz otomatik olarak bir kez çekilmeye çalışıldığı
+      // için (initState) buraya düşülmesi neredeyse her zaman bir hata
+      // anlamına gelir (ML servisine ulaşılamadı) — bu yüzden hata mesajı
+      // VARSA ortak uyarı bileşeni gösterilir; yalnızca hiç deneme
+      // yapılmamışsa (errorMessage null) nötr "henüz hesaplanmadı" metni kalır.
+      if (provider.riskErrorMessage != null) {
+        return MlServiceUnavailableNotice(
+          detail: provider.riskErrorMessage,
+          onRetry: () => provider.fetchEquipmentRisk(equipmentId),
+        );
+      }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            provider.riskErrorMessage ?? 'Risk skoru henüz hesaplanmadı.',
+            'Risk skoru henüz hesaplanmadı.',
             style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -574,12 +586,20 @@ class _ConsumptionAnalysisSectionState
     }
 
     if (anomaly == null) {
+      // bkz. _RiskAnalysisSection'daki AYNI gerekçe: initState zaten otomatik
+      // bir deneme yaptığı için, hata mesajı VARSA bu neredeyse her zaman ML
+      // servisine ulaşılamadığı anlamına gelir.
+      if (provider.anomalyErrorMessage != null) {
+        return MlServiceUnavailableNotice(
+          detail: provider.anomalyErrorMessage,
+          onRetry: () => provider.fetchEquipmentAnomaly(widget.equipmentId),
+        );
+      }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            provider.anomalyErrorMessage ??
-                'Tüketim analizi henüz hesaplanmadı.',
+            'Tüketim analizi henüz hesaplanmadı.',
             style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -652,9 +672,10 @@ class _ConsumptionAnalysisSectionState
         else if (consumption != null && consumption.isNotEmpty)
           _ConsumptionChart(entries: consumption, lineColor: color)
         else if (provider.consumptionErrorMessage != null)
-          Text(
-            provider.consumptionErrorMessage!,
-            style: TextStyle(color: scheme.error),
+          MlServiceUnavailableNotice(
+            detail: provider.consumptionErrorMessage,
+            onRetry: () =>
+                provider.fetchEquipmentConsumption(widget.equipmentId),
           ),
       ],
     );

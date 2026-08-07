@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/app_user.dart';
 import '../models/work_order.dart';
-import '../providers/map_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/user_provider.dart';
@@ -10,19 +9,28 @@ import '../providers/work_order_list_provider.dart';
 import '../services/local_notification_service.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/app_top_bar.dart';
-import '../widgets/arasai_floating_button.dart';
 import '../widgets/offline_banner.dart';
 import '../widgets/user_avatar.dart';
-import 'dashboard_screen.dart';
+import 'assistant/assistant_chat_screen.dart';
 import 'home/home_screen.dart';
-import 'map/map_screen.dart';
 import 'profile/profile_screen.dart';
 import 'work_order_list_screen.dart';
 
-/// Uygulamanın kalıcı kabuğu: Ana Sayfa / İş Emirleri / Harita / Dashboard /
-/// Profil arasında alt navigasyon çubuğuyla geçiş sağlar. Ortak app bar
-/// burada tanımlıdır; sekme içerikleri kendi Scaffold/AppBar'ını taşımaz.
-/// Bkz. DESIGN_SYSTEM.md Bölüm B.
+/// Uygulamanın kalıcı kabuğu: Ana Sayfa / İş Emirleri / ArasAI / Profil
+/// arasında alt navigasyon çubuğuyla geçiş sağlar. Ortak app bar burada
+/// tanımlıdır; sekme içerikleri kendi Scaffold/AppBar'ını taşımaz.
+///
+/// Ana Sayfa revizyonu (radikal sadeleştirme): alt navigasyon eskiden 5
+/// sekmeydi (Ana Sayfa/İş Emirleri/Harita/Dashboard/Profil) — Harita ve
+/// Dashboard artık KALICI birer sekme değil, Ana Sayfa'nın "öne çıkanlar"
+/// kartlarından ya da "Tüm Modüller" ekranından normal birer sayfa olarak
+/// push ediliyor (bkz. home/home_screen.dart, home/all_modules_screen.dart).
+/// Bunun yerine ArasAI (Modül 16) kalıcı bir sekmeye taşındı — eskiden
+/// [ArasAiFloatingButton] adlı sürüklenebilir bir yuvarlak buton her sekmede
+/// AYRI bir katman olarak duruyordu; artık zaten her an bir dokunuşla
+/// erişilebilir bir sekme olduğu için o ikinci giriş noktası KALDIRILDI
+/// (widgets/arasai_floating_button.dart silindi) — aynı özelliğe iki farklı
+/// erişim yolu tutmak, "radikal sadeleştirme" ilkesiyle çelişirdi.
 ///
 /// Zil ve tema butonları [NotificationBellButton]/[ThemeToggleButton]
 /// (bkz. widgets/app_top_bar.dart) üzerinden gelir — [AppTopBar] kullanan
@@ -45,16 +53,13 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
+/// Sekme sırası SABİTTİR (0 Ana Sayfa, 1 İş Emirleri, 2 ArasAI, 3 Profil) —
+/// diğer ekranlardan sekme geçişi yapan TÜM kod (HomeScreen,
+/// AssistantChatScreen, DashboardScreen) AYNI indeksleri varsayar.
 class _MainShellState extends State<MainShell> {
   int _index = 0;
 
-  static const _titles = [
-    'Ana Sayfa',
-    'İş Emirleri',
-    'Harita',
-    'Dashboard',
-    'Profil',
-  ];
+  static const _titles = ['Ana Sayfa', 'İş Emirleri', 'ArasAI', 'Profil'];
 
   @override
   void initState() {
@@ -91,19 +96,18 @@ class _MainShellState extends State<MainShell> {
     super.dispose();
   }
 
-  /// Hub'daki modül kartlarından ya da Dashboard'daki özet kartlardan
-  /// çağrılır: ilgili sekmeye, isteğe bağlı bir statü filtresi önceden
-  /// uygulanmış şekilde geçer. Sekmeler IndexedStack ile canlı tutulduğu için
-  /// filtre, ilgili provider'a doğrudan burada uygulanır.
+  /// Hub'daki (Ana Sayfa) "öne çıkanlar" kartlarından ya da ArasAI'nin
+  /// navigate_to_screen yanıtından çağrılır: ilgili sekmeye, isteğe bağlı bir
+  /// statü filtresi önceden uygulanmış şekilde geçer. Sekmeler IndexedStack
+  /// ile canlı tutulduğu için filtre, ilgili provider'a doğrudan burada
+  /// uygulanır. Harita artık bir sekme OLMADIĞI için (bkz. sınıf
+  /// dokümantasyonu) burada yalnızca İş Emirleri (index 1) filtresi kalır —
+  /// Harita'ya statü filtresiyle gitmek isteyen çağıranlar (DashboardScreen,
+  /// AssistantChatScreen) `MapProvider.fetchMapData` çağırdıktan sonra
+  /// doğrudan `MapScreen`'i push eder.
   void _navigateToTab(int index, {WorkOrderStatus? statusFilter}) {
-    if (statusFilter != null) {
-      if (index == 1) {
-        context.read<WorkOrderListProvider>().setFilter(statusFilter);
-      } else if (index == 2) {
-        context.read<MapProvider>().fetchMapData(
-          statusFilter: statusFilter.toJson(),
-        );
-      }
+    if (statusFilter != null && index == 1) {
+      context.read<WorkOrderListProvider>().setFilter(statusFilter);
     }
     setState(() => _index = index);
   }
@@ -111,37 +115,37 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final myProfile = context.watch<UserProvider>().myProfile;
-
-    return Stack(
-      children: [
-        _buildScaffold(context, myProfile),
-        // ArasAI (Modül 16) — her sekmede erişilebilir, sürüklenebilir
-        // yuvarlak asistan başlatıcısı. Scaffold'ın ÜSTÜNDE, ayrı bir
-        // katmanda durur; hiçbir sekmenin kendi layout'unu etkilemez.
-        ArasAiFloatingButton(onNavigateToTab: _navigateToTab),
-      ],
-    );
+    return _buildScaffold(context, myProfile);
   }
 
   Widget _buildScaffold(BuildContext context, AppUser? myProfile) {
     final tabs = <Widget>[
       HomeScreen(onNavigate: _navigateToTab),
       const WorkOrderListScreen(),
-      const MapScreen(),
-      DashboardScreen(onNavigate: _navigateToTab),
+      AssistantChatScreen(onNavigateToTab: _navigateToTab),
       const ProfileScreen(),
     ];
+    // UI denetimi bulgusu: Ana Sayfa artık kendi karşılama bölümünde büyük,
+    // belirgin bir SAHA logosu gösteriyor (bkz. home_screen.dart) — üst bar
+    // AYRICA aynı logoyu gösterirse aynı ekranda iki kez tekrar eder. Bu
+    // yüzden logo yalnızca Ana Sayfa OLMAYAN sekmelerde (İş Emirleri, ArasAI,
+    // Profil) üst barda görünür. ArasAI sekmesinde ayrıca küçük bir ikinci
+    // görsel (ArasAiLogo rozeti) YOK — yalnızca SAHA logosu + "ArasAI" metni
+    // (bkz. UI denetimi C.1); ArasAiLogo yalnızca sohbet baloncuklarında kalır.
+    final isHomeTab = _index == 0;
 
     return Scaffold(
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const AppLogo(
-              height: 22,
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            ),
-            const SizedBox(width: 10),
+            if (!isHomeTab) ...[
+              const AppLogo(
+                height: 22,
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+              const SizedBox(width: 10),
+            ],
             Flexible(
               child: Text(_titles[_index], overflow: TextOverflow.ellipsis),
             ),
@@ -156,7 +160,9 @@ class _MainShellState extends State<MainShell> {
       body: Column(
         children: [
           const OfflineBanner(),
-          Expanded(child: IndexedStack(index: _index, children: tabs)),
+          Expanded(
+            child: IndexedStack(index: _index, children: tabs),
+          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -174,14 +180,9 @@ class _MainShellState extends State<MainShell> {
             label: 'İş Emirleri',
           ),
           const NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map),
-            label: 'Harita',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
+            icon: Icon(Icons.smart_toy_outlined),
+            selectedIcon: Icon(Icons.smart_toy),
+            label: 'ArasAI',
           ),
           NavigationDestination(
             icon: myProfile != null

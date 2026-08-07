@@ -10,18 +10,21 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_button.dart';
+import '../../widgets/app_top_bar.dart';
 import '../../widgets/status_badge.dart';
 import '../equipment/equipment_detail_screen.dart';
 import '../work_order_detail_screen.dart';
 
-/// Harita sekmesi içeriği: iş emirlerinin gerçek lat/lng konumlarını
-/// OpenStreetMap üzerinde gösterir. Her pin backend'deki gerçek bir kayda
-/// karşılık gelir — sahte/örnek pin yoktur (bkz. ARCHITECTURE.md Temel Kalite
-/// İlkesi). MainShell'in ortak app bar'ı/alt navigasyonu altında gösterilir;
-/// kendi Scaffold/AppBar'ı yoktur (WorkOrderListScreen ile aynı desen). Ana
-/// Sayfa'daki modül kartlarından ya da Dashboard'daki özet kartlardan belirli
-/// bir statü filtresiyle açılmak istendiğinde, MainShell bu ekran mount
-/// olmadan önce `MapProvider.fetchMapData(statusFilter: ...)` çağırır.
+/// Harita ekranı: iş emirlerinin gerçek lat/lng konumlarını OpenStreetMap
+/// üzerinde gösterir. Her pin backend'deki gerçek bir kayda karşılık gelir —
+/// sahte/örnek pin yoktur (bkz. ARCHITECTURE.md Temel Kalite İlkesi). Ana
+/// Sayfa revizyonundan önce MainShell'in kalıcı bir sekmesiydi; artık Ana
+/// Sayfa'nın "öne çıkanlar" kartından ya da "Tüm Modüller" ekranından normal
+/// bir sayfa olarak PUSH ediliyor — bu yüzden (WorkOrderListScreen'in AKSİNE)
+/// kendi Scaffold/AppBar'ı vardır. Belirli bir statü filtresiyle açılmak
+/// istendiğinde, çağıran taraf bu ekranı push etmeden ÖNCE
+/// `MapProvider.fetchMapData(statusFilter: ...)` çağırır (bkz.
+/// dashboard_screen.dart._openMap, assistant_chat_screen.dart._handleNavigation).
 ///
 /// Not (dark mode): OpenStreetMap tile'ları her zaman açık renkli gelir —
 /// bu, harita tile katmanı için bir sınırlamadır ve bu prototipte değiştirilmedi.
@@ -193,60 +196,63 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<MapProvider>();
 
-    return Column(
-      children: [
-        _MapFilterBar(provider: provider),
-        Expanded(
-          child: Stack(
-            children: [
-              FlutterMap(
-                mapController: _mapController,
-                options: const MapOptions(
-                  initialCenter: _regionCenter,
-                  initialZoom: _regionZoom,
-                ),
-                children: [
-                  TileLayer(
-                    urlTemplate:
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.arasedas.arassaha_flutter',
+    return Scaffold(
+      appBar: const AppTopBar(title: 'Harita'),
+      body: Column(
+        children: [
+          _MapFilterBar(provider: provider),
+          Expanded(
+            child: Stack(
+              children: [
+                FlutterMap(
+                  mapController: _mapController,
+                  options: const MapOptions(
+                    initialCenter: _regionCenter,
+                    initialZoom: _regionZoom,
                   ),
-                  MarkerLayer(
-                    markers: provider.mapMarkers.map(_buildMarker).toList(),
-                  ),
-                ],
-              ),
-              if (provider.isLoading)
-                const Positioned(
-                  top: 10,
-                  left: 0,
-                  right: 0,
-                  child: _LoadingChip(),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.arasedas.arassaha_flutter',
+                    ),
+                    MarkerLayer(
+                      markers: provider.mapMarkers.map(_buildMarker).toList(),
+                    ),
+                  ],
                 ),
-              if (provider.errorMessage != null)
+                if (provider.isLoading)
+                  const Positioned(
+                    top: 10,
+                    left: 0,
+                    right: 0,
+                    child: _LoadingChip(),
+                  ),
+                if (provider.errorMessage != null)
+                  Positioned(
+                    top: 10,
+                    left: 12,
+                    right: 12,
+                    child: _ErrorBanner(
+                      message: provider.errorMessage!,
+                      onRetry: () => provider.fetchMapData(),
+                    ),
+                  ),
                 Positioned(
-                  top: 10,
-                  left: 12,
-                  right: 12,
-                  child: _ErrorBanner(
-                    message: provider.errorMessage!,
-                    onRetry: () => provider.fetchMapData(),
+                  bottom: 16,
+                  right: 16,
+                  child: FloatingActionButton.small(
+                    heroTag: 'map_recenter_fab',
+                    tooltip: 'Erzurum merkezine dön',
+                    onPressed: _recenter,
+                    child: const Icon(Icons.center_focus_strong),
                   ),
                 ),
-              Positioned(
-                bottom: 16,
-                right: 16,
-                child: FloatingActionButton.small(
-                  heroTag: 'map_recenter_fab',
-                  tooltip: 'Erzurum merkezine dön',
-                  onPressed: _recenter,
-                  child: const Icon(Icons.center_focus_strong),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

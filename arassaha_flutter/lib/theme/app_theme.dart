@@ -134,9 +134,6 @@ class AppTheme {
   static ThemeData dark() => _build(darkColorScheme);
 
   static ThemeData _build(ColorScheme scheme) {
-    final fabBackground = scheme.brightness == Brightness.dark
-        ? AppColors.darkAccent
-        : AppColors.lightAccent;
     return ThemeData(
       colorScheme: scheme,
       useMaterial3: true,
@@ -225,15 +222,15 @@ class AppTheme {
           ),
         ),
       ),
-      // FAB, uygulamanın "accent" (enerji/vurgu) rengini kullanır — bu, M3'ün
-      // primary/secondary/tertiary rollerinin dışında, sadece bu tek amaç için
-      // ayrılmış canlı bir tondur (bkz. app_colors.dart AppColors.accent).
+      // Marka revizyonu: FAB artık ayrı bir "accent" (turuncu) tonu DEĞİL,
+      // birincil aksiyonlarla (Kaydet/Gönder/Giriş Yap) AYNI mavi — tek bir
+      // birincil aksiyon rengi kuralı FAB için de geçerli (bkz. app_colors.dart).
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: fabBackground,
-        // D1 kontrast bulgusu: accent (turuncu) üzerine sabit Colors.white
-        // yalnızca ~2.2-2.9:1 kontrast veriyordu (WCAG AA eşiği 4.5:1) —
-        // bkz. app_colors.dart accessibleOnColor.
-        foregroundColor: accessibleOnColor(fabBackground),
+        backgroundColor: scheme.primary,
+        // D1 kontrast bulgusu: koyu temada scheme.primary'ye sabit Colors.white
+        // yalnızca ~2.9:1 kontrast veriyordu (WCAG AA eşiği 4.5:1) — bkz.
+        // app_colors.dart accessibleOnColor.
+        foregroundColor: accessibleOnColor(scheme.primary),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       inputDecorationTheme: InputDecorationTheme(

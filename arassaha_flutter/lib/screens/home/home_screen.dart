@@ -1,33 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/dashboard_summary.dart';
+import '../../models/maintenance_recommendation.dart';
 import '../../models/work_order.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/dashboard_provider.dart';
-import '../../providers/notification_provider.dart';
+import '../../providers/maintenance_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
+import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/app_logo.dart';
 import '../../widgets/role_badge.dart';
 import '../../widgets/user_avatar.dart';
-import '../../widgets/work_order_card.dart' show formatRelativeTime;
-import '../admin/analytics_screen.dart';
-import '../assistant/assistant_chat_screen.dart';
-import '../admin/user_management_list_screen.dart';
-import '../devices/device_list_screen.dart';
-import '../equipment/equipment_home_screen.dart';
+import '../admin/user_edit_screen.dart';
+import '../dashboard_screen.dart';
 import '../equipment/qr_scanner_screen.dart';
-import '../equipment/suspicious_meters_screen.dart';
-import '../isg/isg_report_list_screen.dart';
+import '../isg/isg_report_form_screen.dart';
 import '../maintenance/maintenance_recommendations_screen.dart';
-import '../materials/material_list_screen.dart';
-import '../notifications/notifications_screen.dart';
-import '../reports/reports_screen.dart';
-import '../work_order_detail_screen.dart';
+import '../map/map_screen.dart';
 import '../work_orders/create_work_order_screen.dart';
+import 'all_modules_screen.dart';
 
 const _weekdays = [
   'Pazartesi',
@@ -58,43 +54,26 @@ String _formatToday() {
   return '${now.day} ${_months[now.month - 1]} ${now.year}, ${_weekdays[now.weekday - 1]}';
 }
 
-/// Ana Sayfa (Hub): tüm modüllere net şekilde yönlendiren merkezi ekran.
-/// MainShell'in bir sekmesi olarak gösterilir; kendi Scaffold/AppBar'ı yoktur
-/// (FAB hariç — bu, MainShell'in Scaffold'ından bağımsız olarak zaten öyleydi).
-/// Bkz. DESIGN_SYSTEM.md Bölüm B.
+/// Ana Sayfa (Hub) — v3: "öne çıkanlar" tek ızgarası, GÖRSEL OLARAK ayırt
+/// edilemeyen iki farklı niyeti (aksiyon başlatma vs. gezinme) tek bir kart
+/// stiline sıkıştırıyordu. Şimdi ikisi BİLİNÇLİ olarak ayrı, birbirine
+/// benzemeyen bölümler:
 ///
-/// Görsel dil, kullanıcının verdiği referans Flutter koduna göre klonlandı:
-/// üstte hafif renkli bir gradyan şerit, karşılama satırı (avatar + isim +
-/// rol rozeti + tarih + zil), yatay kaydırmalı istatistik kartları, yatay
-/// hızlı işlemler şeridi, sabit yükseklikli modül kartları (tonal daire
-/// ikonlar) ve son aktiviteler listesi.
+///   [Karşılama — kart/kenarlık YOK, büyük SAHA logosu]
+///   [Özet şerit — 2-3 sayı]
+///   [Hızlı İşlemler — dolu mavi, yatay kaydırmalı "aksiyon başlat" kartları]
+///   [Çabuk Erişim — ince kenarlıklı, nötr "bir yere git" kartları]
+///   [Tüm Modüller butonu]
 ///
-/// İŞ MANTIĞI DEĞİŞMEDİ — yalnızca görsel yeniden düzenleme. Referans koddan
-/// BİLEREK farklı uygulanan noktalar:
-/// 1) "Yeni İş Emri Oluştur" hem hızlı işlem hem FAB olarak, referanstaki gibi
-///    var — ama ikisi de gerçek `CreateWorkOrderScreen`e gider (referanstaki
-///    gibi yerel/sahte bir bottom sheet DEĞİL); backend'e gerçekten kaydeder,
-///    RBAC'a (yalnızca dispeçer/yönetici) uyar ve Modül 10'daki NLP öneri
-///    özelliğini de içerir.
-/// 2) İstatistik kartlarındaki "↘ Gecikmiş / ↗ Yolunda / ↗ Ortalamadan Hızlı"
-///    gibi ifadeler backend'de karşılığı olmayan UYDURMA verilerdi (bkz.
-///    ARCHITECTURE.md Temel Kalite İlkesi) — yalnızca gerçekten var olan
-///    `priorityBreakdown[acil]` sayısı bir rozet olarak kullanıldı, diğer iki
-///    kartta sahte bir trend metni YOK.
-/// 3) Marka rengi olarak uygulamanın mevcut birincil rengi (AppColors.primary)
-///    korundu — referans kodun kendi mavisi (#2563EB) yalnızca bu ekrana özel
-///    uygulanmadı, çünkü bu tüm uygulamadaki (butonlar, diğer ekranlar)
-///    tutarlılığı bozardı.
-/// 4) Profil fotoğrafı hâlâ gerçek `UserAvatar` bileşeninden gelir (backend'den
-///    gerçek fotoğraf ya da harf avatarı) — referanstaki sabit stok fotoğraf
-///    (NetworkImage) kullanılmadı.
-/// 5) DÜZELTME (merkezi header turu): Karşılama satırında BİR ARA bir bildirim
-///    zili de vardı; bu, MainShell'in üst çubuğundaki zille (Ana Sayfa bu
-///    çubuğun ALTINDA gösterildiği için) aynı ekranda İKİ KEZ görünen gerçek
-///    bir tekrar bugıydı — kaldırıldı (bkz. widgets/app_top_bar.dart).
+/// Kullanıcı bir bakışta "bu bana bir şey YAPTIRIR" (Hızlı İşlemler, dolu
+/// renk) ile "bu beni bir yere GÖTÜRÜR" (Çabuk Erişim, çizgisel/nötr)
+/// arasındaki farkı ayırt edebilmeli — bkz. UI denetimi Bölüm A. İŞ MANTIĞI
+/// DEĞİŞMEDİ, yalnızca hangi eylemin hangi bölümde göründüğü ve görsel dili.
 class HomeScreen extends StatefulWidget {
   /// MainShell'e "şu sekmeye, isteğe bağlı şu statü filtresiyle geç" demek
-  /// için kullanılır (örn. İş Emirleri modül kartı -> sekme 1).
+  /// için kullanılır. Sekme sırası: 0 Ana Sayfa, 1 İş Emirleri, 2 ArasAI,
+  /// 3 Profil (bkz. main_shell.dart) — Harita ve Panel sekme değil, bu
+  /// ekrandan doğrudan push edilir.
   final void Function(int tabIndex, {WorkOrderStatus? statusFilter}) onNavigate;
 
   const HomeScreen({super.key, required this.onNavigate});
@@ -110,324 +89,274 @@ class _HomeScreenState extends State<HomeScreen> {
     AnalyticsService.logScreenView('HomeScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DashboardProvider>().fetchSummary();
+      // "Önleyici Bakım Öner" Hızlı İşlemi yalnızca BEKLEYEN bir öneri
+      // varsa görünür (bkz. build) — bu yüzden sayıyı bilmek için yönetici
+      // ise önerileri baştan çekiyoruz. Diğer roller bu isteği hiç atmaz.
+      if (context.read<AuthProvider>().isYonetici) {
+        context.read<MaintenanceProvider>().fetchRecommendations(
+          statusFilter: 'onerildi',
+        );
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final summary = context.watch<DashboardProvider>().summary;
     final auth = context.watch<AuthProvider>();
     final myProfile = context.watch<UserProvider>().myProfile;
-    final unreadNotifications = context
-        .watch<NotificationProvider>()
-        .unreadCount;
+    final pendingMaintenanceCount = auth.isYonetici
+        ? context
+              .watch<MaintenanceProvider>()
+              .recommendations
+              .where(
+                (r) => r.status == MaintenanceRecommendationStatus.onerildi,
+              )
+              .length
+        : 0;
 
-    // Rol bazlı görünürlük (Modül 7 — RBAC): backend zaten bu endpoint'leri
-    // rol bazlı engelliyor (requireRole), burada UI tarafında da aynı
-    // ayrımı yansıtıyoruz — teknisyen/dispeçer bu kartları hiç görmez.
-    final workOrdersCardTitle = auth.isTeknisyen
-        ? 'Görevlerim'
-        : 'Tüm İş Emirleri';
     final acilCount = summary?.priorityBreakdown[WorkOrderPriority.acil] ?? 0;
 
     void goToCreateWorkOrder() => Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const CreateWorkOrderScreen()));
 
+    void goToMap() => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const MapScreen()));
+
+    void goToDashboard() => Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DashboardScreen(onNavigate: widget.onNavigate),
+      ),
+    );
+
+    void goToMaintenance() => Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const MaintenanceRecommendationsScreen(),
+      ),
+    );
+
+    void goToQrScanner() => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const QrScannerScreen()));
+
+    void goToIsgForm() => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const IsgReportFormScreen()));
+
+    void goToAddUser() => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const UserEditScreen()));
+
+    void goToAllModules() => Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AllModulesScreen(onNavigate: widget.onNavigate),
+      ),
+    );
+
+    // Hızlı İşlemler: kullanıcının doğrudan bir eylem BAŞLATACAĞI girişler
+    // (bir şey oluşturma/gönderme) — role göre SABİT liste.
+    final List<_ActionData> quickActions;
+    if (auth.isYonetici) {
+      quickActions = [
+        if (pendingMaintenanceCount > 0)
+          _ActionData(
+            icon: Icons.build_circle_outlined,
+            label: 'Önleyici Bakım Öner',
+            onTap: goToMaintenance,
+          ),
+        _ActionData(
+          icon: Icons.person_add_alt_outlined,
+          label: 'Yeni Kullanıcı Ekle',
+          onTap: goToAddUser,
+        ),
+      ];
+    } else if (auth.isDispecer) {
+      quickActions = [
+        _ActionData(
+          icon: Icons.add_circle_outline,
+          label: 'Yeni İş Emri Ata',
+          onTap: goToCreateWorkOrder,
+        ),
+      ];
+    } else {
+      quickActions = [
+        _ActionData(
+          icon: Icons.report_problem_outlined,
+          label: 'Arıza Bildir',
+          onTap: goToQrScanner,
+        ),
+        _ActionData(
+          icon: Icons.health_and_safety_outlined,
+          label: 'İSG Bildirimi Gönder',
+          onTap: goToIsgForm,
+        ),
+      ];
+    }
+
+    // Çabuk Erişim: kullanıcının bir ekranı/listeyi GÖRÜNTÜLEMEK için gittiği
+    // girişler — role göre SABİT liste. Not: "Bildirimler" BİLİNÇLİ olarak
+    // burada YOK — AppTopBar'daki zil zaten aynı işleve tek giriş noktası
+    // (bkz. UI denetimi B.4).
+    final List<_AccessData> quickAccess;
+    if (auth.isYonetici) {
+      quickAccess = [
+        _AccessData(
+          icon: Icons.bar_chart_outlined,
+          title: 'Panel',
+          subtitle: 'Grafikler ve özet göstergeler',
+          onTap: goToDashboard,
+        ),
+        _AccessData(
+          icon: Icons.assignment_outlined,
+          title: 'İş Emirleri',
+          subtitle: summary != null ? '${summary.openCount} Açık' : null,
+          onTap: () => widget.onNavigate(1),
+        ),
+        _AccessData(
+          icon: Icons.build_circle_outlined,
+          title: 'Bakım Planlama',
+          subtitle: 'Kestirimci bakım önerileri',
+          onTap: goToMaintenance,
+        ),
+        _AccessData(
+          icon: Icons.smart_toy_outlined,
+          title: 'ArasAI',
+          subtitle: 'Sorularını doğal dilde sor',
+          onTap: () => widget.onNavigate(2),
+        ),
+      ];
+    } else if (auth.isDispecer) {
+      quickAccess = [
+        _AccessData(
+          icon: Icons.assignment_outlined,
+          title: 'Tüm İş Emirleri',
+          subtitle: summary != null ? '${summary.openCount} Açık' : null,
+          onTap: () => widget.onNavigate(1),
+        ),
+        _AccessData(
+          icon: Icons.location_on_outlined,
+          title: 'Harita',
+          subtitle: 'Konum görünümü',
+          onTap: goToMap,
+        ),
+        _AccessData(
+          icon: Icons.smart_toy_outlined,
+          title: 'ArasAI',
+          subtitle: 'Sorularını doğal dilde sor',
+          onTap: () => widget.onNavigate(2),
+        ),
+      ];
+    } else {
+      quickAccess = [
+        _AccessData(
+          icon: Icons.assignment_outlined,
+          title: 'Görevlerim',
+          subtitle: summary != null ? '${summary.openCount} Açık' : null,
+          onTap: () => widget.onNavigate(1),
+        ),
+        _AccessData(
+          icon: Icons.location_on_outlined,
+          title: 'Harita',
+          subtitle: 'Konum görünümü',
+          onTap: goToMap,
+        ),
+        _AccessData(
+          icon: Icons.smart_toy_outlined,
+          title: 'ArasAI',
+          subtitle: 'Sorularını doğal dilde sor',
+          onTap: () => widget.onNavigate(2),
+        ),
+      ];
+    }
+
     return Scaffold(
       body: SafeArea(
-        child: Container(
-          // Üstte hafif renkli bir gradyan, referans tasarımdaki header
-          // arkaplanını taklit eder — %22'lik durakta zemin rengine döner.
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                scheme.primaryContainer.withValues(alpha: isDark ? 0.35 : 0.6),
-                scheme.surface,
-              ],
-              stops: const [0.0, 0.22],
+        child: RefreshIndicator(
+          onRefresh: context.read<DashboardProvider>().fetchSummary,
+          child: ListView(
+            // UI denetimi B.1: üstteki gereksiz boşluk azaltıldı (md -> sm),
+            // karşılama artık kenarlıksız/kartsız, doğrudan sayfa zemininde.
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.sm,
+              AppSpacing.md,
+              AppSpacing.xl + 56,
             ),
-          ),
-          child: RefreshIndicator(
-            onRefresh: context.read<DashboardProvider>().fetchSummary,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.xl + 56,
+            children: [
+              _GreetingRow(
+                name: auth.currentUser?.name ?? '',
+                role: auth.currentUser?.role ?? '',
+                roleLabel: auth.roleLabel,
+                photoPath: myProfile?.photoPath,
+                initials:
+                    myProfile?.initials ??
+                    (auth.currentUser?.name.isNotEmpty == true
+                        ? auth.currentUser!.name[0].toUpperCase()
+                        : '?'),
+                onAvatarTap: () => widget.onNavigate(3),
               ),
-              children: [
-                _GreetingRow(
-                  name: auth.currentUser?.name ?? '',
-                  role: auth.currentUser?.role ?? '',
-                  roleLabel: auth.roleLabel,
-                  photoPath: myProfile?.photoPath,
-                  initials:
-                      myProfile?.initials ??
-                      (auth.currentUser?.name.isNotEmpty == true
-                          ? auth.currentUser!.name[0].toUpperCase()
-                          : '?'),
-                  onAvatarTap: () => widget.onNavigate(4),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                _StatsRow(summary: summary, acilCount: acilCount),
-                const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.lg),
+              _StatsRow(
+                summary: summary,
+                acilCount: acilCount,
+                isTeknisyen: auth.isTeknisyen,
+                isYonetici: auth.isYonetici,
+              ),
+              const SizedBox(height: AppSpacing.lg),
 
-                Text(
-                  'Hızlı İşlemler',
-                  style: AppTextStyles.headingMedium(color: scheme.onSurface),
+              Text(
+                'Hızlı İşlemler',
+                style: AppTextStyles.headingMedium(color: scheme.onSurface),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              SizedBox(
+                height: 108,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: quickActions.length,
+                  separatorBuilder: (_, _) =>
+                      const SizedBox(width: AppSpacing.sm),
+                  itemBuilder: (context, i) =>
+                      _QuickActionCard(data: quickActions[i]),
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                _QuickActionsRow(
-                  canCreateWorkOrder: auth.canCreateWorkOrders,
-                  onCreateWorkOrder: goToCreateWorkOrder,
-                  onScanQr: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const QrScannerScreen()),
-                  ),
-                  onReportIssue: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const IsgReportListScreen(),
-                    ),
-                  ),
-                  onSync: () =>
-                      context.read<DashboardProvider>().fetchSummary(),
-                ),
-                const SizedBox(height: AppSpacing.lg),
+              ),
+              const SizedBox(height: AppSpacing.lg),
 
-                Text(
-                  'Modüller',
-                  style: AppTextStyles.headingMedium(color: scheme.onSurface),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                // C1 (responsive grid): sütun sayısı artık sabit değil, ekran
-                // genişliğine göre hesaplanıyor — bkz. theme/app_spacing.dart
-                // responsiveGridColumns (telefon: 2, tablet: 3, geniş
-                // tablet/katlanabilir: 4).
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    return GridView.count(
-                      crossAxisCount: responsiveGridColumns(
-                        constraints.maxWidth,
-                      ),
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      mainAxisSpacing: AppSpacing.sm,
-                      crossAxisSpacing: AppSpacing.sm,
-                      mainAxisExtent: 80,
-                      children: [
-                        _ModuleCard(
-                          icon: Icons.assignment_outlined,
-                          title: workOrdersCardTitle,
-                          subtitle: summary != null
-                              ? (acilCount > 0
-                                    ? '${summary.openCount} Açık, $acilCount Acil'
-                                    : '${summary.openCount} Açık')
-                              : null,
-                          color: AppColors.primary(context),
-                          onTap: () => widget.onNavigate(1),
-                        ),
-                        _ModuleCard(
-                          icon: Icons.location_on_outlined,
-                          title: 'Harita Görünümü',
-                          subtitle: 'Konum görünümü',
-                          color: AppColors.accent(context),
-                          onTap: () => widget.onNavigate(2),
-                        ),
-                        _ModuleCard(
-                          icon: Icons.bar_chart_outlined,
-                          title: 'Panel',
-                          subtitle: 'Performans özeti',
-                          color: AppColors.success(context),
-                          onTap: () => widget.onNavigate(3),
-                        ),
-                        // AI Asistan / Sohbet Arayüzü (Modül 16) — TÜM roller
-                        // erişebilir; asistan her kullanıcının SADECE kendi RBAC
-                        // kapsamındaki veriyi döner (bkz. services/assistantQueries.js),
-                        // bu yüzden Cihaz/Kullanıcı Yönetimi gibi yönetici-only
-                        // kartların AKSİNE burada bir `auth.isYonetici` koşulu yok.
-                        _ModuleCard(
-                          icon: Icons.smart_toy_outlined,
-                          title: 'AI Asistan',
-                          subtitle: 'Sorularını doğal dilde sor',
-                          color: AppColors.primary(context),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => AssistantChatScreen(
-                                onNavigateToTab: widget.onNavigate,
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Cihaz Yönetimi yalnızca yönetici rolüne görünür — dispeçer
-                        // ve teknisyen bu kartı hiç görmez (backend zaten requireRole
-                        // ile engelliyor, bkz. routes/devices.js).
-                        if (auth.isYonetici)
-                          _ModuleCard(
-                            icon: Icons.phonelink_lock_outlined,
-                            title: 'Cihaz Yönetimi',
-                            subtitle: 'Kilitle · Senkronize et',
-                            color: AppColors.warning(context),
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const DeviceListScreen(),
-                              ),
-                            ),
-                          ),
-                        // Kullanıcı Yönetimi de yalnızca yönetici rolüne görünür
-                        // (bkz. ARCHITECTURE.md Modül 8) — backend requireRole ile
-                        // ayrıca engelliyor.
-                        if (auth.isYonetici)
-                          _ModuleCard(
-                            icon: Icons.manage_accounts_outlined,
-                            title: 'Kullanıcı Yönetimi',
-                            subtitle: 'Ekle · Düzenle',
-                            color: roleColor(context, 'yonetici'),
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    const UserManagementListScreen(),
-                              ),
-                            ),
-                          ),
-                        // Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) — bir
-                        // yönetim raporudur (backend GET /api/meters/suspicious
-                        // giriş yapmış herkese açık olsa da, kaçak/kayıp takibi
-                        // yönetimsel bir sorumluluktur) — Cihaz/Kullanıcı Yönetimi
-                        // ile AYNI RBAC deseniyle yalnızca yöneticiye gösterilir.
-                        if (auth.isYonetici)
-                          _ModuleCard(
-                            icon: Icons.search,
-                            title: 'Şüpheli Sayaçlar',
-                            subtitle: 'Kayıp-kaçak / anomali tespiti',
-                            color: AppColors.danger(context),
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const SuspiciousMetersScreen(),
-                              ),
-                            ),
-                          ),
-                        // Basit Kullanım Analitiği (UX standardizasyonu turu,
-                        // bölüm E) — Cihaz/Kullanıcı Yönetimi ile AYNI RBAC
-                        // deseniyle yalnızca yöneticiye gösterilir.
-                        if (auth.isYonetici)
-                          _ModuleCard(
-                            icon: Icons.analytics_outlined,
-                            title: 'Kullanım Analitiği',
-                            subtitle: 'En çok kullanılan ekran/butonlar',
-                            color: roleColor(context, 'yonetici'),
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const AnalyticsScreen(),
-                              ),
-                            ),
-                          ),
-                        // Raporlar / Analitik Sayfası (Modül 14) — Modül 9
-                        // (risk) ve Modül 11'in (anomali) verilerini bölgesel/
-                        // zamansal kırılımlarla sunan bir yönetim raporudur;
-                        // Şüpheli Sayaçlar/Kullanım Analitiği ile AYNI RBAC
-                        // deseniyle yalnızca yöneticiye gösterilir (backend de
-                        // routes/reports.js'te requireRole('yonetici') uygular).
-                        if (auth.isYonetici)
-                          _ModuleCard(
-                            icon: Icons.query_stats_outlined,
-                            title: 'Raporlar',
-                            subtitle: 'Bölgesel risk · Eğilimler',
-                            color: AppColors.primary(context),
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const ReportsScreen(),
-                              ),
-                            ),
-                          ),
-                        // Kestirimci Bakım Planlama (Modül 12) — Modül 9'un risk
-                        // skorundan türetilen bakım önerilerini gösterir ve
-                        // "Önleyici İş Emri Oluştur" aksiyonunu barındırır; bu
-                        // yüzden iş emri oluşturma yetkisiyle AYNI role gated'dir
-                        // (dispeçer/yönetici) — backend de aynı requireRole'ü
-                        // kullanır (bkz. routes/maintenance.js).
-                        if (auth.canCreateWorkOrders)
-                          _ModuleCard(
-                            icon: Icons.build_circle_outlined,
-                            title: 'Bakım Planlama',
-                            subtitle: 'Kestirimci bakım önerileri',
-                            color: AppColors.success(context),
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    const MaintenanceRecommendationsScreen(),
-                              ),
-                            ),
-                          ),
-                        _ModuleCard(
-                          icon: Icons.inventory_2_outlined,
-                          title: 'Ekipman',
-                          subtitle: 'Varlıkları tara veya ara',
-                          color: AppColors.accent(context),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const EquipmentHomeScreen(),
-                            ),
-                          ),
-                        ),
-                        // Malzeme / Yedek Parça Stok Takibi (Modül 13) — TÜM
-                        // roller görebilir (yalnızca görüntüleme amaçlı da olsa
-                        // teknisyen "depoda ne var" diye bakabilmeli); kayıt/
-                        // silme/restock/oluşturma yetkileri ekran içinde ayrıca
-                        // kısıtlanır (bkz. material_list_screen.dart).
-                        _ModuleCard(
-                          icon: Icons.warehouse_outlined,
-                          title: 'Stok / Malzeme',
-                          subtitle: 'Yedek parça envanteri',
-                          color: AppColors.warning(context),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const MaterialListScreen(),
-                            ),
-                          ),
-                        ),
-                        _ModuleCard(
-                          icon: Icons.shield_outlined,
-                          title: 'İş Güvenliği',
-                          subtitle: 'Olay/Tehlike bildir',
-                          color: AppColors.danger(context),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const IsgReportListScreen(),
-                            ),
-                          ),
-                        ),
-                        _ModuleCard(
-                          icon: Icons.notifications_outlined,
-                          title: 'Bildirimler',
-                          subtitle: unreadNotifications > 0
-                              ? '$unreadNotifications Yeni Uyarı'
-                              : 'Güncel',
-                          color: AppColors.primary(context),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const NotificationsScreen(),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: AppSpacing.lg),
+              Text(
+                'Çabuk Erişim',
+                style: AppTextStyles.headingMedium(color: scheme.onSurface),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return GridView.count(
+                    crossAxisCount: responsiveGridColumns(constraints.maxWidth),
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: AppSpacing.sm,
+                    crossAxisSpacing: AppSpacing.sm,
+                    mainAxisExtent: 68,
+                    children: [
+                      for (final a in quickAccess) _QuickAccessTile(data: a),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: AppSpacing.lg),
 
-                Text(
-                  'Son Aktiviteler',
-                  style: AppTextStyles.headingMedium(color: scheme.onSurface),
+              SizedBox(
+                width: double.infinity,
+                child: AppButton(
+                  label: 'Tüm Modüller',
+                  icon: Icons.apps,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: goToAllModules,
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                _RecentActivitySection(items: summary?.recentActivity),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -445,15 +374,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Karşılama satırı: avatar + isim + rol rozeti + bugünün tarihi.
-///
-/// BİLEREK bildirim zili YOK — bu, MainShell'in üst çubuğundaki
-/// [NotificationBellButton] ile birebir aynı ekranda (Ana Sayfa sekmesi
-/// MainShell'in Scaffold'ı içinde gösterildiği için) aynı anda görünüp
-/// gerçek bir tekrar/çakışma bugı oluşturuyordu — bkz. widgets/app_top_bar.dart.
-/// Kullanıcının rolü de yalnızca burada (RoleBadge ile) gösterilir; MainShell
-/// artık kullanıcı adı/rolü hiç göstermez (bkz. main_shell.dart).
-/// Avatara dokununca Profil sekmesine (index 4) geçilir.
+/// Karşılama satırı: avatar + isim + rol rozeti + bugünün tarihi + SAHA
+/// logosu — BİLEREK herhangi bir Card/kenarlık İÇİNDE değil, doğrudan sayfa
+/// zemininde (bkz. UI denetimi B.1). Logo, önceki sürüme göre belirgin
+/// şekilde büyütüldü ve daraltılmış iç boşlukla (bkz. UI denetimi B.2) daha
+/// çok yer kaplıyor — Ana Sayfa'daki TEK logo burası (bkz. main_shell.dart,
+/// üst bar Ana Sayfa sekmesinde logo göstermez). Avatara dokununca Profil
+/// sekmesine (index 3) geçilir.
 class _GreetingRow extends StatelessWidget {
   final String name;
   final String role;
@@ -508,21 +435,32 @@ class _GreetingRow extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(width: AppSpacing.sm),
+        // UI denetimi B.2: yükseklik 26 -> 42 (~%60 büyütme), iç boşluk
+        // daraltıldı — logo artık belirgin şekilde daha büyük ve net.
+        const AppLogo(
+          height: 42,
+          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+        ),
       ],
     );
   }
 }
 
-/// Yatay kaydırılabilir istatistik kartları — Dashboard'daki tam grafiklerin
-/// küçültülmüş bir önizlemesi. Yalnızca GERÇEKTEN var olan alanlar gösterilir;
-/// "gecikmiş/yolunda/ortalamadan hızlı" gibi backend'de karşılığı olmayan
-/// uydurma trend etiketleri kullanılmaz (bkz. ARCHITECTURE.md Temel Kalite
-/// İlkesi). Tek istisna: ilk karttaki "Acil" rozeti — bu,
-/// `priorityBreakdown[acil]` üzerinden GERÇEK bir sayı.
+/// Özet şerit: SADECE 2-3 sayı — "açık iş/görev sayısı", "bugün tamamlanan"
+/// her role, "kritik uyarı sayısı" yalnızca yöneticiye.
 class _StatsRow extends StatelessWidget {
   final DashboardSummary? summary;
   final int acilCount;
-  const _StatsRow({required this.summary, required this.acilCount});
+  final bool isTeknisyen;
+  final bool isYonetici;
+
+  const _StatsRow({
+    required this.summary,
+    required this.acilCount,
+    required this.isTeknisyen,
+    required this.isYonetici,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -539,34 +477,37 @@ class _StatsRow extends StatelessWidget {
       );
     }
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _StatTile(
+    return Row(
+      children: [
+        Expanded(
+          child: _StatTile(
             icon: Icons.assignment_outlined,
             value: '${summary!.openCount}',
-            label: 'Açık İş Emirleri',
+            label: isTeknisyen ? 'Açık Görevlerim' : 'Açık İş Emirleri',
             color: AppColors.primary(context),
-            trend: acilCount > 0 ? '↘ $acilCount Acil' : null,
-            trendColor: AppColors.danger(context),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          _StatTile(
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _StatTile(
             icon: Icons.check_circle_outline,
             value: '${summary!.resolvedTodayCount}',
             label: 'Bugün Tamamlanan',
             color: AppColors.success(context),
           ),
+        ),
+        if (isYonetici) ...[
           const SizedBox(width: AppSpacing.sm),
-          _StatTile(
-            icon: Icons.timer_outlined,
-            value: '${summary!.avgResolutionHours.toStringAsFixed(1)} sa',
-            label: 'Ort. Çözüm Süresi',
-            color: AppColors.warning(context),
+          Expanded(
+            child: _StatTile(
+              icon: Icons.warning_amber_rounded,
+              value: '$acilCount',
+              label: 'Kritik Uyarı',
+              color: AppColors.danger(context),
+            ),
           ),
         ],
-      ),
+      ],
     );
   }
 }
@@ -576,121 +517,47 @@ class _StatTile extends StatelessWidget {
   final String value;
   final String label;
   final Color color;
-  final String? trend;
-  final Color? trendColor;
 
   const _StatTile({
     required this.icon,
     required this.value,
     required this.label,
     required this.color,
-    this.trend,
-    this.trendColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    return SizedBox(
-      width: 150,
-      child: AppCard(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: scheme.onSurface,
-                    ),
-                    maxLines: 2,
-                  ),
-                ),
-                Icon(icon, size: 18, color: scheme.onSurface),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm + 2),
-            Text(
-              value,
-              style: AppTextStyles.headingMedium(
-                color: scheme.onSurface,
-              ).copyWith(fontSize: 22),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              trend ?? ' ',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: trendColor ?? Colors.transparent,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Yatay kaydırılabilir hızlı işlemler şeridi. "İş Emri Oluştur" yalnızca
-/// dispeçer/yönetici rolüne görünür (aynı FAB kısıtlaması) — teknisyen bu
-/// çipi hiç görmez.
-class _QuickActionsRow extends StatelessWidget {
-  final bool canCreateWorkOrder;
-  final VoidCallback onCreateWorkOrder;
-  final VoidCallback onScanQr;
-  final VoidCallback onReportIssue;
-  final VoidCallback onSync;
-
-  const _QuickActionsRow({
-    required this.canCreateWorkOrder,
-    required this.onCreateWorkOrder,
-    required this.onScanQr,
-    required this.onReportIssue,
-    required this.onSync,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          if (canCreateWorkOrder) ...[
-            _QuickActionChip(
-              icon: Icons.add,
-              label: 'İş Emri Oluştur',
-              onTap: onCreateWorkOrder,
-            ),
-            const SizedBox(width: AppSpacing.sm),
-          ],
-          _QuickActionChip(
-            icon: Icons.qr_code_scanner_outlined,
-            label: 'QR Kod Tara',
-            onTap: onScanQr,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurface,
+                  ),
+                  maxLines: 2,
+                ),
+              ),
+              Icon(icon, size: 18, color: scheme.onSurface),
+            ],
           ),
-          const SizedBox(width: AppSpacing.sm),
-          _QuickActionChip(
-            icon: Icons.report_problem_outlined,
-            label: 'Sorun Bildir',
-            onTap: onReportIssue,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          // "Senkronize" burada bir cihaza komut göndermez (bu, DESIGN_SYSTEM.md'de
-          // tarif edilen Cihaz Yönetimi'nin işi) — yalnızca Dashboard özetini
-          // (zaten var olan fetchSummary) manuel olarak yeniler.
-          _QuickActionChip(
-            icon: Icons.sync,
-            label: 'Senkronize',
-            onTap: onSync,
+          const SizedBox(height: AppSpacing.sm + 2),
+          Text(
+            value,
+            style: AppTextStyles.headingMedium(
+              color: scheme.onSurface,
+            ).copyWith(fontSize: 22),
           ),
         ],
       ),
@@ -698,57 +565,69 @@ class _QuickActionsRow extends StatelessWidget {
   }
 }
 
-class _QuickActionChip extends StatelessWidget {
+class _ActionData {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  const _QuickActionChip({
+  const _ActionData({
     required this.icon,
     required this.label,
     required this.onTap,
   });
+}
+
+/// Hızlı İşlemler kartı: dolu (filled) birincil mavi zemin, ikon ÜSTTE +
+/// metin ALTTA — "bir şey yapmaya davet eden", dikkat çekici bir görsel dil.
+/// Çabuk Erişim'in ([_QuickAccessTile]) ince/nötr stilinden BİLİNÇLİ olarak
+/// tamamen farklı (bkz. UI denetimi Bölüm A) — kullanıcı bir bakışta bunun
+/// bir aksiyon başlatıcı olduğunu anlamalı.
+class _QuickActionCard extends StatelessWidget {
+  final _ActionData data;
+  const _QuickActionCard({required this.data});
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    // B2 (dokunma alanı): öncesinde yalnızca ~38dp yüksekliğindeydi (16-18dp
-    // içerik + 20dp dikey padding) — ConstrainedBox ile 48dp minimum
-    // dokunma alanı garanti edilir, AppButton'daki AYNI kural (bkz.
-    // widgets/app_button.dart).
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 48),
+    final primary = AppColors.primary(context);
+    final onPrimary = accessibleOnColor(primary);
+
+    return SizedBox(
+      width: 132,
       child: Material(
-        color: scheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
+        color: primary,
+        borderRadius: BorderRadius.circular(AppRadius.card),
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadius.pill),
-          onTap: onTap,
-          child: Container(
-            alignment: Alignment.center,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          onTap: data.onTap,
+          child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.sm + 2,
+              horizontal: AppSpacing.sm + 2,
+              vertical: AppSpacing.sm + 4,
             ),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppRadius.pill),
-              border: Border.all(
-                color: scheme.outlineVariant.withValues(alpha: 0.6),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 18, color: scheme.onSurface),
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: scheme.onSurface,
+            // FittedBox: iki satıra saran uzun etiketlerde (örn. "Yeni
+            // Kullanıcı Ekle") font metriklerine bağlı birkaç piksellik
+            // taşmayı GARANTİ olarak önler — sabit yükseklikli kartın
+            // içeriği gerekirse hafifçe küçültülür, asla taşmaz.
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(data.icon, color: onPrimary, size: 26),
+                  const SizedBox(height: AppSpacing.xs + 2),
+                  Text(
+                    data.label,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: onPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -757,178 +636,82 @@ class _QuickActionChip extends StatelessWidget {
   }
 }
 
-/// Modül erişim ızgarasındaki tek kart — ikon, referans tasarımdaki gibi
-/// tonal bir daire içinde (soluk zemin + doygun renkte ikon), yanında
-/// başlık/alt başlık.
-class _ModuleCard extends StatelessWidget {
+class _AccessData {
   final IconData icon;
   final String title;
   final String? subtitle;
-  final Color color;
   final VoidCallback onTap;
-
-  const _ModuleCard({
+  const _AccessData({
     required this.icon,
     required this.title,
     this.subtitle,
-    required this.color,
     required this.onTap,
   });
+}
+
+/// Çabuk Erişim kartı: ince kenarlıklı (outline), nötr/beyaz zemin, ikon
+/// SOLDA + metin SAĞDA — sade/çizgisel bir görsel dil. [_QuickActionCard]'ın
+/// dolu/renkli stilinden BİLİNÇLİ olarak farklı: bu bir gezinme linki,
+/// "bir şey yapmaz", yalnızca bir ekrana götürür.
+class _QuickAccessTile extends StatelessWidget {
+  final _AccessData data;
+  const _QuickAccessTile({required this.data});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return AppCard(
-      onTap: onTap,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm + 4,
-        vertical: AppSpacing.sm,
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: color.withValues(alpha: isDark ? 0.28 : 0.15),
-            child: Icon(icon, size: 20, color: color),
+    return Material(
+      color: scheme.surfaceContainerLowest,
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        onTap: data.onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm + 4,
+            vertical: AppSpacing.sm,
           ),
-          const SizedBox(width: AppSpacing.sm + 2),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: scheme.onSurface,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle!,
-                    style: AppTextStyles.caption(
-                      color: scheme.onSurfaceVariant,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.card),
+            border: Border.all(color: scheme.outlineVariant),
+          ),
+          child: Row(
+            children: [
+              Icon(data.icon, size: 20, color: scheme.onSurfaceVariant),
+              const SizedBox(width: AppSpacing.sm + 2),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      data.title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onSurface,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Son Aktiviteler — GET /api/dashboard/summary yanıtındaki `recent_activity`
-/// alanından gelir (backend, en son güncellenen 5 iş emrini döner). Bu veri
-/// zaten DashboardProvider tarafından çekiliyordu; burada yalnızca
-/// GÖRÜNTÜLENMEYE başlandı — yeni bir endpoint/iş mantığı eklenmedi.
-class _RecentActivitySection extends StatelessWidget {
-  final List<RecentActivityItem>? items;
-  const _RecentActivitySection({required this.items});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    if (items == null) {
-      return const AppCard(
-        padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
-        child: Center(
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
-    }
-
-    if (items!.isEmpty) {
-      return AppCard(
-        child: Text(
-          'Henüz bir aktivite yok.',
-          style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        for (int i = 0; i < items!.length && i < 3; i++) ...[
-          if (i > 0) const SizedBox(height: AppSpacing.sm),
-          _RecentActivityTile(item: items![i]),
-        ],
-      ],
-    );
-  }
-}
-
-class _RecentActivityTile extends StatelessWidget {
-  final RecentActivityItem item;
-  const _RecentActivityTile({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final color = statusColor(context, item.status);
-    final isResolved = item.status == WorkOrderStatus.cozuldu;
-
-    return AppCard(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => WorkOrderDetailScreen(workOrderId: item.id),
-        ),
-      ),
-      padding: const EdgeInsets.all(AppSpacing.sm + 4),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: color.withValues(alpha: isDark ? 0.28 : 0.15),
-            child: Icon(
-              isResolved
-                  ? Icons.check_circle_rounded
-                  : Icons.play_circle_fill_rounded,
-              color: color,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm + 2),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: scheme.onSurface,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                    if (data.subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        data.subtitle!,
+                        style: AppTextStyles.caption(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  '${item.status.label} · ${formatRelativeTime(item.updatedAt)}',
-                  style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
