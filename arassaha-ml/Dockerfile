@@ -17,7 +17,20 @@ COPY . .
 # 15) — yukarıdaki `COPY . .` onu olduğu gibi imaja taşır. Diğer üç modelin
 # aksine "ucuza yeniden üretilebilir" değil, bu yüzden build-time training
 # deseninin DIŞINDA tutuldu.
+#
+# UI/servis denetimi bulgusu: Modül 10 ve Modül 11 önceden BURADA
+# eğitilmiyordu — yalnızca Modül 9 (risk) build-time training deseninin
+# içindeydi, diğer ikisi unutulmuştu. Canlıda /health hep
+# anomaly_model_loaded=false dönüyordu, Tüketim Analizi ve (muhtemelen)
+# arıza açıklaması önerisi bu yüzden hiç çalışmıyordu. generate_consumption_data.py
+# artık arassaha-backend'in veritabanı bu container'da YOKKEN de (STANDALONE
+# mod) çalışabiliyor — yalnızca model eğitimi için sentetik sayaç ID'leriyle
+# consumption_training_data.csv üretir, gerçek bir veritabanına dokunmaz
+# (bkz. o script'teki STANDALONE mod notu). generate_text_training_data.py
+# zaten baştan beri veritabanından bağımsızdı.
 RUN python generate_training_data.py && python train_model.py
+RUN python generate_text_training_data.py && python train_text_model.py
+RUN python generate_consumption_data.py && python train_anomaly_model.py
 
 EXPOSE 8000
 

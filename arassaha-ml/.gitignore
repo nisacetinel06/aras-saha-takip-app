@@ -7,6 +7,8 @@ __pycache__/
 # için git'te tutulmasına gerek yok — arassaha-backend'in seed.js'i build
 # zamanında çalıştırması ile aynı desen.
 training_data.csv
+consumption_training_data.csv
+text_training_data.csv
 models/*.pkl
 models/*.json
 

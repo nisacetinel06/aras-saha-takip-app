@@ -188,6 +188,7 @@ def health():
     return {
         "status": "ok",
         "model_loaded": MODEL_PATH.exists(),
+        "text_model_loaded": TEXT_TYPE_MODEL_PATH.exists() and TEXT_PRIORITY_MODEL_PATH.exists(),
         "anomaly_model_loaded": ANOMALY_MODEL_PATH.exists(),
         "damage_model_loaded": _damage_model is not None,
     }
