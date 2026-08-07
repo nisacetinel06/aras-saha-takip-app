@@ -104,68 +104,52 @@ def generate_irregular_series(rng, baseline):
 
 
 def main():
-    # STANDALONE MOD (Railway build): arassaha-ml, arassaha-backend'den AYRI
-    # bir servis/container olarak deploy edildiğinde aras_saha.db dosyası hiç
-    # yok — bu script'in TEK amacı burada model eğitimi için
-    # consumption_training_data.csv üretmek (train_anomaly_model.py yalnızca
-    # bu CSV'yi okur, veritabanına hiç dokunmaz). Bu yüzden DB bulunamazsa
-    # HATA VERMEK yerine sentetik bir sayaç ID listesiyle devam edilir ve
-    # veritabanı adımları (CREATE/DELETE/INSERT) tamamen atlanır. Lokalde
-    # (arassaha-backend/aras_saha.db mevcutken) davranış DEĞİŞMEDİ: hem CSV
-    # hem gerçek meter_consumption tablosu yazılır.
-    standalone = not BACKEND_DB_PATH.exists()
+    if not BACKEND_DB_PATH.exists():
+        raise SystemExit(
+            f"Backend veritabanı bulunamadı: {BACKEND_DB_PATH}\n"
+            "Önce 'node seed.js' (arassaha-backend içinde) çalıştırılmalı."
+        )
 
     rng = np.random.default_rng(RANDOM_SEED)
 
-    conn = None
-    if standalone:
+    conn = sqlite3.connect(BACKEND_DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    # meter_consumption tablosu normalde Node (database.js) tarafından
+    # oluşturulur; bu script'in backend hiç çalıştırılmadan da (yalnızca
+    # seed.js sonrası) bağımsız çalışabilmesi için savunmacı bir CREATE TABLE
+    # IF NOT EXISTS eklendi — şema database.js ile birebir aynı olmalı.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS meter_consumption (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            equipment_id INTEGER NOT NULL,
+            year_month TEXT NOT NULL,
+            consumption_kwh REAL NOT NULL,
+            FOREIGN KEY (equipment_id) REFERENCES equipment (id)
+        )
+        """
+    )
+
+    meters = conn.execute(
+        "SELECT id, status FROM equipment WHERE equipment_type = 'sayac' ORDER BY id"
+    ).fetchall()
+
+    if len(meters) < 15:
         print(
-            f"UYARI: Backend veritabanı bulunamadı ({BACKEND_DB_PATH}) — STANDALONE modda "
-            "yalnızca model eğitimi için sentetik sayaç ID'leriyle consumption_training_data.csv "
-            "üretilecek, meter_consumption tablosuna YAZILMAYACAK. Bu, arassaha-ml'nin "
-            "arassaha-backend'den ayrı bir servis olarak deploy edildiği (örn. Railway) "
-            "ortamlarda beklenen bir durumdur."
+            f"UYARI: yalnızca {len(meters)} sayaç ekipmanı bulundu (önerilen: 15-20). "
+            "Anlamlı bir eğitim seti için arassaha-backend/seed.js içindeki sayaç "
+            "kayıtlarının artırılması önerilir."
         )
-        N_SYNTHETIC_METERS = 19  # arassaha-backend/seed.js'teki gerçek sayaç sayısıyla TUTARLI
-        meters = [{"id": i, "status": "aktif"} for i in range(1, N_SYNTHETIC_METERS + 1)]
-    else:
-        conn = sqlite3.connect(BACKEND_DB_PATH)
-        conn.row_factory = sqlite3.Row
-
-        # meter_consumption tablosu normalde Node (database.js) tarafından
-        # oluşturulur; bu script'in backend hiç çalıştırılmadan da (yalnızca
-        # seed.js sonrası) bağımsız çalışabilmesi için savunmacı bir CREATE TABLE
-        # IF NOT EXISTS eklendi — şema database.js ile birebir aynı olmalı.
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS meter_consumption (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                equipment_id INTEGER NOT NULL,
-                year_month TEXT NOT NULL,
-                consumption_kwh REAL NOT NULL,
-                FOREIGN KEY (equipment_id) REFERENCES equipment (id)
-            )
-            """
-        )
-
-        meters = conn.execute(
-            "SELECT id, status FROM equipment WHERE equipment_type = 'sayac' ORDER BY id"
-        ).fetchall()
-
-        if len(meters) < 15:
-            print(
-                f"UYARI: yalnızca {len(meters)} sayaç ekipmanı bulundu (önerilen: 15-20). "
-                "Anlamlı bir eğitim seti için arassaha-backend/seed.js içindeki sayaç "
-                "kayıtlarının artırılması önerilir."
-            )
-
-        # Bu script tekrar çalıştırılabilir olsun diye önce mevcut sayaç verisini temizler.
-        meter_ids = [m["id"] for m in meters]
-        if meter_ids:
-            placeholders = ",".join("?" * len(meter_ids))
-            conn.execute(f"DELETE FROM meter_consumption WHERE equipment_id IN ({placeholders})", meter_ids)
 
     month_labels = last_n_months()
+
+    # Bu script tekrar çalıştırılabilir olsun diye önce mevcut sayaç verisini temizler.
+    meter_ids = [m["id"] for m in meters]
+    if meter_ids:
+        placeholders = ",".join("?" * len(meter_ids))
+        conn.execute(f"DELETE FROM meter_consumption WHERE equipment_id IN ({placeholders})", meter_ids)
+
     active_meter_ids = [m["id"] for m in meters if m["status"] == "aktif"]
     n_anomalies = round(len(meters) * ANOMALY_RATE)
     # Sıfıra yakın tüketim tipi yalnızca AKTİF kayıtlı sayaçlar için anlamlıdır
@@ -210,21 +194,17 @@ def main():
             }
         )
 
-    if not standalone:
-        conn.executemany(
-            "INSERT INTO meter_consumption (equipment_id, year_month, consumption_kwh) VALUES (?, ?, ?)",
-            rows_for_insert,
-        )
-        conn.commit()
-        conn.close()
+    conn.executemany(
+        "INSERT INTO meter_consumption (equipment_id, year_month, consumption_kwh) VALUES (?, ?, ?)",
+        rows_for_insert,
+    )
+    conn.commit()
+    conn.close()
 
     df = pd.DataFrame(training_rows)
     df.to_csv(OUTPUT_CSV_PATH, index=False)
 
-    if standalone:
-        print(f"(STANDALONE) {len(meters)} sentetik sayaç ID'si için özellik verisi üretildi — meter_consumption tablosu YAZILMADI.")
-    else:
-        print(f"{len(meters)} sayaç için {len(rows_for_insert)} aylık tüketim kaydı 'meter_consumption' tablosuna yazıldı.")
+    print(f"{len(meters)} sayaç için {len(rows_for_insert)} aylık tüketim kaydı 'meter_consumption' tablosuna yazıldı.")
     print(f"Özellik verisi '{OUTPUT_CSV_PATH.name}' olarak kaydedildi.")
     print(f"\nBilerek işaretlenen anomali sayısı: {df['is_anomaly_true'].sum()} / {len(df)}")
     print("Anomali tipine göre dağılım:")
