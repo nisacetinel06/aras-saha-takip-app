@@ -456,6 +456,159 @@ try {
   throw err;
 }
 
+// --- Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) — meter_consumption ---
+//
+// DÜRÜSTLÜK NOTU: arassaha-ml/generate_consumption_data.py'nin BİREBİR JS
+// karşılığı. O script yalnızca lokalde elle çalıştırıldığında işe yarıyordu;
+// Railway'e deploy edilen arassaha-backend imajı yalnızca `node seed.js`
+// çalıştırıyor (bkz. Dockerfile), bu yüzden CANLI ortamda meter_consumption
+// tablosu hep BOŞ kalıyordu ve Tüketim Analizi (routes/anomaly.js
+// computeAndSaveAnomaly) "yeterli tüketim geçmişi yok" hatasıyla
+// başarısız oluyordu. Bu blok, o veriyi artık seed.js'in (dolayısıyla her
+// Docker build'in) bir parçası yapar — arassaha-ml/generate_consumption_data.py
+// hâlâ mevcut ve arassaha-ml'nin KENDİ eğitim verisini (consumption_training_data.csv)
+// üretmek için kullanılabilir, ama backend artık ona bağımlı değil.
+//
+// Basit, tohumlu (seeded) bir PRNG — numpy'nin default_rng'si kadar
+// sofistike değil ama AYNI amaca hizmet ediyor: her `node seed.js`
+// çalıştırmasında AYNI (deterministik), tekrarlanabilir veri seti üretir.
+function mulberry32(seed) {
+  let a = seed;
+  return function () {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const consumptionRng = mulberry32(42);
+function rngFloat(min, max) {
+  return min + consumptionRng() * (max - min);
+}
+function rngGaussian(mean, stdDev) {
+  // Box-Muller — generate_consumption_data.py'deki rng.normal ile aynı amaç.
+  const u1 = Math.max(consumptionRng(), 1e-9);
+  const u2 = consumptionRng();
+  const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  return mean + z * stdDev;
+}
+
+const SEASONAL_FACTOR = {
+  1: 1.22, 2: 1.18, 3: 1.05, 4: 0.95, 5: 0.88, 6: 0.95,
+  7: 1.05, 8: 1.05, 9: 0.92, 10: 0.95, 11: 1.1, 12: 1.2,
+};
+const CONSUMPTION_MONTHS = 12;
+const ANOMALY_RATE = 0.15;
+
+function last12MonthLabels() {
+  const labels = [];
+  const now = new Date();
+  let year = now.getFullYear();
+  let month = now.getMonth() + 1; // 1-12
+  for (let i = 0; i < CONSUMPTION_MONTHS; i++) {
+    labels.push(`${year}-${String(month).padStart(2, '0')}`);
+    month -= 1;
+    if (month === 0) {
+      month = 12;
+      year -= 1;
+    }
+  }
+  return labels.reverse();
+}
+
+function generateNormalSeries(monthLabels, baseline) {
+  return monthLabels.map((ym) => {
+    const month = Number(ym.split('-')[1]);
+    const seasonal = baseline * SEASONAL_FACTOR[month];
+    const noise = rngGaussian(0, baseline * 0.06);
+    return Math.max(0, seasonal + noise);
+  });
+}
+
+function generateSuddenDropSeries(monthLabels, baseline) {
+  const values = generateNormalSeries(monthLabels, baseline);
+  const dropFactor = rngFloat(0.2, 0.4); // kalan oran -> %60-80 düşüş
+  for (let i = CONSUMPTION_MONTHS - 3; i < CONSUMPTION_MONTHS; i++) {
+    values[i] = values[i] * dropFactor;
+  }
+  return values;
+}
+
+function generateNearZeroSeries() {
+  return Array.from({ length: CONSUMPTION_MONTHS }, () => Math.max(0, rngFloat(0, 3)));
+}
+
+function generateIrregularSeries(baseline) {
+  const low = Math.max(10, baseline * 0.15);
+  const high = baseline * 2.5;
+  return Array.from({ length: CONSUMPTION_MONTHS }, () => rngFloat(low, high));
+}
+
+function pick0(arr) {
+  return arr[Math.floor(consumptionRng() * arr.length)];
+}
+
+const meterEquipment = equipmentSeed
+  .map((eq, i) => ({ ...eq, id: equipmentIds[i] }))
+  .filter((eq) => eq.equipment_type === 'sayac');
+
+const monthLabels = last12MonthLabels();
+const nAnomalies = Math.round(meterEquipment.length * ANOMALY_RATE);
+const shuffledMeterIds = [...meterEquipment].sort(() => consumptionRng() - 0.5);
+const anomalyMeterIds = new Set(shuffledMeterIds.slice(0, nAnomalies).map((m) => m.id));
+
+const insertConsumption = db.prepare(`
+  INSERT INTO meter_consumption (equipment_id, year_month, consumption_kwh)
+  VALUES (@equipment_id, @year_month, @consumption_kwh)
+`);
+
+db.exec('BEGIN');
+try {
+  // Tekrar tekrar çalıştırılabilir olsun diye (generate_consumption_data.py
+  // ile AYNI ilke) önce bu sayaçlara ait eski kayıtlar temizlenir.
+  const meterIds = meterEquipment.map((m) => m.id);
+  if (meterIds.length) {
+    db.prepare(
+      `DELETE FROM meter_consumption WHERE equipment_id IN (${meterIds.map(() => '?').join(',')})`
+    ).run(...meterIds);
+  }
+
+  let consumptionRowCount = 0;
+  for (const meter of meterEquipment) {
+    const baseline = rngFloat(120, 400);
+    let values;
+
+    if (anomalyMeterIds.has(meter.id)) {
+      const candidates = ['ani_dusus', 'duzensiz'];
+      if (meter.status === 'aktif') candidates.push('sifira_yakin');
+      const anomalyType = pick0(candidates);
+      if (anomalyType === 'ani_dusus') values = generateSuddenDropSeries(monthLabels, baseline);
+      else if (anomalyType === 'sifira_yakin') values = generateNearZeroSeries();
+      else values = generateIrregularSeries(baseline);
+    } else {
+      values = generateNormalSeries(monthLabels, baseline);
+    }
+
+    monthLabels.forEach((year_month, i) => {
+      insertConsumption.run({
+        equipment_id: meter.id,
+        year_month,
+        consumption_kwh: Math.round(values[i] * 100) / 100,
+      });
+      consumptionRowCount += 1;
+    });
+  }
+  db.exec('COMMIT');
+  console.log(
+    `${meterEquipment.length} adet sayaç için ${consumptionRowCount} aylık tüketim kaydı ('meter_consumption') oluşturuldu ` +
+      `(${anomalyMeterIds.size} tanesi bilerek anomali örüntüsüyle işaretlendi).`
+  );
+} catch (err) {
+  db.exec('ROLLBACK');
+  throw err;
+}
+
 console.log(
   `${insertedUserIds.length} adet kişi, ${equipmentIds.length} adet ekipman, ${rows.length} adet iş emri, ` +
     `${isgReportSeed.length} adet İSG bildirimi ve ${deviceSeed.length} adet cihaz kaydı oluşturuldu.`
