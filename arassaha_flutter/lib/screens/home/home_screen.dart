@@ -4,6 +4,7 @@ import '../../models/dashboard_summary.dart';
 import '../../models/maintenance_recommendation.dart';
 import '../../models/work_order.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/completed_work_orders_provider.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../providers/maintenance_provider.dart';
 import '../../providers/user_provider.dart';
@@ -11,7 +12,6 @@ import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
-import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_logo.dart';
 import '../../widgets/role_badge.dart';
@@ -23,7 +23,7 @@ import '../isg/isg_report_form_screen.dart';
 import '../maintenance/maintenance_recommendations_screen.dart';
 import '../map/map_screen.dart';
 import '../work_orders/create_work_order_screen.dart';
-import 'all_modules_screen.dart';
+import 'completed_work_orders_section.dart';
 
 const _weekdays = [
   'Pazartesi',
@@ -63,7 +63,11 @@ String _formatToday() {
 ///   [Özet şerit — 2-3 sayı]
 ///   [Hızlı İşlemler — dolu mavi, yatay kaydırmalı "aksiyon başlat" kartları]
 ///   [Çabuk Erişim — ince kenarlıklı, nötr "bir yere git" kartları]
-///   [Tüm Modüller butonu]
+///
+/// Eskiden bu listenin altında bir "Tüm Modüller" butonu vardı; artık tüm
+/// modüllere erişim, yalnızca bu sekmedeyken görünen bir hamburger menü
+/// panelinden ([AppNavigationDrawer], bkz. main_shell.dart) sağlanıyor —
+/// modül listesinin tek kaynağı home/module_entries.dart.
 ///
 /// Kullanıcı bir bakışta "bu bana bir şey YAPTIRIR" (Hızlı İşlemler, dolu
 /// renk) ile "bu beni bir yere GÖTÜRÜR" (Çabuk Erişim, çizgisel/nötr)
@@ -96,6 +100,11 @@ class _HomeScreenState extends State<HomeScreen> {
         context.read<MaintenanceProvider>().fetchRecommendations(
           statusFilter: 'onerildi',
         );
+      }
+      // "Tamamlanan İş Emirlerim" bölümü yalnızca teknisyene gösterilir (bkz.
+      // build) — diğer roller bu isteği hiç atmaz.
+      if (context.read<AuthProvider>().isTeknisyen) {
+        context.read<CompletedWorkOrdersProvider>().loadInitial();
       }
     });
   }
@@ -149,12 +158,6 @@ class _HomeScreenState extends State<HomeScreen> {
     void goToAddUser() => Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const UserEditScreen()));
-
-    void goToAllModules() => Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AllModulesScreen(onNavigate: widget.onNavigate),
-      ),
-    );
 
     // Hızlı İşlemler: kullanıcının doğrudan bir eylem BAŞLATACAĞI girişler
     // (bir şey oluşturma/gönderme) — role göre SABİT liste.
@@ -345,17 +348,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
               ),
-              const SizedBox(height: AppSpacing.lg),
 
-              SizedBox(
-                width: double.infinity,
-                child: AppButton(
-                  label: 'Tüm Modüller',
-                  icon: Icons.apps,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: goToAllModules,
-                ),
-              ),
+              // Yalnızca teknisyen: dispeçer/yönetici için "tamamladığım iş
+              // emirleri" kavramı yok (onlar iş emri ÇÖZMEZ, atar/izler) —
+              // bkz. UI denetimi/görev bağlamı.
+              if (auth.isTeknisyen) ...[
+                const SizedBox(height: AppSpacing.lg),
+                const CompletedWorkOrdersSection(),
+              ],
             ],
           ),
         ),

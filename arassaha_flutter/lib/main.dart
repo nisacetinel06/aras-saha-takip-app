@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'providers/anomaly_provider.dart';
 import 'providers/assistant_provider.dart';
 import 'providers/auth_provider.dart';
+import 'providers/completed_work_orders_provider.dart';
 import 'providers/connectivity_provider.dart';
 import 'providers/dashboard_provider.dart';
 import 'providers/device_provider.dart';
@@ -90,6 +91,7 @@ class _ArasSahaAppState extends State<ArasSahaApp> {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => WorkOrderListProvider()),
+        ChangeNotifierProvider(create: (_) => CompletedWorkOrdersProvider()),
         ChangeNotifierProvider(create: (_) => DashboardProvider()),
         ChangeNotifierProvider(create: (_) => MapProvider()),
         ChangeNotifierProvider(create: (_) => DeviceProvider()),

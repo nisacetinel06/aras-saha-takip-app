@@ -20,11 +20,31 @@ String formatRelativeTime(DateTime dateTime) {
 class WorkOrderCard extends StatelessWidget {
   final WorkOrder workOrder;
   final VoidCallback onTap;
+  // "Tamamlanan İş Emirlerim" bölümü (Ana Sayfa, teknisyen) için: alttaki
+  // tarih, oluşturulma değil TAMAMLANMA anını göstersin diye — bir iş emri
+  // haftalar önce açılıp bugün çözülmüş olabilir, bu durumda "oluşturuldu: 3
+  // hafta önce" göstermek yanıltıcı olurdu. `updatedAt`, bir iş emri
+  // 'cozuldu' durumuna geçtiğinde GERÇEK tamamlanma anını taşır (bkz.
+  // routes/workOrders.js PATCH /:id/status). Varsayılan false: diğer TÜM
+  // çağıranlar (İş Emirleri listesi, Ana Sayfa özet kartları, Harita)
+  // davranışı değişmeden createdAt göstermeye devam eder.
+  final bool showCompletedDate;
+
+  // Kartın kendi yatay dış boşluğu — varsayılan (12) tüm mevcut kullanım
+  // yerleriyle (İş Emirleri listesi, Harita, vb. — hepsi PADDİNG'SİZ bir
+  // ListView içine yerleştirir) birebir aynıdır. "Tamamlanan İş Emirlerim"
+  // bölümü (Ana Sayfa) bu kartı ZATEN AppSpacing.md (16px) yatay boşluk
+  // uygulayan bir ListView'ın İÇİNE yerleştirdiği için orada 0 verilir —
+  // aksi halde 12+16=28px, sayfadaki diğer her şeyin 16px'inden farklı
+  // görünürdü (bkz. completed_work_orders_section.dart).
+  final double horizontalMargin;
 
   const WorkOrderCard({
     super.key,
     required this.workOrder,
     required this.onTap,
+    this.showCompletedDate = false,
+    this.horizontalMargin = 12,
   });
 
   @override
@@ -34,7 +54,7 @@ class WorkOrderCard extends StatelessWidget {
         workOrder.sourceType == WorkOrderSourceType.onleyiciBakim;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(horizontal: horizontalMargin, vertical: 6),
       child: Stack(
         children: [
           AppCard(
@@ -85,7 +105,9 @@ class WorkOrderCard extends StatelessWidget {
                   children: [
                     StatusBadge(status: workOrder.status),
                     Text(
-                      formatRelativeTime(workOrder.createdAt),
+                      showCompletedDate
+                          ? 'Tamamlandı: ${formatRelativeTime(workOrder.updatedAt)}'
+                          : formatRelativeTime(workOrder.createdAt),
                       style: TextStyle(
                         color: scheme.onSurfaceVariant,
                         fontSize: 12,

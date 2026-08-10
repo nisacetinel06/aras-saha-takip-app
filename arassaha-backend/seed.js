@@ -62,13 +62,32 @@ const personnelSeed = [
 
 const priorities = ['acil', 'normal', 'normal', 'dusuk'];
 
-// İstenen dağılım: 5 acik, 4 yolda, 3 sahada, 3 cozuldu (toplam 15)
-const statusPlan = [
-  'acik', 'acik', 'acik', 'acik', 'acik',
-  'yolda', 'yolda', 'yolda', 'yolda',
-  'sahada', 'sahada', 'sahada',
-  'cozuldu', 'cozuldu', 'cozuldu',
+// Her teknisyene TÜM statüleri (özellikle 'cozuldu'yu bol miktarda) içeren
+// bir iş emri seti garanti eder — dizideki sıra `personnelSeed`'teki
+// teknisyen sırasıyla (yani aşağıdaki `technicianIds` ile) BİREBİR eşleşir.
+// Ahmet Yılmaz (index 0, sicil_no 1001 — DEMO GİRİŞ BİLGİLERİ'nde belgelenen
+// birincil demo hesabı) fazladan 'cozuldu' alır: "Tamamlanan İş Emirlerim"
+// bölümünün sayfalama/sonsuz kaydırmasını (bkz. arassaha_flutter
+// completed_work_orders_provider.dart, pageSize=15) GERÇEKTEN test edebilmek
+// için en az bir teknisyende bir sayfadan (15) fazla tamamlanmış kayıt
+// olması gerekir. Diğer 5 teknisyen de her statüden en az birkaç kayıt alır
+// ki hiçbirinin İş Emirleri/Tamamlanan İş Emirlerim listesi boş kalmasın.
+const workOrderPlanByTechnicianIndex = [
+  { acik: 3, yolda: 2, sahada: 2, cozuldu: 20 }, // Ahmet Yılmaz (1001)
+  { acik: 2, yolda: 2, sahada: 1, cozuldu: 3 }, // Mehmet Demir (1002)
+  { acik: 2, yolda: 1, sahada: 2, cozuldu: 4 }, // Ayşe Kaya (1003)
+  { acik: 1, yolda: 2, sahada: 1, cozuldu: 5 }, // Fatih Şahin (1004)
+  { acik: 2, yolda: 1, sahada: 1, cozuldu: 3 }, // Emre Çelik (1005)
+  { acik: 1, yolda: 1, sahada: 2, cozuldu: 4 }, // Hakan Yıldız (1006)
 ];
+
+function expandStatusPlan(plan) {
+  const list = [];
+  for (const status of ['acik', 'yolda', 'sahada', 'cozuldu']) {
+    for (let i = 0; i < plan[status]; i++) list.push(status);
+  }
+  return list;
+}
 
 function randomJitter() {
   // Koordinatı gerçek mahalle sınırları içinde kalacak kadar küçük oynat (~1-2 km).
@@ -109,6 +128,10 @@ db.exec('DELETE FROM user_action_logs');
 db.exec('DELETE FROM device_action_logs');
 db.exec('DELETE FROM managed_devices');
 db.exec('DELETE FROM work_order_photos');
+// work_order_materials, HEM work_orders HEM materials'a FK'lidir — ikisi de
+// aşağıda silinip yeni id'lerle yeniden oluşturulacağı için (bkz. aşağıdaki
+// yorumlarla aynı gerekçe), bu tablo o ikisinden ÖNCE temizlenmeli.
+db.exec('DELETE FROM work_order_materials');
 db.exec('DELETE FROM work_orders');
 db.exec('DELETE FROM equipment_risk_scores');
 // meter_consumption/meter_anomaly_scores (Modül 11) equipment_id'ye FK'lidir —
@@ -120,9 +143,13 @@ db.exec('DELETE FROM meter_anomaly_scores');
 db.exec('DELETE FROM meter_consumption');
 db.exec('DELETE FROM equipment');
 db.exec('DELETE FROM isg_reports');
+// materials, work_order_materials dışında hiçbir tabloya FK bağımlı değil —
+// yine de tekrar çalıştırılabilirlik için (script başındaki genel ilke)
+// diğerleriyle birlikte temizlenir.
+db.exec('DELETE FROM materials');
 db.exec('DELETE FROM users');
 db.exec(
-  "DELETE FROM sqlite_sequence WHERE name IN ('work_orders', 'work_order_photos', 'users', 'managed_devices', 'device_action_logs', 'equipment', 'isg_reports', 'equipment_risk_scores', 'user_action_logs', 'notifications', 'meter_consumption', 'meter_anomaly_scores')"
+  "DELETE FROM sqlite_sequence WHERE name IN ('work_orders', 'work_order_photos', 'work_order_materials', 'users', 'managed_devices', 'device_action_logs', 'equipment', 'isg_reports', 'equipment_risk_scores', 'user_action_logs', 'notifications', 'meter_consumption', 'meter_anomaly_scores', 'materials')"
 );
 
 const insertUser = db.prepare(`
@@ -287,9 +314,17 @@ function insertMany(rows) {
   return insertedIds;
 }
 
-const firstCozulduIndex = statusPlan.indexOf('cozuldu');
+// technicianIds ile workOrderPlanByTechnicianIndex AYNI sırada (personnelSeed
+// sırası) — her teknisyenin id'sini kendi planındaki statülerle eşleştirip
+// TEK, düz bir atama listesi oluşturur.
+const workOrderAssignments = technicianIds.flatMap((technicianId, i) => {
+  const plan = workOrderPlanByTechnicianIndex[i] ?? { acik: 1, yolda: 1, sahada: 1, cozuldu: 2 };
+  return expandStatusPlan(plan).map((status) => ({ technicianId, status }));
+});
 
-const rows = statusPlan.map((status, index) => {
+const firstCozulduIndex = workOrderAssignments.findIndex((a) => a.status === 'cozuldu');
+
+const rows = workOrderAssignments.map(({ technicianId, status }, index) => {
   // Konum artık iş emrinin bağlandığı ekipmandan türetilir (bkz. yukarıdaki
   // equipmentIdToLocation notu) — rastgele bir konum ile rastgele bir
   // ekipman ayrı ayrı seçilmiyor.
@@ -307,9 +342,19 @@ const rows = statusPlan.map((status, index) => {
     const resolutionHours = Math.random() * 20 + 4;
     updatedAt = new Date(Date.now() - Math.random() * 6 * 60 * 60 * 1000);
     createdAt = new Date(updatedAt.getTime() - resolutionHours * 60 * 60 * 1000);
+  } else if (status === 'cozuldu') {
+    // Diğer TÜM 'cozuldu' kayıtları geniş bir tamamlanma tarihi aralığına
+    // (son 75 gün) yayılır — "Tamamlanan İş Emirlerim" bölümünün sıralama
+    // (Yeniden Eskiye/Eskiden Yeniye) kontrolünün GERÇEKTEN görünür bir etkisi
+    // olsun diye; hepsi aynı haftaya sıkışmış olsaydı sıralamanın bir önemi
+    // kalmazdı.
+    const completedDaysAgo = Math.random() * 75;
+    const resolutionHours = Math.random() * 46 + 2; // 2 saat - 2 gün arası çözüm süresi
+    updatedAt = new Date(Date.now() - completedDaysAgo * 24 * 60 * 60 * 1000);
+    createdAt = new Date(updatedAt.getTime() - resolutionHours * 60 * 60 * 1000);
   } else {
     createdAt = randomPastDate(10);
-    // Çözülmüş/sahadaki işlerde updated_at, created_at'ten sonraki bir zaman olsun.
+    // Sahadaki işlerde updated_at, created_at'ten sonraki bir zaman olsun.
     updatedAt = status === 'acik' ? createdAt : new Date(createdAt.getTime() + Math.random() * 2 * 24 * 60 * 60 * 1000);
   }
 
@@ -327,7 +372,7 @@ const rows = statusPlan.map((status, index) => {
     location_name: location.location_name,
     lat: location.lat,
     lng: location.lng,
-    assigned_user_id: pick(technicianIds),
+    assigned_user_id: technicianId,
     // equipment.id'ye giden gerçek bir FK — yalnızca "geçmiş arıza kaydı
     // olsun" diye işaretlenmiş ekipmanlardan seçilir (yukarıda); bu sayede
     // bazı ekipmanların gerçek geçmişi olur, bazılarınınsa hiç olmaz.
@@ -337,7 +382,9 @@ const rows = statusPlan.map((status, index) => {
   };
 });
 
-insertMany(rows);
+// Bildirim seed'i (aşağıda) her teknisyenin GERÇEKTEN oluşturulmuş iş
+// emirlerine (gerçek id + başlık) işaret edebilsin diye dönen id'ler saklanır.
+const workOrderIds = insertMany(rows);
 
 // Not: Fotoğraflar burada artık sahte/placeholder path ile seed edilmiyor.
 // Gerçek dosya diskte yoksa böyle bir kayıt "kaydettim ama görüntülenemiyor" durumuna
@@ -371,15 +418,21 @@ const insertIsgReport = db.prepare(`
     (@reported_by_user_id, @description, @category, @photo_path, @location_name, @lat, @lng, @status, @reviewer_note, @created_at, @reviewed_at)
 `);
 
+// Bildirim seed'i (aşağıda), incelenmiş/çözülmüş bildirimler için gerçek
+// (id, bildiren kullanıcı) çiftlerine ihtiyaç duyduğundan burada saklanır —
+// bkz. notificationSeed'in isgReportInserts kullanımı.
+const isgReportInserts = [];
+
 db.exec('BEGIN');
 try {
   for (const r of isgReportSeed) {
     const createdAt = new Date(Date.now() - r.daysAgo * 24 * 60 * 60 * 1000);
     const reviewedAt =
       r.reviewAfterDays != null ? new Date(createdAt.getTime() + r.reviewAfterDays * 24 * 60 * 60 * 1000) : null;
+    const reportedByUserId = pick(technicianIds);
 
-    insertIsgReport.run({
-      reported_by_user_id: pick(technicianIds),
+    const info = insertIsgReport.run({
+      reported_by_user_id: reportedByUserId,
       description: r.description,
       category: r.category,
       photo_path: null,
@@ -391,6 +444,7 @@ try {
       created_at: createdAt.toISOString(),
       reviewed_at: reviewedAt ? reviewedAt.toISOString() : null,
     });
+    isgReportInserts.push({ id: info.lastInsertRowid, reportedByUserId, status: r.status });
   }
   db.exec('COMMIT');
 } catch (err) {
@@ -448,6 +502,128 @@ try {
       battery_level: d.battery,
       is_locked: d.locked,
       created_at: hoursAgoIso(24 * 30),
+    });
+  }
+  db.exec('COMMIT');
+} catch (err) {
+  db.exec('ROLLBACK');
+  throw err;
+}
+
+// --- Malzeme / Yedek Parça Stok Takibi (Modül 13) — bkz. routes/materials.js ---
+// Önceden bu tabloya HİÇ seed verisi yazılmıyordu — Stok/Malzeme ekranı her
+// zaman "veri yok" olarak açılıyordu ve Dashboard'daki "Kritik stokta
+// malzeme yok" kartı da (gerçekten kritik malzeme olmadığından değil, hiç
+// malzeme kaydı olmadığından) her zaman boş görünüyordu. Aşağıdaki set
+// bilerek stock_quantity'si min_stock_threshold'un ALTINDA kalan birkaç
+// kayıt İÇERİR (yorumlarda "kritik" işaretli) — Dashboard'daki kritik stok
+// kartının da test edilebilmesi için.
+const materialSeed = [
+  { name: 'NYY 4x16 mm² Yeraltı Kablosu', category: 'kablo', unit: 'metre', stock: 850, minThreshold: 200, compatible: ['trafo', 'direk'], unitCost: 42.5 },
+  { name: 'AsXSn 3x70+54.6 mm² OG Kablo', category: 'kablo', unit: 'metre', stock: 120, minThreshold: 150, compatible: ['trafo'], unitCost: 165 }, // kritik
+  { name: 'Topraklama Bakır Şeridi 25x4mm', category: 'kablo', unit: 'metre', stock: 180, minThreshold: 60, compatible: ['trafo', 'direk', 'kesici'], unitCost: 55 },
+  { name: 'NF Tipi 100A Sigorta', category: 'sigorta', unit: 'adet', stock: 34, minThreshold: 20, compatible: ['trafo', 'kesici'], unitCost: 210 },
+  { name: 'HRC 400A Sigorta', category: 'sigorta', unit: 'adet', stock: 8, minThreshold: 15, compatible: ['kesici'], unitCost: 480 }, // kritik
+  { name: 'Kompozit Post İzolatör 24kV', category: 'izolator', unit: 'adet', stock: 60, minThreshold: 25, compatible: ['direk', 'trafo'], unitCost: 320 },
+  { name: 'Silikon Kapak İzolatörü', category: 'izolator', unit: 'adet', stock: 15, minThreshold: 20, compatible: ['direk'], unitCost: 95 }, // kritik
+  { name: 'Bimetal Pabuç Konnektör 16-95mm²', category: 'konnektor', unit: 'adet', stock: 210, minThreshold: 50, compatible: ['trafo', 'direk', 'kesici', 'sayac'], unitCost: 18 },
+  { name: 'C Tipi Ek Kelepçe', category: 'konnektor', unit: 'adet', stock: 5, minThreshold: 30, compatible: ['direk'], unitCost: 12 }, // kritik
+  { name: 'Ayırıcı Bıçak Seti', category: 'konnektor', unit: 'adet', stock: 22, minThreshold: 10, compatible: ['kesici'], unitCost: 275 },
+  { name: 'Vidalı Sayaç Klemensi', category: 'konnektor', unit: 'adet', stock: 260, minThreshold: 80, compatible: ['sayac'], unitCost: 6 },
+  { name: 'Elektronik Sayaç Mührü', category: 'diger', unit: 'adet', stock: 500, minThreshold: 100, compatible: ['sayac'], unitCost: 3.5 },
+  { name: 'Trafo Yalıtım Yağı', category: 'diger', unit: 'kg', stock: 340, minThreshold: 100, compatible: ['trafo'], unitCost: 28 },
+  { name: 'Beton Direk Ek Bandı', category: 'diger', unit: 'adet', stock: 12, minThreshold: 20, compatible: ['direk'], unitCost: 40 }, // kritik
+];
+
+const insertMaterial = db.prepare(`
+  INSERT INTO materials
+    (name, category, unit, stock_quantity, min_stock_threshold, compatible_equipment_types, unit_cost, created_at)
+  VALUES
+    (@name, @category, @unit, @stock_quantity, @min_stock_threshold, @compatible_equipment_types, @unit_cost, @created_at)
+`);
+
+db.exec('BEGIN');
+try {
+  for (const m of materialSeed) {
+    insertMaterial.run({
+      name: m.name,
+      category: m.category,
+      unit: m.unit,
+      stock_quantity: m.stock,
+      min_stock_threshold: m.minThreshold,
+      compatible_equipment_types: m.compatible.join(','),
+      unit_cost: m.unitCost,
+      created_at: monthsAgoIsoDate(Math.round(Math.random() * 10) + 2),
+    });
+  }
+  db.exec('COMMIT');
+} catch (err) {
+  db.exec('ROLLBACK');
+  throw err;
+}
+
+// --- Bildirim Sistemi (Modül 6) seed'i — bkz. utils/notify.js ---
+// Önceden bu tabloya HİÇ seed verisi yazılmıyordu (seed, iş emri/İSG
+// kayıtlarını route handler'ları ATLAYIP doğrudan tabloya yazdığı için
+// createNotification hiç çağrılmamış oluyordu) — Bildirimler ekranı her
+// zaman boştu. Mesaj metinleri, GERÇEK çağrı noktalarıyla (routes/workOrders.js,
+// routes/isg.js) BİREBİR aynı tutuldu ki bu seed verisi uygulamanın kendi
+// ürettiği bildirimlerden görsel/metinsel olarak ayırt edilemesin.
+const notificationSeed = [];
+
+// Her teknisyen, kendisine atanmış en yeni 2 iş emri için bir "atandı"
+// bildirimi alır (gerçek POST /api/workorders akışıyla AYNI mesaj kalıbı).
+technicianIds.forEach((technicianId) => {
+  const own = rows
+    .map((row, i) => ({ row, id: workOrderIds[i] }))
+    .filter(({ row }) => row.assigned_user_id === technicianId)
+    .sort((a, b) => new Date(b.row.created_at) - new Date(a.row.created_at))
+    .slice(0, 2);
+  own.forEach(({ row, id }, i) => {
+    notificationSeed.push({
+      user_id: technicianId,
+      message: `Size yeni bir iş emri atandı: "${row.title}"`,
+      related_type: 'work_order',
+      related_id: id,
+      createdAt: new Date(row.created_at),
+      // Yalnızca EN yeni atama okunmamış kalır — tüm geçmiş atamaların
+      // sonsuza dek "okunmadı" görünmesi gerçekçi olmazdı.
+      isRead: i !== 0,
+    });
+  });
+});
+
+// İncelenmiş/çözülmüş İSG bildirimleri için "durumu güncellendi" bildirimi
+// (yalnızca reviewer_note'u olan, yani gerçekten bir yöneticinin/dispeçerin
+// baktığı kayıtlar — bkz. routes/isg.js PATCH /:id/status).
+isgReportInserts
+  .filter((r) => r.status !== 'bekliyor')
+  .forEach((r, i) => {
+    notificationSeed.push({
+      user_id: r.reportedByUserId,
+      message: `İSG bildiriminiz "${r.status}" olarak güncellendi`,
+      related_type: 'isg_report',
+      related_id: r.id,
+      createdAt: randomPastDate(10),
+      isRead: i !== 0,
+    });
+  });
+
+const insertNotificationSeed = db.prepare(`
+  INSERT INTO notifications (user_id, message, related_type, related_id, is_read, created_at)
+  VALUES (@user_id, @message, @related_type, @related_id, @is_read, @created_at)
+`);
+
+db.exec('BEGIN');
+try {
+  for (const n of notificationSeed) {
+    insertNotificationSeed.run({
+      user_id: n.user_id,
+      message: n.message,
+      related_type: n.related_type,
+      related_id: n.related_id,
+      is_read: n.isRead ? 1 : 0,
+      created_at: n.createdAt.toISOString(),
     });
   }
   db.exec('COMMIT');
@@ -610,8 +786,9 @@ try {
 }
 
 console.log(
-  `${insertedUserIds.length} adet kişi, ${equipmentIds.length} adet ekipman, ${rows.length} adet iş emri, ` +
-    `${isgReportSeed.length} adet İSG bildirimi ve ${deviceSeed.length} adet cihaz kaydı oluşturuldu.`
+  `${insertedUserIds.length} adet kişi, ${equipmentIds.length} adet ekipman, ${rows.length} adet iş emri ` +
+    `(${rows.filter((r) => r.status === 'cozuldu').length} tamamlanmış), ${isgReportSeed.length} adet İSG bildirimi, ` +
+    `${deviceSeed.length} adet cihaz kaydı, ${materialSeed.length} adet malzeme tipi ve ${notificationSeed.length} adet bildirim oluşturuldu.`
 );
 
 console.log(`

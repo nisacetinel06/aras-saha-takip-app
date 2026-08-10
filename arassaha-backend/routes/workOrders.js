@@ -98,19 +98,61 @@ function applyVisibilityFilter(req, conditions, params) {
   // yönetici: ek filtre yok, tümünü görür.
 }
 
-// GET /api/workorders?status=acik
-// Tüm iş emirlerini listeler, opsiyonel status filtresi destekler.
+// GET /api/workorders?status=acik&q=trafo&sort=desc&limit=15&offset=0
+// Tüm iş emirlerini listeler. `status` dışındaki dört parametre (q, sort,
+// limit, offset) opsiyoneldir ve geriye dönük uyumluluk için BİLİNÇLİ olarak
+// hiçbiri gönderilmediğinde davranış birebir eskisiyle aynıdır (tüm liste,
+// created_at DESC) — İş Emirleri sekmesi/Harita/Dashboard gibi bu endpoint'i
+// zaten kullanan hiçbir ekran bir şey değiştirmeden çalışmaya devam eder.
+//
+// Bu dört parametre "Tamamlanan İş Emirlerim" bölümü (Ana Sayfa, teknisyen
+// rolü) için eklendi: bir teknisyenin tamamladığı iş emri sayısı zamanla
+// büyüyebileceğinden TÜM geçmişi tek seferde çekmek yerine sunucu tarafında
+// arama + sıralama + sayfalama yapılır (bkz. arassaha_flutter
+// completed_work_orders_provider.dart).
+//   - q: title/description/location_name/ekipman QR kodu/iş emri no üzerinde
+//     LIKE araması (SQLite'ın varsayılan case-insensitive LIKE'ı — Türkçe
+//     büyük/küçük harf dönüşümü için özel bir işlem yapılmaz, uygulamanın
+//     diğer arama alanlarıyla aynı sınırlamayı taşır).
+//   - sort: 'asc' | 'desc' — verilirse wo.updated_at'e göre sıralar (bir iş
+//     emri 'cozuldu' durumuna geçtiğinde updated_at GERÇEK tamamlanma anını
+//     taşır, bkz. PATCH /:id/status'taki last_maintenance_date güncelleme
+//     yorumu); verilmezse eski varsayılan (created_at DESC) korunur.
+//   - limit/offset: 1-100 arası; limit verilmezse sayfalama hiç uygulanmaz
+//     (eski davranış). İstemci, dönen kayıt sayısı `limit`'e eşitse "daha
+//     fazla kayıt olabilir" varsayar ve bir sonraki offset'i ister — ayrı bir
+//     "toplam sayı" alanı YOK, çünkü bu, res.json'un HER ZAMAN düz bir dizi
+//     döndürdüğü (ve mevcut tüm çağıranların bunu böyle beklediği) sözleşmeyi
+//     bozmadan en basit çözüm.
 // Rol bazlı görünürlük backend'de zorunlu kılınır (bkz. applyVisibilityFilter);
 // Flutter tarafı ekstra bir şey göndermez, token'daki role/id üzerinden
-// otomatik uygulanır.
+// otomatik uygulanır — teknisyen `q`/`sort`/`limit` ne gönderirse göndersin,
+// asla kendisine atanmamış bir iş emrini bu listede göremez.
 router.get('/', (req, res) => {
   try {
-    const { status } = req.query;
+    const { status, q, sort, limit, offset } = req.query;
 
     if (status && !VALID_STATUSES.includes(status)) {
       return res.status(400).json({
         error: `Geçersiz status değeri. Geçerli değerler: ${VALID_STATUSES.join(', ')}`,
       });
+    }
+    if (sort !== undefined && sort !== 'asc' && sort !== 'desc') {
+      return res.status(400).json({ error: "Geçersiz sort değeri. 'asc' veya 'desc' olmalı." });
+    }
+    let limitNum;
+    let offsetNum = 0;
+    if (limit !== undefined) {
+      limitNum = Number(limit);
+      if (!Number.isInteger(limitNum) || limitNum < 1 || limitNum > 100) {
+        return res.status(400).json({ error: 'Geçersiz limit değeri (1-100 arası olmalı).' });
+      }
+      if (offset !== undefined) {
+        offsetNum = Number(offset);
+        if (!Number.isInteger(offsetNum) || offsetNum < 0) {
+          return res.status(400).json({ error: 'Geçersiz offset değeri.' });
+        }
+      }
     }
 
     const conditions = [];
@@ -119,11 +161,28 @@ router.get('/', (req, res) => {
       conditions.push('wo.status = ?');
       params.push(status);
     }
+    if (q && q.trim()) {
+      const term = `%${q.trim()}%`;
+      conditions.push(
+        '(wo.title LIKE ? OR wo.description LIKE ? OR wo.location_name LIKE ? OR e.qr_code LIKE ? OR CAST(wo.id AS TEXT) LIKE ?)'
+      );
+      params.push(term, term, term, term, term);
+    }
     applyVisibilityFilter(req, conditions, params);
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
+    const orderClause = sort
+      ? `ORDER BY wo.updated_at ${sort === 'asc' ? 'ASC' : 'DESC'}`
+      : 'ORDER BY wo.created_at DESC';
+
+    let limitOffsetClause = '';
+    if (limitNum !== undefined) {
+      limitOffsetClause = 'LIMIT ? OFFSET ?';
+      params.push(limitNum, offsetNum);
+    }
+
     const rows = db
-      .prepare(`${SELECT_WORK_ORDER_WITH_USER} ${whereClause} ORDER BY wo.created_at DESC`)
+      .prepare(`${SELECT_WORK_ORDER_WITH_USER} ${whereClause} ${orderClause} ${limitOffsetClause}`)
       .all(...params);
 
     res.json(rows.map(mapWorkOrderRow));

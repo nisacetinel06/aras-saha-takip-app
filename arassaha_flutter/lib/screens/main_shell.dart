@@ -8,6 +8,7 @@ import '../providers/user_provider.dart';
 import '../providers/work_order_list_provider.dart';
 import '../services/local_notification_service.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/app_navigation_drawer.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/offline_banner.dart';
 import '../widgets/user_avatar.dart';
@@ -23,9 +24,16 @@ import 'work_order_list_screen.dart';
 /// Ana Sayfa revizyonu (radikal sadeleştirme): alt navigasyon eskiden 5
 /// sekmeydi (Ana Sayfa/İş Emirleri/Harita/Dashboard/Profil) — Harita ve
 /// Dashboard artık KALICI birer sekme değil, Ana Sayfa'nın "öne çıkanlar"
-/// kartlarından ya da "Tüm Modüller" ekranından normal birer sayfa olarak
-/// push ediliyor (bkz. home/home_screen.dart, home/all_modules_screen.dart).
-/// Bunun yerine ArasAI (Modül 16) kalıcı bir sekmeye taşındı — eskiden
+/// kartlarından ya da hamburger menü panelinden ([AppNavigationDrawer])
+/// normal birer sayfa olarak push ediliyor (bkz. home/home_screen.dart,
+/// home/module_entries.dart). Panel, yalnızca Ana Sayfa sekmesindeyken
+/// `endDrawer` olarak takılıdır ve AppBar'daki menü ikonuyla (yine yalnızca
+/// bu sekmede görünür) açılır — eskiden Ana Sayfa'nın en altındaki "Tüm
+/// Modüller" butonu + ayrı bir arama ekranıydı (AllModulesScreen), o ekran
+/// artık yok; modül listesi tek kaynağı (`buildModuleEntries`) doğrudan
+/// paneli besliyor.
+///
+/// ArasAI (Modül 16) kalıcı bir sekmeye taşındı — eskiden
 /// [ArasAiFloatingButton] adlı sürüklenebilir bir yuvarlak buton her sekmede
 /// AYRI bir katman olarak duruyordu; artık zaten her an bir dokunuşla
 /// erişilebilir bir sekme olduğu için o ikinci giriş noktası KALDIRILDI
@@ -151,12 +159,31 @@ class _MainShellState extends State<MainShell> {
             ),
           ],
         ),
-        actions: const [
-          NotificationBellButton(),
-          ThemeToggleButton(),
-          SizedBox(width: 4),
+        actions: [
+          // Hamburger menü (Modül erişimi — eskiden Ana Sayfa'nın en
+          // altındaki "Tüm Modüller" butonuydu, bkz. module_entries.dart):
+          // yalnızca Ana Sayfa sekmesinde görünür, çünkü [AppNavigationDrawer]
+          // yalnızca isHomeTab true iken Scaffold'a `endDrawer` olarak takılı
+          // (aşağıda). `Builder`, bu IconButton'ın kendi context'inin, henüz
+          // inşa edilmekte olan bu Scaffold'un bir alt öğesi olmasını sağlar —
+          // Scaffold.of(context) bu sayede DOĞRU (henüz oluşturulmakta olan)
+          // Scaffold'u bulur.
+          if (isHomeTab)
+            Builder(
+              builder: (context) => IconButton(
+                tooltip: 'Menü',
+                icon: const Icon(Icons.menu),
+                onPressed: () => Scaffold.of(context).openEndDrawer(),
+              ),
+            ),
+          const NotificationBellButton(),
+          const ThemeToggleButton(),
+          const SizedBox(width: 4),
         ],
       ),
+      endDrawer: isHomeTab
+          ? AppNavigationDrawer(onNavigate: _navigateToTab)
+          : null,
       body: Column(
         children: [
           const OfflineBanner(),

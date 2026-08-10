@@ -164,11 +164,28 @@ class ApiService {
     }
   }
 
-  Future<List<WorkOrder>> getWorkOrders({String? statusFilter}) async {
+  /// [sort]/[q]/[limit]/[offset] opsiyoneldir (bkz. routes/workOrders.js GET
+  /// / dokümantasyonu) — "Tamamlanan İş Emirlerim" bölümü (Ana Sayfa,
+  /// teknisyen) dışındaki hiçbir çağıran bunları göndermez, bu yüzden
+  /// davranışları eskisiyle birebir aynı kalır.
+  Future<List<WorkOrder>> getWorkOrders({
+    String? statusFilter,
+    String? sort,
+    String? q,
+    int? limit,
+    int? offset,
+  }) async {
     try {
-      final uri = Uri.parse('$baseUrl/workorders').replace(
-        queryParameters: statusFilter != null ? {'status': statusFilter} : null,
-      );
+      final queryParameters = <String, String>{
+        if (statusFilter != null) 'status': statusFilter,
+        if (sort != null) 'sort': sort,
+        if (q != null && q.isNotEmpty) 'q': q,
+        if (limit != null) 'limit': '$limit',
+        if (offset != null) 'offset': '$offset',
+      };
+      final uri = Uri.parse(
+        '$baseUrl/workorders',
+      ).replace(queryParameters: queryParameters.isEmpty ? null : queryParameters);
       final response = await _get(uri);
 
       if (response.statusCode != 200) {

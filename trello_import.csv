@@ -1,0 +1,101 @@
+List Name,Card Name,Card Description,Labels
+"Yüksek Öncelik","Uygulama İçi Onboarding / İlk Kullanım Rehberi","İlk girişte 4-5 adımlık, atlanabilir bir tur (ArasAI, risk rozetleri, QR tarama, İSG bildirimi gibi karmaşık özellikleri tek cümlelik açıklamalarla tanıtan overlay/tooltip dizisi). shared_preferences'ta bir has_seen_onboarding bayrağıyla tetiklenir.
+
+Dayanak: lib/ içinde onboarding/tutorial için sıfır eşleşme (Aşama 1 kritik bulgu #1). Tek istisna ArasAI sohbet ekranındaki örnek soru çipleri (assistant_chat_screen.dart:334-345), o da tek ekranla sınırlı.
+Öncelik: Yüksek
+Tahmini Efor: Orta (3-5 gün)","Kullanıcı Deneyimi, Efor: Orta"
+"Orta Öncelik","Filtrelenmiş Liste Boş Durumu İyileştirmesi","İş Emirleri, Ekipman Listesi ve Bakım Önerileri ekranlarındaki jenerik ""Bu filtreye uyan X yok"" mesajlarını, aktif filtreleri özetleyen ve tek dokunuşla temizleyen bir aksiyon içeren ortak bir EmptyState bileşenine dönüştür.
+
+Dayanak: work_order_list_screen.dart:227, equipment_list_screen.dart:109, maintenance_recommendations_screen.dart:257-290 — 2-4 filtre çipi olan ekranlarda boş sonuçta filtre temizleme önerisi yok.
+Öncelik: Orta
+Tahmini Efor: Küçük (1-2 gün)","Kullanıcı Deneyimi, Efor: Küçük"
+"Yüksek Öncelik","ML Çıktıları İçin Tutarlı Bağlamsal Yardım Katmanı","Risk skoru, anomali tespiti ve hasar olasılığı gösterilen HER ekranda (Dashboard, Ekipman Listesi, Ekipman Detay, Şüpheli Sayaçlar) aynı bilgi ikonu + açıklama deseni kullanılsın; modellerin sentetik veriyle eğitildiğine dair ""dürüstlük notu"" kod yorumlarından çıkıp kullanıcıya (en azından yöneticilere) gösterilsin.
+
+Dayanak: equipment_detail_screen.dart:504-507 (iyi örnek) vs equipment_list_screen.dart:464-465 (sadece uzun-basma tooltip) vs dashboard_screen.dart:535-582 (hiç açıklama yok). Referans desen: isg_report_detail_screen.dart:272-289.
+Öncelik: Yüksek
+Tahmini Efor: Orta (3-5 gün)","Kullanıcı Deneyimi, Efor: Orta"
+"Orta Öncelik","Kullanıcı Dostu Ağ Hatası Mesajları","api_service.dart genelinde tekrarlanan 'Sunucuya bağlanılamadı: $e' deseni, ham exception metni göstermek yerine sabit anlaşılır bir mesaja çevrilsin; teknik detay sadece debug modda loglansın.
+
+Dayanak: api_service.dart:138 ve dosya genelinde ~40 tekrar; SocketException/ClientException gibi teknik metinler doğrudan ekrana düşebiliyor.
+Öncelik: Orta
+Tahmini Efor: Küçük (1-2 gün)","Kullanıcı Deneyimi, Efor: Küçük"
+"Düşük Öncelik","ArasAI Sohbet Hata/Retry Tutarlılığı","Sohbet geçmişi yükleme hatasına diğer ekranlardaki gibi görünür bir 'Tekrar Dene' butonu eklensin; gönderme hatası caption yerine ikonlu/daha görünür bir uyarı olarak gösterilsin.
+
+Dayanak: assistant_chat_screen.dart:274-286 (retry yok), :253-263 (düşük görünürlük) — uygulamanın geri kalanındaki tutarlı hata deseninden sapma.
+Öncelik: Düşük
+Tahmini Efor: Küçük (1-2 gün)","Kullanıcı Deneyimi, Efor: Küçük"
+"Düşük Öncelik","QR Tarayıcı İzin Akışı Tutarlılığı","Kamera izni reddedildiğinde İSG formundaki (Geolocator.openAppSettings) desene paralel olarak doğrudan sistem ayarlarını açan bir buton eklensin.
+
+Dayanak: qr_scanner_screen.dart:219-264 (_PermissionDeniedView) sadece manuel girişe yönlendiriyor, isg_report_form_screen.dart:431-436'daki 'Ayarları Aç' desenini kullanmıyor.
+Öncelik: Düşük
+Tahmini Efor: Küçük (1-2 gün)","Kullanıcı Deneyimi, Efor: Küçük"
+"Orta Öncelik","Kapsamlı Hata Mesajı ve Boş Durum Standardizasyonu (Tasarım Sistemi)","Filtrelenmiş boş durum, ağ hatası mesajları ve ArasAI sohbet hata tutarlılığı önerilerini kapsayan şemsiye çalışma: tüm hata/boş durum bileşenleri tek bir paylaşılan widget setine taşınsın; bu set aynı zamanda hiçbir zaman ham exception/stack trace metni kullanıcıya sızdırmayacak şekilde tasarlanacak.
+
+Dayanak: Aşama 1 (tutarsız hata dili, çoklu ekran) + Aşama 2 (teknik/hassas veri sızıntısı riski, server.js'te global error handler yok).
+Öncelik: Orta
+Tahmini Efor: Orta (3-5 gün)","Karma, Efor: Orta"
+"Yüksek Öncelik","Giriş Denemesi Sınırlama (Rate Limiting / Brute-force Koruması)","POST /api/auth/login'e express-rate-limit ile IP+sicil_no bazlı deneme sınırı (ör. 5 deneme / 15 dakika) ve kısa süreli hesap kilidi eklensin.
+
+Dayanak: routes/auth.js:12 — projede express-rate-limit/express-slow-down veya benzeri hiçbir throttling paketi kurulu değil (package.json + node_modules taramasıyla doğrulandı). Ağ hızında brute-force mümkün.
+Öncelik: Yüksek
+Tahmini Efor: Küçük (1-2 gün)","Güvenlik, Efor: Küçük"
+"Yüksek Öncelik","Güvenli Token Saklama (flutter_secure_storage Geçişi)","JWT'nin SharedPreferences yerine Android Keystore/iOS Keychain destekli flutter_secure_storage'da saklanmasına geçilsin.
+
+Dayanak: auth_provider.dart:63,88-89,112-113 — token düz metin SharedPreferences'ta tutuluyor; pubspec.yaml'da flutter_secure_storage bağımlılığı hiç yok. Token 7 gün geçerli ve rol bilgisi taşıyor; rootlu/yedeklenen cihazda okunabilir.
+Öncelik: Yüksek
+Tahmini Efor: Orta (3-5 gün, mevcut oturum migration'ı dahil)","Güvenlik, Efor: Orta"
+"Yüksek Öncelik","RBAC Boşluklarının Kapatılması","PATCH /api/isg-reports/:id/status'a requireRole('dispecer','yonetici') eklensin; GET /api/workorders/:id ve POST /api/workorders/:id/photos diğer uçlarda kullanılan applyVisibilityFilter/atanma kontrolüne tabi tutulsun.
+
+Dayanak: routes/isg.js:195 (rol kontrolü eksik, herhangi bir teknisyen İSG bildirim durumunu değiştirebiliyor); routes/workOrders.js:285,459 (görünürlük filtresi eksik — BOLA, bir teknisyen kendisine atanmamış iş emrini görüp fotoğraf ekleyebiliyor).
+Öncelik: Yüksek
+Tahmini Efor: Küçük (1-2 gün)","Güvenlik, Efor: Küçük"
+"Yüksek Öncelik","Dosya Yükleme İçerik Doğrulama Sıkılaştırma","Multer fileFilter'ları istemci beyanına ek olarak dosyanın gerçek baytlarını (magic number) doğrulasın; kaydedilen uzantı istemci dosya adından değil doğrulanmış MIME tipinden türetilsin; /uploads statik rotasına X-Content-Type-Options: nosniff ve Content-Disposition başlıkları eklensin.
+
+Dayanak: routes/workOrders.js:21-39, routes/isg.js:27-46, routes/users.js:23-40 — fileFilter yalnızca istemcinin gönderdiği (sahte olabilecek) Content-Type'a bakıyor, uzantı whitelist'i yok; .html/.svg gibi dosyalar image/* beyanıyla yüklenip express.static üzerinden servis edilebilir.
+Öncelik: Yüksek
+Tahmini Efor: Orta (3-5 gün)","Güvenlik, Efor: Orta"
+"Orta Öncelik","Merkezi Hata Yönetimi ve Prodüksiyon Sertleştirmesi","server.js'in sonuna global bir Express error-handling middleware eklensin (stack trace'i asla client'a döndürmeyen); Railway dağıtım ortamında NODE_ENV=production açıkça set edilsin ve kodda doğrulansın.
+
+Dayanak: server.js içinde global error handler yok, NODE_ENV proje genelinde hiç referans edilmiyor (grep sonucu sıfır) — yakalanmayan hatalarda (ör. bozuk JSON body) Express'in varsayılan handler'ı stack trace döndürebilir.
+Öncelik: Orta
+Tahmini Efor: Küçük (1-2 gün)","Güvenlik, Efor: Küçük"
+"Yüksek Öncelik","KVKK Uyum Modülü (Veri Saklama Politikası + Veri Silme Talebi)","Kullanıcıya (veya yöneticiye onun adına) kişisel verilerinin (fotoğraflar, konum geçmişi, sohbet logları) neler olduğunu gösteren ve silme talebi başlatabileceği bir ekran; arka planda talep onaylandığında ilişkili fotoğraf dosyalarını diskten silen/anonimleştiren bir iş akışı; aydınlatma metni ekranı.
+
+Dayanak: database.js şeması (ad, telefon, e-posta, fotoğraflar, GPS, cihaz telemetrisi, sohbet logları toplanıyor); kod genelinde kvkk/gdpr/retention için sıfır eşleşme; routes/users.js:424-449 sadece is_active=0 soft-delete yapıyor, fs.unlink hiç çağrılmıyor — dosyalar kalıcı olarak diskte kalıyor.
+Öncelik: Yüksek
+Tahmini Efor: Büyük (1 haftadan fazla)","Güvenlik, Efor: Büyük"
+"Orta Öncelik","Otomatik Dosya Temizleme / Orphan Upload Purge Job","Kullanıcı/iş emri/İSG kaydı deaktive edildiğinde veya belirlenen bir saklama süresi (ör. 2 yıl) dolduğunda ilişkili yüklenmiş dosyaları diskten temizleyen zamanlanmış bir görev. KVKK Uyum Modülü'nün teknik alt bileşeni, ama tek başına da devreye alınabilir.
+
+Dayanak: Proje genelinde fs.unlink/fs.rm grep sonucu sıfır — hiçbir kod yolu yüklenmiş fotoğrafları silmiyor.
+Öncelik: Orta
+Tahmini Efor: Küçük (1-2 gün)","Güvenlik, Efor: Küçük"
+"Orta Öncelik","Merkezi Güvenlik/Denetim Logu Paneli","Yönetici rolü için, hangi kullanıcının ne zaman hangi state-changing işlemi (giriş, rol değişikliği, iş emri atama, malzeme silme, cihaz uzaktan silme vb.) yaptığını gösteren merkezi bir log görüntüleme ekranı — bazı modüllerde (cihaz yönetimi, kullanıcı işlemleri) kayıt zaten tutuluyor, bunları tek ekranda birleştir.
+
+Dayanak: RBAC taraması sırasında modüllere dağılmış denetim kayıtları görüldü (routes/devices.js, routes/users.js) ama merkezi bir görünüm yok.
+Öncelik: Orta
+Tahmini Efor: Orta (3-5 gün)","Güvenlik, Efor: Orta"
+"Orta Öncelik","Yönetici Hesapları İçin İki Faktörlü Kimlik Doğrulama (2FA)","yonetici rolündeki hesaplar için girişte SMS/e-posta OTP veya TOTP tabanlı ikinci faktör eklensin — en yüksek yetkiye sahip hesaplar brute-force/token çalınması senaryolarında ekstra korumaya sahip olsun.
+
+Dayanak: Rate limiting eksikliği (madde 8) ve düz metin token saklama (madde 9) bulgularına karşı savunma derinliği katmanı olarak önerildi.
+Öncelik: Orta
+Tahmini Efor: Orta (3-5 gün)","Güvenlik, Efor: Orta"
+"Orta Öncelik","CI/CD Bağımlılık Güvenlik Taraması","Backend için npm audit --audit-level=high, ML servisi için pip-audit, Flutter için flutter pub outdated/Dependabot; bunları GitHub Actions'a (veya mevcut Railway deploy akışına) bir gate olarak ekle.
+
+Dayanak: .github/workflows yok (proje kökünde), .railway/ dizini boş, Dependabot/Snyk hiçbir pipeline'a bağlı değil — deploy Railway'in git-push otomasyonuyla CI gate'siz yapılıyor.
+Öncelik: Orta
+Tahmini Efor: Küçük (1-2 gün)","Güvenlik, Efor: Küçük"
+"Düşük Öncelik","ML Servisi Bağımlılık Sabitleme","arassaha-ml/requirements.txt'teki tensorflow dışındaki tüm paketler (fastapi, uvicorn, scikit-learn, pandas, numpy, pillow vb.) == ile pinlensin ve bir lockfile (pip-compile) eklensin.
+
+Dayanak: requirements.txt'te sadece tensorflow==2.18.0 pinlenmiş, geri kalan tüm paketler pin'siz — her Docker build'de rastgele en güncel (ve potansiyel olarak kırık/güvensiz) sürüm çekilebilir.
+Öncelik: Düşük
+Tahmini Efor: Küçük (1-2 gün)","Güvenlik, Efor: Küçük"
+"Düşük Öncelik","Malzeme Kullanım Kaydı Sahiplik Kontrolü","POST /api/workorders/:workOrderId/materials şu an herhangi bir teknisyenin kendisine atanmamış bir iş emrine malzeme kaydı işlemesine izin veriyor. En azından işlemi yapan kullanıcının kimliği/rolü kayda daha belirgin şekilde düşürülsün ya da atanmamış iş emirlerinde bir uyarı/onay adımı eklensin.
+
+Dayanak: routes/materials.js:371 (verifyToken only, bilinçli tasarım kararı olarak yorumlanmış: 'sahada malzemeyi kullanan kişi odur') — küçük ama gerçek bir BOLA/denetlenebilirlik riski.
+Öncelik: Düşük
+Tahmini Efor: Küçük (1-2 gün)","Güvenlik, Efor: Küçük"
+"Orta Öncelik","JWT Süresi Kısaltma + Refresh Token Mekanizması","Access token ömrü 7 günden 1-2 saate indirilsin; kullanıcı deneyimini bozmadan oturumu canlı tutmak için ayrı, daha uzun ömürlü ve flutter_secure_storage'da saklanan bir refresh token akışı eklensin.
+
+Dayanak: routes/auth.js:12-45 — jwt.sign expiresIn: '7d', hiçbir refresh/revoke mekanizması yok; çalınan bir token bir hafta boyunca geçerli kalıyor.
+Öncelik: Orta
+Tahmini Efor: Orta (3-5 gün)","Güvenlik, Efor: Orta"
