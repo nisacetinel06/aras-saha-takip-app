@@ -120,6 +120,15 @@ class EquipmentProvider extends ChangeNotifier {
     await fetchEquipmentList();
   }
 
+  /// Filtrelenmiş Liste Boş Durumu (bkz. widgets/empty_state.dart) — "Tüm
+  /// Filtreleri Temizle" butonu bunu çağırır.
+  Future<void> clearAllFilters() async {
+    _typeFilter = null;
+    _statusFilter = null;
+    _ilFilter = null;
+    await fetchEquipmentList();
+  }
+
   /// EquipmentPickerField tarafından, kullanıcı yazmayı bıraktıktan ~400ms
   /// sonra (debounce widget içinde bir Timer ile yönetilir) çağrılır — bu
   /// metod yalnızca API çağrısını yapar, debounce mantığını taşımaz.

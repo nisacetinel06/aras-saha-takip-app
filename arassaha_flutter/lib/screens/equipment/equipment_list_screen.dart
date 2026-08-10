@@ -11,6 +11,7 @@ import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/cache_age_note.dart';
+import '../../widgets/empty_state.dart';
 import 'equipment_detail_screen.dart';
 
 /// Ekipman envanterinin tam listesi — tip ve durum filtresi destekler.
@@ -91,6 +92,27 @@ class _EquipmentListScreenState extends State<EquipmentListScreen> {
                       : null;
 
                   if (provider.equipmentList.isEmpty) {
+                    // Aktif tip/durum/il filtrelerini (hangileri doluysa)
+                    // kaldırılabilir chip'lere çevirir — bkz.
+                    // work_order_list_screen.dart'taki AYNI desen.
+                    final activeFilters = <ActiveFilterChip>[
+                      if (provider.typeFilter != null)
+                        ActiveFilterChip(
+                          label: 'Tip: ${provider.typeFilter!.label}',
+                          onRemove: () => provider.setTypeFilter(null),
+                        ),
+                      if (provider.statusFilter != null)
+                        ActiveFilterChip(
+                          label: 'Durum: ${provider.statusFilter!.label}',
+                          onRemove: () => provider.setStatusFilter(null),
+                        ),
+                      if (provider.ilFilter != null)
+                        ActiveFilterChip(
+                          label: 'İl: ${provider.ilFilter}',
+                          onRemove: () => provider.setIlFilter(null),
+                        ),
+                    ];
+
                     return Column(
                       children: [
                         if (cacheNote != null)
@@ -104,15 +126,18 @@ class _EquipmentListScreenState extends State<EquipmentListScreen> {
                             child: cacheNote,
                           ),
                         Expanded(
-                          child: Center(
-                            child: Text(
-                              'Bu filtreye uyan ekipman yok.',
-                              style: TextStyle(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                            ),
+                          child: EmptyState(
+                            icon: Icons.inventory_2_outlined,
+                            title: activeFilters.isEmpty
+                                ? 'Ekipman bulunmuyor'
+                                : 'Bu filtreye uyan ekipman yok',
+                            subtitle: activeFilters.isEmpty
+                                ? 'Sistemde henüz kayıtlı bir ekipman yok.'
+                                : null,
+                            activeFilters: activeFilters,
+                            onClearFilters: activeFilters.isEmpty
+                                ? null
+                                : provider.clearAllFilters,
                           ),
                         ),
                       ],

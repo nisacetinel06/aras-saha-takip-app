@@ -9,9 +9,31 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/maintenance_recommendation_card.dart';
 
 enum _RecommendationFilter { tumu, yuksek, orta, bekleyen, planlanan }
+
+/// [_RecommendationFilter]'ın Filtrelenmiş Liste Boş Durumu (bkz.
+/// widgets/empty_state.dart) chip'inde gösterilecek etiketi — bu ekranda
+/// filtreler (İş Emirleri/Ekipman ekranlarının aksine) BİRLEŞTİRİLEMEZ, tek
+/// seferde en fazla biri aktif olabilir (radio davranışı, bkz. _FilterBar).
+extension on _RecommendationFilter {
+  String? get activeFilterLabel {
+    switch (this) {
+      case _RecommendationFilter.tumu:
+        return null;
+      case _RecommendationFilter.yuksek:
+        return 'Aciliyet: Yüksek';
+      case _RecommendationFilter.orta:
+        return 'Aciliyet: Orta';
+      case _RecommendationFilter.bekleyen:
+        return 'Durum: Bekleyen';
+      case _RecommendationFilter.planlanan:
+        return 'Durum: Planlanan';
+    }
+  }
+}
 
 /// Kestirimci Bakım Planlama (Modül 12) — merkezi öneri listesi ekranı.
 ///
@@ -105,6 +127,11 @@ class _MaintenanceRecommendationsScreenState
               child: _Body(
                 provider: provider,
                 onRetry: () => _applyFilter(_filter),
+                activeFilter: _filter,
+                onClearFilter: () => _applyFilter(_RecommendationFilter.tumu),
+                showRefreshAction: auth.isYonetici,
+                isRefreshing: provider.isRefreshingRules,
+                onRefresh: _refreshRules,
               ),
             ),
           ],
@@ -224,7 +251,21 @@ class _FilterBar extends StatelessWidget {
 class _Body extends StatelessWidget {
   final MaintenanceProvider provider;
   final Future<void> Function() onRetry;
-  const _Body({required this.provider, required this.onRetry});
+  final _RecommendationFilter activeFilter;
+  final VoidCallback onClearFilter;
+  final bool showRefreshAction;
+  final bool isRefreshing;
+  final Future<void> Function() onRefresh;
+
+  const _Body({
+    required this.provider,
+    required this.onRetry,
+    required this.activeFilter,
+    required this.onClearFilter,
+    required this.showRefreshAction,
+    required this.isRefreshing,
+    required this.onRefresh,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -255,37 +296,28 @@ class _Body extends StatelessWidget {
     }
 
     if (provider.recommendations.isEmpty) {
-      final scheme = Theme.of(context).colorScheme;
-      return LayoutBuilder(
-        builder: (context, constraints) => SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.task_alt,
-                      size: 56,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Bu filtrede bakım önerisi bulunmuyor',
-                      style: TextStyle(
-                        color: scheme.onSurfaceVariant,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+      // Bu ekranda filtreler BİRLEŞTİRİLEMEZ (bkz. _RecommendationFilter
+      // activeFilterLabel dokümantasyonu) — en fazla TEK bir chip olur.
+      final label = activeFilter.activeFilterLabel;
+      final activeFilters = label != null
+          ? [ActiveFilterChip(label: label, onRemove: onClearFilter)]
+          : const <ActiveFilterChip>[];
+
+      return EmptyState(
+        icon: Icons.task_alt,
+        title: activeFilters.isEmpty
+            ? 'Bakım önerisi bulunmuyor'
+            : 'Bu filtrede bakım önerisi bulunmuyor',
+        subtitle: activeFilters.isEmpty
+            ? 'Şu anda hiçbir bakım önerisi yok. Öneriler, ekipman risk '
+                  'skorları güncellendiğinde otomatik oluşturulur.'
+            : null,
+        activeFilters: activeFilters,
+        onClearFilters: activeFilters.isEmpty ? null : onClearFilter,
+        onPrimaryAction: activeFilters.isEmpty && showRefreshAction
+            ? (isRefreshing ? null : onRefresh)
+            : null,
+        primaryActionLabel: 'Önerileri Yeniden Hesapla',
       );
     }
 

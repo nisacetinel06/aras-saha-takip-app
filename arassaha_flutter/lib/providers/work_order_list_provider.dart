@@ -103,4 +103,16 @@ class WorkOrderListProvider extends ChangeNotifier {
     _onlyPreventiveMaintenance = value;
     notifyListeners();
   }
+
+  /// Filtrelenmiş Liste Boş Durumu (bkz. widgets/empty_state.dart) — "Tüm
+  /// Filtreleri Temizle" butonu bunu çağırır. Statü sunucuya giden bir
+  /// parametre olduğu için tek bir [loadWorkOrders] çağrısıyla hem statü
+  /// filtresi sıfırlanır hem de arama/önleyici bakım (istemci tarafı)
+  /// filtreleri temizlenmiş listeye anında yansır.
+  Future<void> clearAllFilters() async {
+    _searchQuery = '';
+    _onlyPreventiveMaintenance = false;
+    _filterStatus = null;
+    await loadWorkOrders();
+  }
 }

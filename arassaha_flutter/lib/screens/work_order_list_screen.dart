@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/work_order.dart';
+import '../providers/auth_provider.dart';
 import '../providers/work_order_list_provider.dart';
 import '../services/analytics_service.dart';
 import '../widgets/app_button.dart';
 import '../widgets/cache_age_note.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/work_order_card.dart';
 import 'work_order_detail_screen.dart';
+import 'work_orders/create_work_order_screen.dart';
 
 /// Görevler sekmesinin içeriği. MainShell'in ortak app bar'ı/alt navigasyonu
 /// altında gösterilir; kendi Scaffold/AppBar'ı yoktur. Ana Sayfa'daki modül
@@ -21,6 +24,14 @@ class WorkOrderListScreen extends StatefulWidget {
 }
 
 class _WorkOrderListScreenState extends State<WorkOrderListScreen> {
+  // Filtrelenmiş Liste Boş Durumu (bkz. widgets/empty_state.dart): arama
+  // kutusunun kendi TextEditingController'ı burada, ekran seviyesinde
+  // tutulur — "Tüm Filtreleri Temizle" ya da tek bir "Arama" chip'i
+  // kaldırıldığında, provider'daki searchQuery'yi SIFIRLAMAK yetmez, kutunun
+  // GÖRÜNEN metnini de temizlemek gerekir (aksi halde kullanıcı filtreyi
+  // temizlese bile arama kutusunda eski metin görünmeye devam ederdi).
+  final _searchController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -32,10 +43,35 @@ class _WorkOrderListScreenState extends State<WorkOrderListScreen> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _clearAllFilters(WorkOrderListProvider provider) async {
+    _searchController.clear();
+    await provider.clearAllFilters();
+  }
+
+  /// Filtre yokken liste zaten boşsa (örn. teknisyenin hiç görevi yoksa)
+  /// gösterilecek role-duyarlı açıklama — üç rolün de "boş liste" anlamı
+  /// farklı olduğu için (teknisyen: kendisine atanan iş yok; dispeçer:
+  /// ekibine atanan iş yok; yönetici: sistemde hiç kayıt yok).
+  String _noDataSubtitle(AuthProvider auth) {
+    if (auth.isTeknisyen) return 'Şu anda size atanmış bir görev bulunmuyor.';
+    if (auth.isDispecer) {
+      return 'Şu anda ekibinize atanmış bir iş emri bulunmuyor.';
+    }
+    return 'Sistemde henüz kayıtlı bir iş emri yok.';
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
     return Column(
       children: [
-        const _SearchBar(),
+        _SearchBar(controller: _searchController),
         const _FilterBar(),
         Expanded(
           child: Consumer<WorkOrderListProvider>(
@@ -60,6 +96,34 @@ class _WorkOrderListScreenState extends State<WorkOrderListScreen> {
                   : null;
 
               if (provider.workOrders.isEmpty) {
+                // Aktif filtreleri (statü/önleyici bakım/arama — hangileri
+                // doluysa) kaldırılabilir chip'lere çevirir; hiçbiri aktif
+                // değilse (liste zaten filtresiz boşsa) boş kalır ve
+                // EmptyState otomatik olarak "genel boş durum" görünümüne
+                // (chipsiz, role-duyarlı subtitle + varsa birincil aksiyon)
+                // geçer.
+                final activeFilters = <ActiveFilterChip>[
+                  if (provider.filterStatus != null)
+                    ActiveFilterChip(
+                      label: 'Durum: ${provider.filterStatus!.label}',
+                      onRemove: () => provider.setFilter(null),
+                    ),
+                  if (provider.onlyPreventiveMaintenance)
+                    ActiveFilterChip(
+                      label: 'Sadece Önleyici Bakım',
+                      onRemove: () =>
+                          provider.setOnlyPreventiveMaintenance(false),
+                    ),
+                  if (provider.searchQuery.trim().isNotEmpty)
+                    ActiveFilterChip(
+                      label: 'Arama: "${provider.searchQuery.trim()}"',
+                      onRemove: () {
+                        _searchController.clear();
+                        provider.setSearchQuery('');
+                      },
+                    ),
+                ];
+
                 return Column(
                   children: [
                     if (cacheNote != null)
@@ -67,7 +131,30 @@ class _WorkOrderListScreenState extends State<WorkOrderListScreen> {
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                         child: cacheNote,
                       ),
-                    const Expanded(child: _EmptyState()),
+                    Expanded(
+                      child: EmptyState(
+                        icon: Icons.inbox_outlined,
+                        title: activeFilters.isEmpty
+                            ? 'Görev bulunmuyor'
+                            : 'Bu filtreye uyan görev yok',
+                        subtitle: activeFilters.isEmpty
+                            ? _noDataSubtitle(auth)
+                            : null,
+                        activeFilters: activeFilters,
+                        onClearFilters: activeFilters.isEmpty
+                            ? null
+                            : () => _clearAllFilters(provider),
+                        onPrimaryAction: activeFilters.isEmpty && auth.canCreateWorkOrders
+                            ? () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const CreateWorkOrderScreen(),
+                                  ),
+                                )
+                            : null,
+                        primaryActionLabel: 'Yeni İş Emri Oluştur',
+                      ),
+                    ),
                   ],
                 );
               }
@@ -114,7 +201,8 @@ class _WorkOrderListScreenState extends State<WorkOrderListScreen> {
 }
 
 class _SearchBar extends StatelessWidget {
-  const _SearchBar();
+  final TextEditingController controller;
+  const _SearchBar({required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -123,6 +211,7 @@ class _SearchBar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: TextField(
+        controller: controller,
         onChanged: provider.setSearchQuery,
         decoration: const InputDecoration(
           hintText: 'Görev ara (İş, başlık, adres)...',
@@ -195,46 +284,6 @@ class _FilterBar extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.inbox_outlined,
-                    size: 56,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Kayıt bulunamadı',
-                    style: TextStyle(
-                      color: scheme.onSurfaceVariant,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

@@ -10,6 +10,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/empty_state.dart';
 import 'material_create_screen.dart';
 import 'material_detail_screen.dart';
 
@@ -49,6 +50,16 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
 
   void _setOnlyLowStock(bool value) {
     setState(() => _onlyLowStock = value);
+    _reload();
+  }
+
+  /// Filtrelenmiş Liste Boş Durumu (bkz. widgets/empty_state.dart) — "Tüm
+  /// Filtreleri Temizle" butonu bunu çağırır.
+  void _clearAllFilters() {
+    setState(() {
+      _categoryFilter = null;
+      _onlyLowStock = false;
+    });
     _reload();
   }
 
@@ -105,13 +116,44 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
                   }
 
                   if (provider.materials.isEmpty) {
-                    return Center(
-                      child: Text(
-                        'Bu filtreye uyan malzeme yok.',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    final activeFilters = <ActiveFilterChip>[
+                      if (_categoryFilter != null)
+                        ActiveFilterChip(
+                          label: 'Kategori: ${_categoryFilter!.label}',
+                          onRemove: () => _setCategory(null),
                         ),
-                      ),
+                      if (_onlyLowStock)
+                        ActiveFilterChip(
+                          label: 'Sadece Kritik Stok',
+                          onRemove: () => _setOnlyLowStock(false),
+                        ),
+                    ];
+
+                    return EmptyState(
+                      icon: Icons.inventory_2_outlined,
+                      title: activeFilters.isEmpty
+                          ? 'Malzeme bulunmuyor'
+                          : 'Bu filtreye uyan malzeme yok',
+                      subtitle: activeFilters.isEmpty
+                          ? 'Depoda henüz kayıtlı bir malzeme yok.'
+                          : null,
+                      activeFilters: activeFilters,
+                      onClearFilters: activeFilters.isEmpty
+                          ? null
+                          : _clearAllFilters,
+                      onPrimaryAction: activeFilters.isEmpty && isYonetici
+                          ? () async {
+                              final created = await Navigator.of(context)
+                                  .push<bool>(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const MaterialCreateScreen(),
+                                    ),
+                                  );
+                              if (created == true) _reload();
+                            }
+                          : null,
+                      primaryActionLabel: 'Yeni Malzeme Ekle',
                     );
                   }
 
