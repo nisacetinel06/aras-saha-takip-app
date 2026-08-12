@@ -393,3 +393,9 @@ router.patch('/recommendations/:id/dismiss', requireRole('dispecer', 'yonetici')
 });
 
 module.exports = router;
+// Test edilebilirlik: risk_score -> urgency_level kural tablosu, DB/HTTP
+// gerektirmeyen saf bir fonksiyondur — bkz. workOrders.js'teki
+// module.exports.VALID_STATUSES ile AYNI "router objesine ek statik alan
+// ekleme" deseni (routing davranışını etkilemez).
+module.exports.deriveUrgencyRule = deriveUrgencyRule;
+module.exports.URGENCY_RULES = URGENCY_RULES;

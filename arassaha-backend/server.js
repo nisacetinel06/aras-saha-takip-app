@@ -95,33 +95,44 @@ app.get('/', (req, res) => {
   res.json({ message: 'ArasSaha backend çalışıyor.' });
 });
 
-app.listen(PORT, async () => {
-  console.log(`ArasSaha backend http://localhost:${PORT} üzerinde çalışıyor`);
+// Test ortamında (NODE_ENV=test) sunucu GERÇEKTEN dinlemeye başlamaz —
+// supertest, app nesnesini doğrudan (bir port açmadan) kullanır. Bu, test
+// altyapısının çalışabilmesi için gereken tek refactor: app.listen() öncesi
+// hiçbir davranış değişmedi, npm start (NODE_ENV=test olmadan çalıştığında)
+// eskisiyle birebir aynı şekilde dinlemeye başlar.
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, async () => {
+    console.log(`ArasSaha backend http://localhost:${PORT} üzerinde çalışıyor`);
 
-  // Uygulama açıldığında risk skorlarının güncel olması için başlangıçta bir
-  // kere otomatik çalıştırılır (Modül 9). Python ML servisi o an ayakta
-  // değilse (bağlantı hatası) bu, sunucunun başlamasını ENGELLEMEZ — hata
-  // yutulmaz ama nazikçe loglanır; skorlar POST /api/ml/refresh-risk-scores
-  // ile daha sonra elle de tetiklenebilir.
-  try {
-    const result = await riskRouter.refreshAllRiskScores();
-    console.log(
-      `Başlangıç risk skorları güncellendi: ${result.updated} ekipman güncellendi, ${result.failed} hata.`
-    );
-  } catch (err) {
-    console.warn('Başlangıçta risk skorları güncellenemedi (ML servisi kapalı olabilir):', err.message);
-  }
+    // Uygulama açıldığında risk skorlarının güncel olması için başlangıçta bir
+    // kere otomatik çalıştırılır (Modül 9). Python ML servisi o an ayakta
+    // değilse (bağlantı hatası) bu, sunucunun başlamasını ENGELLEMEZ — hata
+    // yutulmaz ama nazikçe loglanır; skorlar POST /api/ml/refresh-risk-scores
+    // ile daha sonra elle de tetiklenebilir.
+    try {
+      const result = await riskRouter.refreshAllRiskScores();
+      console.log(
+        `Başlangıç risk skorları güncellendi: ${result.updated} ekipman güncellendi, ${result.failed} hata.`
+      );
+    } catch (err) {
+      console.warn('Başlangıçta risk skorları güncellenemedi (ML servisi kapalı olabilir):', err.message);
+    }
 
-  // Modül 11 — riskRouter ile AYNI başlangıç deseni (bkz. yukarısı). Sayaçların
-  // meter_consumption verisi hiç üretilmediyse (generate_consumption_data.py
-  // çalıştırılmadıysa) her sayaç kendi try/catch'inde tek tek başarısız olur;
-  // bu, sunucunun başlamasını ENGELLEMEZ.
-  try {
-    const result = await anomalyRouter.refreshAllAnomalyScores();
-    console.log(
-      `Başlangıç anomali skorları güncellendi: ${result.updated} sayaç güncellendi, ${result.failed} hata.`
-    );
-  } catch (err) {
-    console.warn('Başlangıçta anomali skorları güncellenemedi (ML servisi kapalı olabilir):', err.message);
-  }
-});
+    // Modül 11 — riskRouter ile AYNI başlangıç deseni (bkz. yukarısı). Sayaçların
+    // meter_consumption verisi hiç üretilmediyse (generate_consumption_data.py
+    // çalıştırılmadıysa) her sayaç kendi try/catch'inde tek tek başarısız olur;
+    // bu, sunucunun başlamasını ENGELLEMEZ.
+    try {
+      const result = await anomalyRouter.refreshAllAnomalyScores();
+      console.log(
+        `Başlangıç anomali skorları güncellendi: ${result.updated} sayaç güncellendi, ${result.failed} hata.`
+      );
+    } catch (err) {
+      console.warn('Başlangıçta anomali skorları güncellenemedi (ML servisi kapalı olabilir):', err.message);
+    }
+  });
+}
+
+// supertest'in `request(app)` ile doğrudan kullanabilmesi için Express app
+// nesnesi export edilir (bkz. test/integration/*.test.js).
+module.exports = app;

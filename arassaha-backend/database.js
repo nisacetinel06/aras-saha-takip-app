@@ -4,9 +4,36 @@
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
-const dbPath = path.join(__dirname, 'aras_saha.db');
-const db = new DatabaseSync(dbPath);
+// Test izolasyonu: NODE_ENV=test iken gerçek aras_saha.db dosyası HİÇ
+// açılmaz — bellek içi (:memory:) ayrı bir veritabanı kullanılır. Böylece
+// test suite'i (bkz. test/) production verisine asla dokunamaz; her test
+// süreci kendi boş, sıfırdan şemasıyla başlar. DB_PATH varsa (yalnızca elle,
+// debug amaçlı set edilir — bkz. README "Testler" bölümü) her şeyin önüne
+// geçer; bu, bir test hatasını incelerken veritabanının son halini gözle
+// görülebilir bir dosyada tutabilmek için bilinçli bir kaçış kapısıdır.
+function resolveDbPath() {
+  if (process.env.DB_PATH) {
+    return process.env.DB_PATH; // elle override edilmişse öncelik bunda
+  }
+  if (process.env.NODE_ENV === 'test') {
+    return ':memory:';
+  }
+  return path.join(__dirname, 'aras_saha.db'); // production varsayılanı, DEĞİŞMİYOR
+}
 
+const db = new DatabaseSync(resolveDbPath());
+
+// KRİTİK: foreign key kısıtlamaları klasik SQLite C API'sinde (ve
+// better-sqlite3 gibi sarmalayıcılarda) varsayılan olarak KAPALI gelir, her
+// bağlantıda ayrı ayrı açılması gerekir. (Not: node:sqlite'ın DatabaseSync'i
+// Node 24'te bunu zaten ön tanımlı ON getiriyor — bkz. `db.prepare('PRAGMA
+// foreign_keys').get()` — ama bu, node:sqlite'ın belgelenmemiş/versiyona
+// bağlı bir iç davranışı; ileride değişebilir. Bu satır o varsayıma
+// GÜVENMEMEK için bilerek/açıkça tekrar set eder.) Bu satır atlanır/OFF
+// yapılırsa aşağıdaki tüm FOREIGN KEY tanımları sessizce hiçbir şey yapmaz —
+// bkz. test/integration/dbConstraints.test.js: bu satır bilerek `OFF`
+// yapılıp testin gerçekten kırmızıya döndüğü doğrulandı (ardından geri
+// alındı), yani mock değil gerçek bir motor davranışını doğruluyor.
 db.exec('PRAGMA foreign_keys = ON');
 
 db.exec(`

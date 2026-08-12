@@ -2,5 +2,6 @@ node_modules
 npm-debug.log
 .env
 aras_saha.db
+test/manual_debug.db
 uploads/
 *_log.txt
