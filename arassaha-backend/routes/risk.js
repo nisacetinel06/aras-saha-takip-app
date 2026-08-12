@@ -30,12 +30,25 @@ function calculateAgeYears(installDate) {
   return Math.max(0, days / 365.25);
 }
 
-function calculateMonthsSinceMaintenance(lastMaintenanceDate, installDate) {
+// asOfDate: testlerin "şu an"ı sabit bir referans tarihle enjekte edebilmesi
+// için eklendi (bkz. test/unit/riskDateCalculation.test.js) — varsayılanı
+// (new Date()) verilmezse gerçek çağrı yerleri (buildFeatures, routes/maintenance.js)
+// hep bugünün tarihini kullanmaya devam eder, davranış değişmez.
+function calculateMonthsSinceMaintenance(lastMaintenanceDate, installDate, asOfDate = new Date()) {
   // Hiç bakım kaydı yoksa referans olarak kurulum tarihi kullanılır — o
   // tarihten bu yana da bakım görmemiş demektir.
   const reference = lastMaintenanceDate || installDate;
   if (!reference) return 12;
-  const days = (Date.now() - new Date(reference).getTime()) / (1000 * 60 * 60 * 24);
+  const referenceTime = new Date(reference).getTime();
+  // reference sayısal olarak ayrıştırılamayan bir tarihse (bozuk veri), sessizce
+  // NaN üretip risk modeline sızmasındansa burada açıkça durur — equipment.last_maintenance_date/
+  // install_date şu an her zaman kod tarafından (new Date().toISOString() veya
+  // seed.js) üretildiğinden gerçek akışta TETİKLENMEZ (bkz. routes/workOrders.js
+  // last_maintenance_date güncellemesi), yalnızca bir savunma hattı.
+  if (Number.isNaN(referenceTime)) {
+    throw new TypeError(`calculateMonthsSinceMaintenance: geçersiz tarih değeri: ${reference}`);
+  }
+  const days = (asOfDate.getTime() - referenceTime) / (1000 * 60 * 60 * 24);
   return Math.max(0, days / 30.44);
 }
 
