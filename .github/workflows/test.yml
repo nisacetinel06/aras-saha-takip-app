@@ -25,3 +25,10 @@ jobs:
 
       - run: npm ci
       - run: npm test
+        env:
+          # .env dosyası .gitignore'da olduğundan CI checkout'unda yok — testlerin
+          # imzaladığı/doğruladığı JWT'ler için burada sabit bir test secret'ı
+          # sağlanıyor. Gerçek (Railway) JWT_SECRET ile aynı olması GEREKMİYOR,
+          # yalnızca bu CI çalışması içinde imzalama/doğrulama aynı değeri
+          # kullandığı sürece testler geçer.
+          JWT_SECRET: test-only-ci-secret
