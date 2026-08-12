@@ -35,7 +35,16 @@ const URGENCY_RULES = [
 
 // score < 34 (düşük risk) için kasıtlı olarak hiçbir kural eşleşmez — bu
 // ekipmanlar için öneri ÜRETİLMEZ (bkz. deriveUrgencyRule kullanım yerleri).
+// riskScore sayısal değilse (null/undefined/string/NaN) sessizce "düşük risk"
+// (null) ile aynı sonuca düşmek yanıltıcı olurdu (ikisi ayırt edilemez hale
+// gelirdi) — bu yüzden kasıtlı olarak fırlatıyoruz. equipment_risk_scores.risk_score
+// DB'de INTEGER NOT NULL olduğundan (bkz. database.js) bu, gerçek /refresh-recommendations
+// akışında TETİKLENMEZ; yalnızca fonksiyon doğrudan (örn. gelecekte başka bir
+// modülden) geçersiz bir değerle çağrılırsa devreye girer.
 function deriveUrgencyRule(riskScore) {
+  if (typeof riskScore !== 'number' || !Number.isFinite(riskScore)) {
+    throw new TypeError(`deriveUrgencyRule: riskScore sayısal olmalı, alınan: ${riskScore}`);
+  }
   return URGENCY_RULES.find((rule) => riskScore >= rule.minScore) || null;
 }
 
