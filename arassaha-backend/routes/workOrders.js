@@ -352,6 +352,14 @@ router.get('/:id', (req, res) => {
     if (!row) {
       return res.status(404).json({ error: 'İş emri bulunamadı.' });
     }
+    // IDOR koruması: teknisyen yalnızca KENDİSİNE atanan iş emrinin detayına
+    // erişebilir (bkz. applyVisibilityFilter'daki AYNI kural, listede zaten
+    // uygulanıyordu — burada tekil kayda ID ile doğrudan erişimde de
+    // uygulanır). 403 DEĞİL 404 dönülür: "kayıt var ama senin değil" bilgisini
+    // sızdırmamak, ID enumeration'a karşı savunma. Dispeçer/yönetici muaftır.
+    if (req.user.role === 'teknisyen' && row.assigned_user_id !== req.user.id) {
+      return res.status(404).json({ error: 'İş emri bulunamadı.' });
+    }
 
     const photos = db
       .prepare('SELECT * FROM work_order_photos WHERE work_order_id = ? ORDER BY created_at DESC')
@@ -392,6 +400,19 @@ router.patch('/:id/status', requireRole('teknisyen', 'dispecer'), (req, res) => 
       });
     }
 
+    // IDOR koruması: sahiplik kontrolü, idempotency replay'inden VE
+    // UPDATE'ten ÖNCE yapılır — hem bir teknisyenin başkasının işini
+    // güncellemesini hem de (daha ince bir risk) sahibi olmadığı bir kaydın
+    // daha önce üretilmiş idempotent yanıtını client_action_id ile yeniden
+    // okumasını engeller. Bkz. GET /:id'deki AYNI kural/gerekçe.
+    const existing = db.prepare('SELECT id, equipment_id, assigned_user_id FROM work_orders WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'İş emri bulunamadı.' });
+    }
+    if (req.user.role === 'teknisyen' && existing.assigned_user_id !== req.user.id) {
+      return res.status(404).json({ error: 'İş emri bulunamadı.' });
+    }
+
     if (clientActionId) {
       const alreadyProcessed = db
         .prepare('SELECT response_json FROM processed_client_actions WHERE client_action_id = ?')
@@ -399,11 +420,6 @@ router.patch('/:id/status', requireRole('teknisyen', 'dispecer'), (req, res) => 
       if (alreadyProcessed) {
         return res.status(200).json(JSON.parse(alreadyProcessed.response_json));
       }
-    }
-
-    const existing = db.prepare('SELECT id, equipment_id FROM work_orders WHERE id = ?').get(id);
-    if (!existing) {
-      return res.status(404).json({ error: 'İş emri bulunamadı.' });
     }
 
     const updatedAt = new Date().toISOString();
