@@ -32,6 +32,10 @@ router.post('/login', (req, res) => {
       return invalidCredentials();
     }
 
+    if (!user.is_active) {
+      return res.status(403).json({ error: 'Hesabınız pasif durumda, yöneticinizle iletişime geçin.' });
+    }
+
     const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
     res.json({
