@@ -14,6 +14,18 @@ const router = express.Router();
 const VALID_STATUSES = ['acik', 'yolda', 'sahada', 'cozuldu'];
 const VALID_PRIORITIES = ['acil', 'normal', 'dusuk'];
 
+// Durum geçiş kuralı (Modül 1): acik -> yolda -> sahada -> cozuldu doğrusal
+// akışı yalnızca Flutter UI'da değil BACKEND'de de zorunlu kılınır — aksi
+// halde API'ye doğrudan istek atan bir istemci adım atlayabilir (acik'ten
+// doğrudan cozuldu'ya) veya geriye gidebilirdi (sahada'dan yolda'ya).
+// 'cozuldu' son durumdur, buradan başka bir yere geçiş YOKTUR.
+const VALID_TRANSITIONS = {
+  acik: ['yolda'],
+  yolda: ['sahada'],
+  sahada: ['cozuldu'],
+  cozuldu: [],
+};
+
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
 
 // Fotoğraflar gerçekten bu klasöre yazılır ve server.js tarafından
@@ -405,7 +417,9 @@ router.patch('/:id/status', requireRole('teknisyen', 'dispecer'), (req, res) => 
     // güncellemesini hem de (daha ince bir risk) sahibi olmadığı bir kaydın
     // daha önce üretilmiş idempotent yanıtını client_action_id ile yeniden
     // okumasını engeller. Bkz. GET /:id'deki AYNI kural/gerekçe.
-    const existing = db.prepare('SELECT id, equipment_id, assigned_user_id FROM work_orders WHERE id = ?').get(id);
+    const existing = db
+      .prepare('SELECT id, equipment_id, assigned_user_id, status FROM work_orders WHERE id = ?')
+      .get(id);
     if (!existing) {
       return res.status(404).json({ error: 'İş emri bulunamadı.' });
     }
@@ -413,6 +427,14 @@ router.patch('/:id/status', requireRole('teknisyen', 'dispecer'), (req, res) => 
       return res.status(404).json({ error: 'İş emri bulunamadı.' });
     }
 
+    // İdempotency kontrolü, durum geçiş doğrulamasından ÖNCE yapılır: bir
+    // client_action_id daha önce BAŞARIYLA işlenmişse, o geçiş zaten bir kez
+    // doğrulanıp uygulanmıştır — replay'de aynı geçiş kuralına karşı TEKRAR
+    // sınanmaz, doğrudan önceki başarılı yanıt aynen döner (bkz. dosya başı
+    // İDEMPOTENCY notu). Yalnızca BAŞARILI işlemler buraya kaydedilir (aşağıda,
+    // UPDATE'ten SONRA) — geçersiz bir geçiş denemesi burada asla bulunmaz, bu
+    // yüzden istemci aynı client_action_id ile düzeltilmiş bir istekle tekrar
+    // deneyebilir (kalıcı olarak kilitlenmez).
     if (clientActionId) {
       const alreadyProcessed = db
         .prepare('SELECT response_json FROM processed_client_actions WHERE client_action_id = ?')
@@ -420,6 +442,15 @@ router.patch('/:id/status', requireRole('teknisyen', 'dispecer'), (req, res) => 
       if (alreadyProcessed) {
         return res.status(200).json(JSON.parse(alreadyProcessed.response_json));
       }
+    }
+
+    const allowedNextStatuses = VALID_TRANSITIONS[existing.status] || [];
+    if (!allowedNextStatuses.includes(status)) {
+      return res.status(400).json({
+        error: `'${existing.status}' durumundan '${status}' durumuna geçilemez. İzin verilen geçiş(ler): ${
+          allowedNextStatuses.length ? allowedNextStatuses.join(', ') : 'yok (son durum)'
+        }`,
+      });
     }
 
     const updatedAt = new Date().toISOString();

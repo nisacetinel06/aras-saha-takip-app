@@ -98,12 +98,18 @@ describe('GET/PATCH /api/workorders/:id — IDOR / sahiplik kontrolü', () => {
     });
 
     it('dispeçer İş Emri X\'in durumunu güncelleyebilmeli (200)', async () => {
+      // 'sahada' DEĞİL 'yolda' gönderilir: TEST-08'de eklenen durum geçiş
+      // kuralı (acik -> yolda -> sahada -> cozuldu) nedeniyle, İş Emri X'in
+      // başlangıç durumu 'acik'ten doğrudan 'sahada'ya atlamak artık (doğru
+      // şekilde) reddedilir — bu test yalnızca "dispeçer bu endpoint'e
+      // erişebiliyor mu" sahiplik/rol sorusunu sınadığı için geçerli bir
+      // geçiş kullanmak yeterli.
       const response = await request(app)
         .patch(`/api/workorders/${workOrderXId}/status`)
         .set('Authorization', `Bearer ${dispatcherToken}`)
-        .send({ status: 'sahada' });
+        .send({ status: 'yolda' });
       assert.strictEqual(response.status, 200);
-      assert.strictEqual(response.body.status, 'sahada');
+      assert.strictEqual(response.body.status, 'yolda');
     });
 
     it('yönetici İş Emri X\'in detayına erişebilmeli (200)', async () => {
