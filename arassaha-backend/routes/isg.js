@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
 const db = require('../database');
+const { requireRole } = require('../middleware/auth');
 const { createNotification } = require('../utils/notify');
 const { classifyImageForDamage } = require('../utils/damageDetection');
 
@@ -190,9 +191,13 @@ router.post('/', (req, res) => {
   });
 });
 
-// PATCH /api/isg-reports/:id/status
+// PATCH /api/isg-reports/:id/status — yalnızca dispeçer/yönetici. Bir
+// bildirimi incelemek/kapatmak yönetimsel bir karar; bildiren teknisyenin
+// kendisi kendi bildirimini "incelendi"/"cozuldu" yapamaz (bkz.
+// routes/workOrders.js'teki requireRole desenleriyle AYNI ayrım: POST /
+// (bildirim oluşturma) teknisyene açık kalır, bkz. yukarısı).
 // Body: { "status": "incelendi", "reviewer_note": "..." (opsiyonel) }
-router.patch('/:id/status', (req, res) => {
+router.patch('/:id/status', requireRole('dispecer', 'yonetici'), (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
