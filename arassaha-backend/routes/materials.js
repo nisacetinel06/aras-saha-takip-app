@@ -159,6 +159,9 @@ router.post('/materials', requireRole('yonetici'), (req, res) => {
         error: `compatible_equipment_types en az bir geçerli ekipman tipi içermeli. Geçerli değerler: ${VALID_EQUIPMENT_TYPES.join(', ')}`,
       });
     }
+    if (unit_cost !== undefined && unit_cost !== null && (!Number.isFinite(Number(unit_cost)) || Number(unit_cost) < 0)) {
+      return res.status(400).json({ error: 'unit_cost negatif olamaz.' });
+    }
 
     const info = db
       .prepare(
@@ -204,6 +207,9 @@ router.patch('/materials/:id', requireRole('yonetici'), (req, res) => {
 
     const { name, category, unit, min_stock_threshold, compatible_equipment_types, unit_cost } = req.body;
 
+    if (name !== undefined && (typeof name !== 'string' || !String(name).trim())) {
+      return res.status(400).json({ error: 'name alanı boş olamaz.' });
+    }
     if (category !== undefined && !VALID_CATEGORIES.includes(category)) {
       return res.status(400).json({ error: `Geçersiz category değeri. Geçerli değerler: ${VALID_CATEGORIES.join(', ')}` });
     }
@@ -214,6 +220,14 @@ router.patch('/materials/:id', requireRole('yonetici'), (req, res) => {
       return res.status(400).json({
         error: `compatible_equipment_types en az bir geçerli ekipman tipi içermeli. Geçerli değerler: ${VALID_EQUIPMENT_TYPES.join(', ')}`,
       });
+    }
+    // POST /materials ile TUTARLI: negatif/geçersiz eşik veya birim maliyet
+    // PATCH üzerinden de kabul edilmemeli (önceden yalnızca POST'ta vardı).
+    if (min_stock_threshold !== undefined && (!Number.isFinite(Number(min_stock_threshold)) || Number(min_stock_threshold) < 0)) {
+      return res.status(400).json({ error: 'min_stock_threshold negatif olamaz.' });
+    }
+    if (unit_cost !== undefined && unit_cost !== null && (!Number.isFinite(Number(unit_cost)) || Number(unit_cost) < 0)) {
+      return res.status(400).json({ error: 'unit_cost negatif olamaz.' });
     }
 
     const fields = [];

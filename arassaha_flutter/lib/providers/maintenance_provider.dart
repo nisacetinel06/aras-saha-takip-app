@@ -10,7 +10,10 @@ import '../services/api_service.dart';
 /// önerilerini listeler ve bunları gerçek iş emirlerine dönüştürme/reddetme
 /// aksiyonlarını tetikler.
 class MaintenanceProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  MaintenanceProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   List<MaintenanceRecommendation> _recommendations = [];
   bool _isLoading = false;

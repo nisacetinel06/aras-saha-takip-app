@@ -7,7 +7,10 @@ import '../services/api_service.dart';
 /// yönetir: bildirim listesi/detayı çekme, yeni bildirim gönderme (gerçek
 /// fotoğraf + gerçek GPS ile) ve durum güncelleme.
 class IsgProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  IsgProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   List<IsgReport> _reports = [];
   bool _isListLoading = false;

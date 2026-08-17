@@ -21,7 +21,10 @@ import '../services/local_notification_service.dart';
 /// Kullanıcı deneyimi FCM ile aynıdır; yalnızca "sunucu cihaza iter" yerine
 /// "cihaz sunucuyu düzenli aralıklarla sorar" (pull) yaklaşımı kullanılır.
 class NotificationProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  NotificationProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   static const _pollInterval = Duration(seconds: 30);
 

@@ -10,14 +10,14 @@ import '../utils/role_helper.dart' as role_helper;
 class AuthProvider extends ChangeNotifier {
   static const _tokenKey = 'auth_token';
 
-  final ApiService _api = ApiService();
+  final ApiService _api;
 
   String? _token;
   AssignedUser? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
 
-  AuthProvider() {
+  AuthProvider({ApiService? apiService}) : _api = apiService ?? ApiService() {
     // Herhangi bir istek 401 dönerse (token süresi doldu/geçersiz), oturumu
     // burada temizleriz — AuthGate bunu dinleyip kullanıcıyı otomatik olarak
     // LoginScreen'e düşürür (bkz. main.dart).

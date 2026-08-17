@@ -8,7 +8,10 @@ import '../services/device_telemetry_service.dart';
 /// zorla senkronize et) tetikleme. Bkz. DESIGN_SYSTEM.md — bu aksiyonlar
 /// gerçek bir cihaza komut GÖNDERMEZ, yalnızca backend'deki durumu değiştirir.
 class DeviceProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  DeviceProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   List<ManagedDevice> _devices = [];
   bool _isLoading = false;

@@ -8,7 +8,10 @@ import '../services/api_service.dart';
 /// malzeme kullanımları ve bunlara ilişkin aksiyonlar (kullanım kaydetme/
 /// silme, restock, yeni malzeme oluşturma).
 class MaterialProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  MaterialProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   // --- Arama (MaterialPickerField — Equipment/EquipmentProvider ile AYNI
   // desen: debounce mantığı widget'ta, burada yalnızca API çağrısı) ---

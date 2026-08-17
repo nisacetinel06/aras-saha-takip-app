@@ -7,7 +7,10 @@ import '../services/cache_service.dart';
 /// (backend'e sorgu olarak gider), serbest metin araması (çekilmiş liste
 /// üzerinde istemci tarafında uygulanır) ve hata durumu.
 class WorkOrderListProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  WorkOrderListProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   List<WorkOrder> _workOrders = [];
   bool _isLoading = false;

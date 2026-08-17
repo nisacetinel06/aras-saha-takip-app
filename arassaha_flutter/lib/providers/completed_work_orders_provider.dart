@@ -17,7 +17,10 @@ import '../services/api_service.dart';
 /// başındaki birkaç kaydı gösterir, tam ekran ise `loadMore()` ile listeyi
 /// büyütür.
 class CompletedWorkOrdersProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  CompletedWorkOrdersProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   static const int pageSize = 15;
   static const int previewLimit = 10;

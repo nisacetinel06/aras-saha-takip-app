@@ -15,7 +15,10 @@ import '../services/api_service.dart';
 /// açıkça yasakladığı gibi) performansı gereksiz düşürür. Aşağı çekip
 /// yenileme (RefreshIndicator) `force: true` ile bu bayrağı yok sayar.
 class ReportsProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  ReportsProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   // --- Sekme 1a: Risk Yoğunluk Haritası ---
   List<RegionalRiskSummary> _regionalRiskSummary = [];

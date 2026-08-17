@@ -9,7 +9,10 @@ import '../services/api_service.dart';
 /// bir veri setiyle eğitildi — bkz. arassaha-ml/README.md. Model eğitimi ve
 /// servis entegrasyonu gerçektir; yalnızca eğitim verisi sentetiktir.
 class RiskProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  RiskProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   List<RiskyEquipmentSummary> _riskyEquipment = [];
   bool _isRiskyListLoading = false;

@@ -9,10 +9,11 @@ import '../services/offline_queue_service.dart';
 /// İş emri detay ekranının state'ini yönetir: detay çekme, durum güncelleme,
 /// fotoğraf ekleme ve bu işlemler sırasındaki yükleniyor/hata durumları.
 class WorkOrderDetailProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
   final int workOrderId;
 
-  WorkOrderDetailProvider(this.workOrderId);
+  WorkOrderDetailProvider(this.workOrderId, {ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   WorkOrder? _workOrder;
   bool _isLoading = false;

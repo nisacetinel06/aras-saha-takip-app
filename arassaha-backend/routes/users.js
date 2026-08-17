@@ -8,6 +8,7 @@ const multer = require('multer');
 const bcrypt = require('bcrypt');
 const db = require('../database');
 const { requireRole } = require('../middleware/auth');
+const validateImageContent = require('../middleware/validateImageContent');
 
 const router = express.Router();
 
@@ -158,13 +159,13 @@ router.post('/', requireRole('yonetici'), (req, res) => {
   try {
     const { name, sicil_no, password, role, phone, email } = req.body;
 
-    if (!name || !name.trim()) {
+    if (!name || typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ error: 'name alanı zorunludur.' });
     }
     if (!sicil_no || !String(sicil_no).trim()) {
       return res.status(400).json({ error: 'sicil_no alanı zorunludur.' });
     }
-    if (!password || password.length < 4) {
+    if (!password || typeof password !== 'string' || password.length < 4) {
       return res.status(400).json({ error: 'password alanı en az 4 karakter olmalıdır.' });
     }
     if (!role || !VALID_ROLES.includes(role)) {
@@ -268,6 +269,9 @@ router.patch('/:id', requireRole('yonetici'), (req, res) => {
     }
 
     const { name, phone, email, role, supervisor_id } = req.body;
+    if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
+      return res.status(400).json({ error: 'name alanı boş olamaz.' });
+    }
     if (role !== undefined && !VALID_ROLES.includes(role)) {
       return res.status(400).json({ error: `Geçersiz role değeri. Geçerli değerler: ${VALID_ROLES.join(', ')}` });
     }
@@ -342,20 +346,24 @@ router.post('/:id/photo', requireRole('yonetici'), (req, res) => {
       return res.status(400).json({ error: err.message || 'Fotoğraf yüklenirken bir hata oluştu.' });
     }
 
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: 'photo alanı (dosya) zorunludur.' });
-      }
-
-      const photoPath = `/uploads/profiles/${req.file.filename}`;
-      db.prepare('UPDATE users SET photo_path = ? WHERE id = ?').run(photoPath, id);
-
-      const updated = db.prepare(`SELECT ${FULL_FIELDS} FROM users WHERE id = ?`).get(id);
-      res.json(mapFullUser(updated));
-    } catch (innerErr) {
-      console.error(innerErr);
-      res.status(500).json({ error: 'Fotoğraf kaydedilirken bir hata oluştu.' });
+    if (!req.file) {
+      return res.status(400).json({ error: 'photo alanı (dosya) zorunludur.' });
     }
+
+    // Dosya İÇERİĞİ (magic number) doğrulaması — mimetype/uzantı YALNIZCA
+    // istemcinin beyanıdır, sahtelenebilir (bkz. middleware/validateImageContent.js).
+    validateImageContent(req, res, () => {
+      try {
+        const photoPath = `/uploads/profiles/${req.file.filename}`;
+        db.prepare('UPDATE users SET photo_path = ? WHERE id = ?').run(photoPath, id);
+
+        const updated = db.prepare(`SELECT ${FULL_FIELDS} FROM users WHERE id = ?`).get(id);
+        res.json(mapFullUser(updated));
+      } catch (innerErr) {
+        console.error(innerErr);
+        res.status(500).json({ error: 'Fotoğraf kaydedilirken bir hata oluştu.' });
+      }
+    });
   });
 });
 
@@ -376,7 +384,7 @@ router.patch('/:id/reset-password', requireRole('yonetici'), (req, res) => {
     }
 
     const { password } = req.body;
-    if (!password || password.length < 4) {
+    if (!password || typeof password !== 'string' || password.length < 4) {
       return res.status(400).json({ error: 'password alanı en az 4 karakter olmalıdır.' });
     }
 

@@ -8,7 +8,10 @@ import '../services/cache_service.dart';
 /// kaydı çekme; her akışın kendi loading/error state'i ayrı tutulur çünkü
 /// bunlar farklı ekranlarda (liste, QR tarama, detay) bağımsız çalışır.
 class EquipmentProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  EquipmentProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   List<Equipment> _equipmentList = [];
   bool _isListLoading = false;

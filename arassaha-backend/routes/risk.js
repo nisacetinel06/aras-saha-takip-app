@@ -226,22 +226,31 @@ router.get('/equipment/:id/risk', async (req, res) => {
   }
 });
 
-// GET /api/dashboard/risky-equipment?limit=5
+// GET /api/dashboard/risky-equipment?limit=5&il=Erzurum
 // Risk skoruna göre azalan sırayla en riskli ekipmanları döner. Bu bir
 // yönetim raporu olduğu için yalnızca yönetici erişebilir.
+// `il` opsiyoneldir — verilmezse eski davranış (tüm iller) birebir korunur;
+// verilirse yalnızca o ildeki ekipmanlarla sınırlanır (materials.js'teki
+// `category`/workOrders.js'teki `status` opsiyonel filtreleriyle AYNI desen).
 router.get('/dashboard/risky-equipment', requireRole('yonetici'), (req, res) => {
   try {
+    const { il } = req.query;
     const limit = Math.min(Math.max(Number(req.query.limit) || 5, 1), 10);
+
+    const whereClause = il ? 'WHERE e.il = ?' : '';
+    const params = il ? [il, limit] : [limit];
+
     const rows = db
       .prepare(
-        `SELECT e.id, e.qr_code, e.equipment_type, e.location_name, e.status,
+        `SELECT e.id, e.qr_code, e.equipment_type, e.location_name, e.il, e.status,
                 r.risk_score, r.risk_level, r.computed_at
          FROM equipment_risk_scores r
          JOIN equipment e ON e.id = r.equipment_id
+         ${whereClause}
          ORDER BY r.risk_score DESC
          LIMIT ?`
       )
-      .all(limit);
+      .all(...params);
     res.json(rows);
   } catch (err) {
     console.error(err);

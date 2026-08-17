@@ -9,7 +9,10 @@ import '../services/api_service.dart';
 /// DÜRÜSTLÜK NOTU: Skorları üreten model SENTETİK (kural tabanlı üretilmiş)
 /// bir tüketim geçmişiyle eğitildi — bkz. arassaha-ml/README.md.
 class AnomalyProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  AnomalyProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   List<SuspiciousMeterSummary> _suspiciousMeters = [];
   bool _isSuspiciousListLoading = false;

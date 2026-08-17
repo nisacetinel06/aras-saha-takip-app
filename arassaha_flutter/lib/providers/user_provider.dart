@@ -7,7 +7,10 @@ import '../services/api_service.dart';
 /// kendi profilim, (yönetici için) kullanıcı listesi/detayı, kullanıcı
 /// oluşturma/güncelleme/fotoğraf yükleme/pasifleştirme.
 class UserProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  UserProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   AppUser? _myProfile;
   bool _isLoadingProfile = false;

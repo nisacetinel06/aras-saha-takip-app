@@ -9,7 +9,10 @@ import '../services/api_service.dart';
 /// yalnızca ilk yüklemede backend'e ?status= parametresi gönderilebilir
 /// (örn. Dashboard'dan "acik" filtresiyle doğrudan haritaya yönlendirmek için).
 class MapProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  MapProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   List<WorkOrderMapPin> _allPins = [];
   bool _isLoading = false;

@@ -6,6 +6,7 @@ const express = require('express');
 const multer = require('multer');
 const db = require('../database');
 const { requireRole } = require('../middleware/auth');
+const validateImageContent = require('../middleware/validateImageContent');
 const { createNotification } = require('../utils/notify');
 const { classifyImageForDamage } = require('../utils/damageDetection');
 
@@ -227,7 +228,7 @@ router.post('/', requireRole('dispecer', 'yonetici'), (req, res) => {
     const assignedUserId = Number(assigned_user_id);
     const equipmentId = Number(equipment_id);
 
-    if (!title || !title.trim()) {
+    if (!title || typeof title !== 'string' || !title.trim()) {
       return res.status(400).json({ error: 'title alanı zorunludur.' });
     }
     if (!priority || !VALID_PRIORITIES.includes(priority)) {
@@ -273,7 +274,7 @@ router.post('/', requireRole('dispecer', 'yonetici'), (req, res) => {
       )
       .run({
         title: title.trim(),
-        description: description ? description.trim() : '',
+        description: description && typeof description === 'string' ? description.trim() : '',
         priority,
         // Konum, İSTEMCİDEN DEĞİL doğrudan equipment kaydından — bkz. yukarıdaki not.
         il: equipment.il,
@@ -563,53 +564,57 @@ router.patch('/:id/assign', requireRole('dispecer', 'yonetici'), (req, res) => {
 // Böylece başka bir cihazdan bağlanan kullanıcı (örn. saha amiri) bu fotoğrafı
 // GET /api/workorders/:id üzerinden gerçekten görüntüleyebilir.
 router.post('/:id/photos', (req, res) => {
-  upload.single('photo')(req, res, async (err) => {
+  upload.single('photo')(req, res, (err) => {
     if (err) {
       return res.status(400).json({ error: err.message || 'Fotoğraf yüklenirken bir hata oluştu.' });
     }
 
-    try {
-      const id = Number(req.params.id);
-      if (!Number.isInteger(id)) {
-        return res.status(400).json({ error: 'Geçersiz iş emri id değeri.' });
-      }
-
-      if (!req.file) {
-        return res.status(400).json({ error: 'photo alanı (dosya) zorunludur.' });
-      }
-
-      const workOrder = db.prepare('SELECT id FROM work_orders WHERE id = ?').get(id);
-      if (!workOrder) {
-        return res.status(404).json({ error: 'İş emri bulunamadı.' });
-      }
-
-      const photoPath = `/uploads/${req.file.filename}`;
-      const createdAt = new Date().toISOString();
-
-      // Görüntü Tabanlı Hasar Tespiti (Modül 15) — routes/isg.js POST / ile
-      // AYNI desen: fotoğraf diske yazıldıktan hemen sonra, INSERT'ten önce
-      // çağrılır; ML servisi kapalıysa/hata dönerse cv_* alanları null kalır,
-      // fotoğraf eklenmesi hiçbir şekilde engellenmez/bloklanmaz.
-      const photoBuffer = fs.readFileSync(req.file.path);
-      const { cv_is_damaged, cv_damage_probability } = await classifyImageForDamage(
-        photoBuffer,
-        req.file.originalname,
-        req.file.mimetype
-      );
-
-      const info = db
-        .prepare(
-          `INSERT INTO work_order_photos (work_order_id, photo_path, created_at, cv_is_damaged, cv_damage_probability)
-           VALUES (?, ?, ?, ?, ?)`
-        )
-        .run(id, photoPath, createdAt, cv_is_damaged, cv_damage_probability);
-
-      const photo = db.prepare('SELECT * FROM work_order_photos WHERE id = ?').get(info.lastInsertRowid);
-      res.status(201).json(photo);
-    } catch (innerErr) {
-      console.error(innerErr);
-      res.status(500).json({ error: 'Fotoğraf eklenirken bir hata oluştu.' });
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Geçersiz iş emri id değeri.' });
     }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'photo alanı (dosya) zorunludur.' });
+    }
+
+    // Dosya İÇERİĞİ (magic number) doğrulaması — mimetype/uzantı YALNIZCA
+    // istemcinin beyanıdır, sahtelenebilir (bkz. middleware/validateImageContent.js).
+    validateImageContent(req, res, async () => {
+      try {
+        const workOrder = db.prepare('SELECT id FROM work_orders WHERE id = ?').get(id);
+        if (!workOrder) {
+          return res.status(404).json({ error: 'İş emri bulunamadı.' });
+        }
+
+        const photoPath = `/uploads/${req.file.filename}`;
+        const createdAt = new Date().toISOString();
+
+        // Görüntü Tabanlı Hasar Tespiti (Modül 15) — routes/isg.js POST / ile
+        // AYNI desen: fotoğraf diske yazıldıktan hemen sonra, INSERT'ten önce
+        // çağrılır; ML servisi kapalıysa/hata dönerse cv_* alanları null kalır,
+        // fotoğraf eklenmesi hiçbir şekilde engellenmez/bloklanmaz.
+        const photoBuffer = fs.readFileSync(req.file.path);
+        const { cv_is_damaged, cv_damage_probability } = await classifyImageForDamage(
+          photoBuffer,
+          req.file.originalname,
+          req.file.mimetype
+        );
+
+        const info = db
+          .prepare(
+            `INSERT INTO work_order_photos (work_order_id, photo_path, created_at, cv_is_damaged, cv_damage_probability)
+             VALUES (?, ?, ?, ?, ?)`
+          )
+          .run(id, photoPath, createdAt, cv_is_damaged, cv_damage_probability);
+
+        const photo = db.prepare('SELECT * FROM work_order_photos WHERE id = ?').get(info.lastInsertRowid);
+        res.status(201).json(photo);
+      } catch (innerErr) {
+        console.error(innerErr);
+        res.status(500).json({ error: 'Fotoğraf eklenirken bir hata oluştu.' });
+      }
+    });
   });
 });
 

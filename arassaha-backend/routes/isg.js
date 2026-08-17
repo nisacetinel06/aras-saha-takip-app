@@ -11,6 +11,7 @@ const express = require('express');
 const multer = require('multer');
 const db = require('../database');
 const { requireRole } = require('../middleware/auth');
+const validateImageContent = require('../middleware/validateImageContent');
 const { createNotification } = require('../utils/notify');
 const { classifyImageForDamage } = require('../utils/damageDetection');
 
@@ -118,76 +119,84 @@ router.get('/:id', (req, res) => {
 // — bu sayede kullanıcı kendi adına değil başkası adına bildirim giremez ve
 // Flutter formunda tekrar "bildiren kişi" seçtirmeye gerek kalmaz.
 router.post('/', (req, res) => {
-  upload.single('photo')(req, res, async (uploadErr) => {
+  upload.single('photo')(req, res, (uploadErr) => {
     if (uploadErr) {
       return res.status(400).json({ error: uploadErr.message || 'Fotoğraf yüklenirken bir hata oluştu.' });
     }
 
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: 'photo alanı (fotoğraf dosyası) zorunludur.' });
-      }
-
-      const { description, category, lat, lng } = req.body;
-      const location_name = req.body.location_name || null;
-      const reported_by_user_id = req.user.id;
-      const latNum = Number(lat);
-      const lngNum = Number(lng);
-
-      if (!description || !description.trim()) {
-        return res.status(400).json({ error: 'description alanı zorunludur.' });
-      }
-      if (!category || !VALID_CATEGORIES.includes(category)) {
-        return res.status(400).json({
-          error: `Geçersiz category değeri. Geçerli değerler: ${VALID_CATEGORIES.join(', ')}`,
-        });
-      }
-      if (Number.isNaN(latNum) || Number.isNaN(lngNum)) {
-        return res.status(400).json({ error: 'lat ve lng alanları zorunludur (gerçek GPS konumu).' });
-      }
-
-      const photo_path = `/uploads/isg/${req.file.filename}`;
-      const created_at = new Date().toISOString();
-
-      // Görüntü Tabanlı Hasar Tespiti (Modül 15) — fotoğraf diske YAZILDIKTAN
-      // hemen sonra, ama INSERT'ten ÖNCE çağrılır (sonuç tek bir INSERT'e
-      // gömülsün diye, ayrı bir UPDATE gerekmesin). classifyImageForDamage
-      // ASLA fırlatmaz — ML servisi kapalıysa cv_* alanları null döner, bu
-      // İSG bildiriminin oluşturulmasını hiçbir şekilde engellemez/geciktirmez
-      // (yalnızca ~15 sn'lik bir zaman aşımı sınırı içinde bekler).
-      const photoBuffer = fs.readFileSync(req.file.path);
-      const { cv_is_damaged, cv_damage_probability } = await classifyImageForDamage(
-        photoBuffer,
-        req.file.originalname,
-        req.file.mimetype
-      );
-
-      const info = db
-        .prepare(
-          `INSERT INTO isg_reports
-             (reported_by_user_id, description, category, photo_path, location_name, lat, lng, status, reviewer_note, created_at, reviewed_at, cv_is_damaged, cv_damage_probability)
-           VALUES
-             (@reported_by_user_id, @description, @category, @photo_path, @location_name, @lat, @lng, 'bekliyor', NULL, @created_at, NULL, @cv_is_damaged, @cv_damage_probability)`
-        )
-        .run({
-          reported_by_user_id,
-          description: description.trim(),
-          category,
-          photo_path,
-          location_name,
-          lat: latNum,
-          lng: lngNum,
-          created_at,
-          cv_is_damaged,
-          cv_damage_probability,
-        });
-
-      const created = db.prepare(`${SELECT_ISG_WITH_USER} WHERE r.id = ?`).get(info.lastInsertRowid);
-      res.status(201).json(mapIsgRow(created));
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'İSG bildirimi oluşturulurken bir hata oluştu.' });
+    if (!req.file) {
+      return res.status(400).json({ error: 'photo alanı (fotoğraf dosyası) zorunludur.' });
     }
+
+    // Dosya İÇERİĞİ (magic number) doğrulaması — mimetype/uzantı YALNIZCA
+    // istemcinin beyanıdır, sahtelenebilir (bkz. middleware/validateImageContent.js).
+    validateImageContent(req, res, async () => {
+      try {
+        const { description, category, lat, lng } = req.body;
+        const location_name = req.body.location_name || null;
+        const reported_by_user_id = req.user.id;
+        const latNum = Number(lat);
+        const lngNum = Number(lng);
+
+        if (!description || typeof description !== 'string' || !description.trim()) {
+          return res.status(400).json({ error: 'description alanı zorunludur.' });
+        }
+        if (!category || !VALID_CATEGORIES.includes(category)) {
+          return res.status(400).json({
+            error: `Geçersiz category değeri. Geçerli değerler: ${VALID_CATEGORIES.join(', ')}`,
+          });
+        }
+        // '' (boş string) Number()'da 0'a düşer — bu, gerçek (0,0) koordinatıyla
+        // AYIRT EDİLEMEZ bir yanlış-pozitif üretirdi (form alanı boş bırakılmış
+        // ama sanki geçerli bir GPS konumu gönderilmiş gibi kabul edilirdi).
+        // Bu yüzden boş/eksik değer NaN kontrolünden ÖNCE ayrıca reddedilir.
+        if (lat === undefined || lat === null || lat === '' || lng === undefined || lng === null || lng === '' || Number.isNaN(latNum) || Number.isNaN(lngNum)) {
+          return res.status(400).json({ error: 'lat ve lng alanları zorunludur (gerçek GPS konumu).' });
+        }
+
+        const photo_path = `/uploads/isg/${req.file.filename}`;
+        const created_at = new Date().toISOString();
+
+        // Görüntü Tabanlı Hasar Tespiti (Modül 15) — fotoğraf diske YAZILDIKTAN
+        // hemen sonra, ama INSERT'ten ÖNCE çağrılır (sonuç tek bir INSERT'e
+        // gömülsün diye, ayrı bir UPDATE gerekmesin). classifyImageForDamage
+        // ASLA fırlatmaz — ML servisi kapalıysa cv_* alanları null döner, bu
+        // İSG bildiriminin oluşturulmasını hiçbir şekilde engellemez/geciktirmez
+        // (yalnızca ~15 sn'lik bir zaman aşımı sınırı içinde bekler).
+        const photoBuffer = fs.readFileSync(req.file.path);
+        const { cv_is_damaged, cv_damage_probability } = await classifyImageForDamage(
+          photoBuffer,
+          req.file.originalname,
+          req.file.mimetype
+        );
+
+        const info = db
+          .prepare(
+            `INSERT INTO isg_reports
+               (reported_by_user_id, description, category, photo_path, location_name, lat, lng, status, reviewer_note, created_at, reviewed_at, cv_is_damaged, cv_damage_probability)
+             VALUES
+               (@reported_by_user_id, @description, @category, @photo_path, @location_name, @lat, @lng, 'bekliyor', NULL, @created_at, NULL, @cv_is_damaged, @cv_damage_probability)`
+          )
+          .run({
+            reported_by_user_id,
+            description: description.trim(),
+            category,
+            photo_path,
+            location_name,
+            lat: latNum,
+            lng: lngNum,
+            created_at,
+            cv_is_damaged,
+            cv_damage_probability,
+          });
+
+        const created = db.prepare(`${SELECT_ISG_WITH_USER} WHERE r.id = ?`).get(info.lastInsertRowid);
+        res.status(201).json(mapIsgRow(created));
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'İSG bildirimi oluşturulurken bir hata oluştu.' });
+      }
+    });
   });
 });
 

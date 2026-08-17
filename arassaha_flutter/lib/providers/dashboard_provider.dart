@@ -5,7 +5,10 @@ import '../services/api_service.dart';
 /// Dashboard ekranının state'ini yönetir: özet istatistikleri çekme,
 /// yükleniyor/hata durumları.
 class DashboardProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  DashboardProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   DashboardSummary? _summary;
   bool _isLoading = false;

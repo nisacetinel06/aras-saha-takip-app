@@ -14,7 +14,10 @@ import '../services/api_service.dart';
 /// routes/assistant.js), bu yüzden burada ayrıca bir "asistan offline" dalı
 /// yok.
 class AssistantProvider extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final ApiService _apiService;
+
+  AssistantProvider({ApiService? apiService})
+      : _apiService = apiService ?? ApiService();
 
   final List<ChatMessage> _messages = [];
   bool _isLoadingHistory = false;
