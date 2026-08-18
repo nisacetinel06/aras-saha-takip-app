@@ -178,6 +178,7 @@ class _WorkOrderListScreenState extends State<WorkOrderListScreen> {
                     }
                     final workOrder = provider.workOrders[index];
                     return WorkOrderCard(
+                      key: Key('work_order_card_${workOrder.id}'),
                       workOrder: workOrder,
                       onTap: () {
                         Navigator.of(context).push(

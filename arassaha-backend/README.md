@@ -56,10 +56,44 @@ test/
   integration/            -- supertest ile uçtan uca endpoint testleri
 ```
 
-### CI
+### CI/CD Gate — testler production deploy'unu engeller
 
-Her push/PR'da (`arassaha-backend/` altında değişiklik varsa) testler
-`.github/workflows/test.yml` üzerinden otomatik çalışır. Bu, Railway
-deploy sürecinden tamamen bağımsızdır — Dockerfile yalnızca `node seed.js`
-ve `node server.js` çalıştırır, `npm test` build/deploy adımının bir
-parçası DEĞİLDİR.
+> **Kararın evrimi:** İlk kurulumda (bkz. proje geçmişi) test suite'ini
+> bilinçli olarak deploy sürecinin dışında tutmuştuk — bu, altyapıyı
+> bozmadan önce test altyapısını oturtmak için doğru bir sıralamaydı. Bu
+> artık değişti: testler artık production deploy'unu gerçekten kapılıyor
+> (gate) — bu bir çelişki değil, planlı bir evrim.
+
+**Testler kırmızıysa production'a hiçbir şey deploy edilmez.**
+
+İki ayrı, birbirini tamamlayan mekanizma var:
+
+1. **GitHub Actions** (`.github/workflows/backend-tests.yml`) — her
+   `push`/`pull_request`'te (main/master) `npm ci`, `npm test` ve
+   `npm run test:coverage` çalışır. `npm test` başarısız olursa (non-zero
+   exit code) workflow kırmızı yanar.
+2. **Railway build zinciri** (`railway.json`) — `buildCommand`,
+   `"npm ci && npm test"` olarak zincirlenmiştir; `startCommand` ise
+   `"npm start"`dir. `npm test` başarısız olursa `&&` zinciri durur,
+   Railway'in build fazı başarısız sayılır ve `npm start`'a — dolayısıyla
+   yeni sürümün canlıya alınmasına — ASLA geçilmez. Bu, GitHub branch
+   protection gibi ekstra bir yapılandırmaya ihtiyaç duymadan en doğrudan
+   deploy-engelleme yoludur.
+
+Yerel olarak aynı zinciri simüle edip doğrulamak için:
+
+```bash
+npm ci && npm test && npm start
+```
+
+Bir test kasıtlı olarak bozulduğunda bu komut `npm start`'a hiç ulaşmaz
+(sunucu hiç dinlemeye başlamaz) — bu, gerçek Railway ortamında da aynı
+davranışın (build fazının başarısız sayılıp deploy'un durmasının)
+güvenilir bir yerel kanıtıdır.
+
+**Önemli — NODE_ENV izolasyonu korunur:** `npm test` kendi içinde
+`cross-env NODE_ENV=test` kullanır (bkz. yukarıdaki "Testler" bölümü) —
+bu, yalnızca `node --test` alt sürecine özgüdür, `npm start`'a miras
+KALMAZ. Yani build fazında test'lerin `:memory:` veritabanı kullanması,
+sonraki `npm start` adımının production `NODE_ENV`'i ve gerçek
+`aras_saha.db` dosyasıyla çalışmasını hiçbir şekilde etkilemez.

@@ -98,6 +98,13 @@ dev_dependencies:
   # çalışır (bkz. test/helpers/mocks.dart).
   mocktail: ^1.0.4
 
+  # Kritik akış E2E testi (bkz. integration_test/critical_flow_test.dart) —
+  # gerçek bir cihaz/emulator'da gerçek widget etkileşimi + gerçek HTTP ile
+  # çalışır; test/ altındaki unit/provider testlerinden (flutter_test) FARKLI
+  # bir kategoridir, birbirine karıştırılmamalı.
+  integration_test:
+    sdk: flutter
+
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your

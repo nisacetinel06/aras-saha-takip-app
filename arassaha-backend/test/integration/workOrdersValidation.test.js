@@ -191,4 +191,18 @@ describe('routes/workOrders.js — girdi doğrulama matrisi + özel senaryolar',
       });
     }
   });
+
+  // TEST-13 (coverage analizi) bulgusu: GET /:id yukarıdaki matrise dahil
+  // değildi (matris kasıtlı olarak yalnızca POST/PATCH'i kapsıyor) — bu
+  // yüzden satır 360-361 (`!Number.isInteger(id)` → 400 dalı) hiç
+  // kapsanmıyordu. IDOR koruması (SEC-02, aynı handler) zaten test
+  // ediliyordu, ama id doğrulamasının kendisi eksikti.
+  describe('Geçersiz ID (path parametresi) — GET /:id', () => {
+    it('sayısal olmayan id ("abc") → 400, ASLA 500', async () => {
+      const response = await request(app)
+        .get('/api/workorders/abc')
+        .set('Authorization', `Bearer ${technicianToken}`);
+      assert.strictEqual(response.status, 400, JSON.stringify(response.body));
+    });
+  });
 });

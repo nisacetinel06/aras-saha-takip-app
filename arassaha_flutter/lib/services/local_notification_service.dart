@@ -21,6 +21,7 @@ class LocalNotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+  bool _permissionRequestInFlight = false;
 
   static const _channelId = 'arassaha_notifications';
   static const _channelName = 'ArasSaha Bildirimleri';
@@ -59,11 +60,22 @@ class LocalNotificationService {
   /// ekranından tam listeyi göstermeye devam eder, bu yüzden kritik bir hata
   /// değildir.
   Future<void> requestPermission() async {
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.requestNotificationsPermission();
+    // MainShell her mount olduğunda (örn. çıkış yapıp tekrar giriş) bunu
+    // çağırır — önceki istek native tarafta hâlâ çözülüyorsa, plugin
+    // PlatformException(permissionRequestInProgress) fırlatır. Bu koruma
+    // olmadan bu istisna hiçbir yerde yakalanmıyordu (initState içinde
+    // try/catch yok).
+    if (_permissionRequestInFlight) return;
+    _permissionRequestInFlight = true;
+    try {
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.requestNotificationsPermission();
+    } finally {
+      _permissionRequestInFlight = false;
+    }
   }
 
   Future<void> showNotification(String title, String body) async {

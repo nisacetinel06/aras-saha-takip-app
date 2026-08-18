@@ -232,6 +232,141 @@ describe('POST /api/workorders/:workOrderId/materials — stok transaction\'ı',
   });
 });
 
+// TEST-13 (coverage analizi) bulgusu: bu dosya POST /workorders/:id/materials
+// (stok DÜŞÜRME) transaction'ını kapsamlı test ediyordu, ama coverage raporu
+// stok ARTIRAN/GERİ EKLEYEN iki kardeş endpoint'te ciddi boşluklar gösterdi —
+// POST /materials/:id/restock yalnızca REDDEDİLEN (400) dallarıyla test
+// edilmişti, GERÇEK stok artışını yapan transaction gövdesi (satır ~291-313)
+// hiç çalıştırılmamıştı; DELETE /workorders/:workOrderId/materials/:usageId
+// ise (stok iade transaction'ı, satır ~483-527) TAMAMEN kapsam dışıydı — ne
+// RBAC'ı ne başarı senaryosu ne de 404'ü test eden tek bir satır yoktu. Genel
+// coverage yüzdesi yüksek görünse bile (materials.js aslen %63 satır kapsamı),
+// stok hareketi yapan İKİ transaction'dan biri hiç, diğeri kısmen test edilmiş
+// olması tam olarak "kritik yol kapsamı ham yüzdeden önemlidir" kuralının
+// kapsadığı durum — bu yüzden aşağıdaki iki describe bloğu eklendi.
+describe("POST /api/materials/:id/restock — stok transaction'ı (BAŞARILI senaryo)", () => {
+  let managerToken;
+  let materialId;
+
+  beforeEach(() => {
+    resetTestDatabase();
+    seedMinimalTestData();
+    managerToken = getTestToken('yonetici');
+    materialId = seedTestMaterial({ stock_quantity: 20 });
+  });
+
+  it("geçerli quantity_added: 200 döner, stok DB'de gerçekten artar, hareket kaydı oluşur", async () => {
+    const response = await request(app)
+      .post(`/api/materials/${materialId}/restock`)
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ quantity_added: 10 });
+
+    assert.strictEqual(response.status, 200, JSON.stringify(response.body));
+    assert.strictEqual(response.body.stock_quantity, 30, "yanıttaki stok 20 + 10 = 30 olmalı");
+
+    const material = getMaterial(materialId);
+    assert.strictEqual(material.stock_quantity, 30, "DB'deki gerçek stok 20 + 10 = 30 olmalı");
+    assert.strictEqual(countMovementRows(materialId), 1, "'ikmal' tipinde bir stok hareketi kaydı oluşmalı");
+  });
+
+  it('teknisyen bu endpoint\'i çağıramaz (RBAC — yalnızca yönetici)', async () => {
+    const technicianToken = getTestToken('teknisyen');
+    const response = await request(app)
+      .post(`/api/materials/${materialId}/restock`)
+      .set('Authorization', `Bearer ${technicianToken}`)
+      .send({ quantity_added: 10 });
+
+    assert.strictEqual(response.status, 403);
+    assert.strictEqual(getMaterial(materialId).stock_quantity, 20, 'reddedilen istek stoğu DEĞİŞTİRMEMİŞ olmalı');
+  });
+});
+
+describe("DELETE /api/workorders/:workOrderId/materials/:usageId — kullanım kaydı iptali", () => {
+  let seeded;
+  let dispatcherToken;
+  let technicianToken;
+  let workOrderId;
+  let materialId;
+  let usageId;
+
+  beforeEach(async () => {
+    resetTestDatabase();
+    seeded = seedMinimalTestData();
+    workOrderId = seeded.workOrders.ownWorkOrderId;
+    materialId = seedTestMaterial({ stock_quantity: 20 });
+    dispatcherToken = getTestToken('dispecer');
+    technicianToken = getTestToken('teknisyen');
+
+    // Silinecek kaydı, ZATEN kanıtlanmış (yukarıdaki describe) gerçek POST
+    // endpoint'i üzerinden oluşturuyoruz — ham SQL ile taklit etmek yerine.
+    const usageResponse = await request(app)
+      .post(`/api/workorders/${workOrderId}/materials`)
+      .set('Authorization', `Bearer ${technicianToken}`)
+      .send({ material_id: materialId, quantity_used: 5 });
+    usageId = usageResponse.body.id;
+  });
+
+  it("teknisyen bu endpoint'i çağıramaz (RBAC — yalnızca dispeçer/yönetici)", async () => {
+    const response = await request(app)
+      .delete(`/api/workorders/${workOrderId}/materials/${usageId}`)
+      .set('Authorization', `Bearer ${technicianToken}`);
+
+    assert.strictEqual(response.status, 403);
+    assert.strictEqual(
+      getMaterial(materialId).stock_quantity,
+      15,
+      'reddedilen istek stoğu DEĞİŞTİRMEMİŞ olmalı (hâlâ 20 - 5)'
+    );
+    assert.strictEqual(countUsageRows(workOrderId, materialId), 1, 'kullanım kaydı SİLİNMEMİŞ olmalı');
+  });
+
+  it("dispeçer siler: 200 döner, kullanım kaydı silinir, stok GERÇEKTEN geri eklenir", async () => {
+    assert.strictEqual(getMaterial(materialId).stock_quantity, 15, 'ön koşul: kullanım sonrası stok 15 olmalı');
+
+    const response = await request(app)
+      .delete(`/api/workorders/${workOrderId}/materials/${usageId}`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+
+    assert.strictEqual(response.status, 200, JSON.stringify(response.body));
+    assert.strictEqual(response.body.success, true);
+
+    const afterMaterial = getMaterial(materialId);
+    assert.strictEqual(
+      afterMaterial.stock_quantity,
+      20,
+      'silinen 5 birimlik kullanım stoğa GERİ EKLENMELİ (15 + 5 = 20)'
+    );
+    assert.strictEqual(countUsageRows(workOrderId, materialId), 0, 'kullanım kaydı gerçekten silinmeli');
+    assert.strictEqual(
+      countMovementRows(materialId),
+      2,
+      "orijinal 'kullanim' hareketi + 'iade' hareketi = 2 kayıt olmalı"
+    );
+  });
+
+  it('var olmayan usageId: 404 döner, stok DEĞİŞMEZ', async () => {
+    const response = await request(app)
+      .delete(`/api/workorders/${workOrderId}/materials/999999`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+
+    assert.strictEqual(response.status, 404);
+    assert.strictEqual(getMaterial(materialId).stock_quantity, 15);
+  });
+
+  it('başka bir iş emrine ait usageId ile eşleşmeyen work_order_id üzerinden silinemez (404)', async () => {
+    // Sorgu `WHERE id = ? AND work_order_id = ?` — usageId GERÇEK ama
+    // work_order_id'yi başka (var olan) bir iş emrininkiyle değiştirmek
+    // eşleşmemeli, bu da IDOR benzeri bir çapraz-kayıt silmeyi engeller.
+    const response = await request(app)
+      .delete(`/api/workorders/${seeded.workOrders.otherWorkOrderId}/materials/${usageId}`)
+      .set('Authorization', `Bearer ${dispatcherToken}`);
+
+    assert.strictEqual(response.status, 404);
+    assert.strictEqual(getMaterial(materialId).stock_quantity, 15, 'eşleşmeyen istek stoğu DEĞİŞTİRMEMİŞ olmalı');
+    assert.strictEqual(countUsageRows(workOrderId, materialId), 1, 'kullanım kaydı SİLİNMEMİŞ olmalı');
+  });
+});
+
 describe('BEGIN/ROLLBACK — düşük seviyeli, uygulama kodundan bağımsız kanıt', () => {
   beforeEach(() => {
     resetTestDatabase();

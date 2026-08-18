@@ -112,7 +112,10 @@ class _WorkOrderDetailBody extends StatelessWidget {
                   Wrap(
                     spacing: 8,
                     children: [
-                      StatusBadge(status: workOrder.status),
+                      StatusBadge(
+                        key: const Key('current_status_badge'),
+                        status: workOrder.status,
+                      ),
                       PriorityBadge(priority: workOrder.priority),
                     ],
                   ),
@@ -626,6 +629,7 @@ class _StatusUpdateSection extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: AppButton(
+            key: Key('status_update_button_${nextStatus.name}'),
             label: action.label,
             icon: action.icon,
             isLoading: provider.isUpdating,

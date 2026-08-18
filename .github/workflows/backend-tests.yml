@@ -1,0 +1,44 @@
+name: Backend Tests
+
+# TEST-13: bu workflow artık yalnızca bilgilendirici değil — Railway'in build
+# zinciri (`npm ci && npm test && npm start`, bkz. arassaha-backend/README.md
+# "CI/CD Gate" bölümü) `npm test` başarısız olursa `npm start`'a hiç
+# ulaşmıyor. Yani burada kırmızı yanan bir test, hem bu workflow'u hem de
+# gerçek Railway deploy'unu durdurur — GitHub branch protection gibi ekstra
+# bir yapılandırmaya ihtiyaç duymadan.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: arassaha-backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: arassaha-backend/package-lock.json
+
+      - run: npm ci
+
+      # .env dosyası .gitignore'da olduğundan CI checkout'unda yok — testlerin
+      # imzaladığı/doğruladığı JWT'ler için burada sabit bir test secret'ı
+      # sağlanıyor. Gerçek (Railway) JWT_SECRET ile aynı olması GEREKMİYOR,
+      # yalnızca bu CI çalışması içinde imzalama/doğrulama aynı değeri
+      # kullandığı sürece testler geçer.
+      - run: npm test
+        env:
+          JWT_SECRET: test-only-ci-secret
+
+      - run: npm run test:coverage
+        env:
+          JWT_SECRET: test-only-ci-secret

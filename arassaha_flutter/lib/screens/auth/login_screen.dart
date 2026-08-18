@@ -77,6 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   TextField(
+                    key: const Key('login_sicil_no_field'),
                     controller: _sicilNoController,
                     keyboardType: TextInputType.number,
                     textInputAction: TextInputAction.next,
@@ -87,6 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   TextField(
+                    key: const Key('login_password_field'),
                     controller: _passwordController,
                     obscureText: _obscurePassword,
                     textInputAction: TextInputAction.done,
@@ -122,6 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Expanded(
                             child: Text(
                               auth.errorMessage!,
+                              key: const Key('login_error_message'),
                               style: TextStyle(
                                 color: scheme.error,
                                 fontSize: 13,
@@ -136,6 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: AppButton(
+                      key: const Key('login_submit_button'),
                       label: 'Giriş Yap',
                       icon: Icons.login,
                       isLoading: auth.isLoading,

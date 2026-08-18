@@ -69,6 +69,20 @@ class _MainShellState extends State<MainShell> {
 
   static const _titles = ['Ana Sayfa', 'İş Emirleri', 'ArasAI', 'Profil'];
 
+  // dispose() içinde context.read(...) çağırmak güvensizdir: tüm widget
+  // ağacı TEK SEFERDE (örn. runApp'in yeni bir kökle tekrar çağrılması)
+  // sökülürse, bu widget'ın dispose()'u çalıştığı anda üstteki Provider'ın
+  // hâlâ "aktif" olduğu garanti değildir ("Looking up a deactivated widget's
+  // ancestor is unsafe" hatası). Referans, ağaç kesin olarak stabilken
+  // (didChangeDependencies) önceden yakalanır.
+  NotificationProvider? _notificationProvider;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _notificationProvider = context.read<NotificationProvider>();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -100,7 +114,7 @@ class _MainShellState extends State<MainShell> {
 
   @override
   void dispose() {
-    context.read<NotificationProvider>().stopPolling();
+    _notificationProvider?.stopPolling();
     super.dispose();
   }
 

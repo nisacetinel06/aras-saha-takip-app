@@ -25,7 +25,7 @@ const path = require('path');
 const request = require('supertest');
 const app = require('../../server');
 const db = require('../../database');
-const { resetTestDatabase, seedMinimalTestData } = require('../helpers/testDb');
+const { resetTestDatabase, seedMinimalTestData, DEMO_PASSWORD } = require('../helpers/testDb');
 const { getTestToken } = require('../helpers/authHelper');
 const { runInputValidationMatrix, assertAllRejected } = require('../helpers/inputValidationMatrix');
 
@@ -186,5 +186,64 @@ describe('routes/users.js — girdi doğrulama matrisi + özel senaryolar', () =
         assert.ok(response.status >= 400 && response.status < 500, `${ep.label}: beklenmedik status ${response.status}`);
       });
     }
+  });
+
+  // TEST-13 (coverage analizi) bulgusu: DELETE /:id (kullanıcı pasifleştirme)
+  // yukarıdaki hiçbir matrise dahil değildi — coverage raporunda bu handler'ın
+  // (satır 432-456) NEREDEYSE TAMAMI kapsam dışıydı: ne RBAC'ı, ne başarı
+  // senaryosu, ne "kendi hesabını pasifleştiremezsin" güvenlik koruması, ne de
+  // 404'ü test eden tek bir satır vardı. Hesap pasifleştirme, doğrudan
+  // Authentication'ı etkileyen (pasif kullanıcı login olamaz, bkz.
+  // routes/auth.js is_active kontrolü) güvenlik-kritik bir işlem olduğu için
+  // bu, genel coverage yüzdesinden bağımsız olarak kapatılması gereken bir
+  // boşluktu.
+  describe('DELETE /api/users/:id — kullanıcı pasifleştirme', () => {
+    it("teknisyen bu endpoint'i çağıramaz (RBAC — yalnızca yönetici)", async () => {
+      const response = await request(app)
+        .delete(`/api/users/${seeded.users.otherTeknisyenId}`)
+        .set('Authorization', `Bearer ${technicianToken}`);
+
+      assert.strictEqual(response.status, 403);
+      assert.strictEqual(getUser(seeded.users.otherTeknisyenId).is_active, 1, 'reddedilen istek kullanıcıyı pasifleştirmemiş olmalı');
+    });
+
+    it('yönetici KENDİ hesabını pasifleştiremez (400, özel güvenlik koruması)', async () => {
+      const response = await request(app)
+        .delete(`/api/users/${seeded.users.yoneticiId}`)
+        .set('Authorization', `Bearer ${managerToken}`);
+
+      assert.strictEqual(response.status, 400);
+      assert.strictEqual(getUser(seeded.users.yoneticiId).is_active, 1, 'yönetici hâlâ aktif olmalı');
+    });
+
+    it('yönetici başka bir kullanıcıyı pasifleştirir: 200 döner, is_active DB\'de gerçekten 0 olur', async () => {
+      const response = await request(app)
+        .delete(`/api/users/${seeded.users.otherTeknisyenId}`)
+        .set('Authorization', `Bearer ${managerToken}`);
+
+      assert.strictEqual(response.status, 200, JSON.stringify(response.body));
+      assert.strictEqual(response.body.is_active, false);
+      assert.strictEqual(getUser(seeded.users.otherTeknisyenId).is_active, 0, "DB'de is_active gerçekten 0 olmalı");
+    });
+
+    it('var olmayan kullanıcı id\'si: 404 döner', async () => {
+      const response = await request(app)
+        .delete('/api/users/999999')
+        .set('Authorization', `Bearer ${managerToken}`);
+
+      assert.strictEqual(response.status, 404);
+    });
+
+    it('pasifleştirilen kullanıcı artık giriş yapamaz (Authentication ile uçtan uca bağlantı)', async () => {
+      await request(app)
+        .delete(`/api/users/${seeded.users.otherTeknisyenId}`)
+        .set('Authorization', `Bearer ${managerToken}`);
+
+      const loginResponse = await request(app)
+        .post('/api/auth/login')
+        .send({ sicil_no: '1002', password: DEMO_PASSWORD });
+
+      assert.strictEqual(loginResponse.status, 403, 'pasif kullanıcı 403 ile reddedilmeli (bkz. routes/auth.js is_active kontrolü)');
+    });
   });
 });
