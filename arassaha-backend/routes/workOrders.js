@@ -28,10 +28,15 @@ const VALID_TRANSITIONS = {
   cozuldu: [],
 };
 
-const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+// SEC-04: ISG (uploads/isg/) ve profil (uploads/profiles/) fotoğraflarıyla
+// TUTARLI bir alt klasör — önceden bu dosyalar `uploads/` KÖKÜNE yazılıyordu,
+// bu da yeni güvenli statik route'un (routes/uploads.js) klasör bazlı
+// whitelist'iyle uyuşmuyordu.
+const UPLOADS_DIR = path.join(__dirname, '..', 'uploads', 'workorders');
 
 // Fotoğraflar gerçekten bu klasöre yazılır ve server.js tarafından
-// /uploads/<dosya> statik yolu üzerinden servis edilir (bkz. ARCHITECTURE.md Bölüm 11.2).
+// /uploads/workorders/<dosya> statik yolu üzerinden servis edilir (bkz.
+// ARCHITECTURE.md Bölüm 11.2, routes/uploads.js).
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
@@ -622,7 +627,7 @@ router.post('/:id/photos', (req, res) => {
           return res.status(404).json({ error: 'İş emri bulunamadı.' });
         }
 
-        const photoPath = `/uploads/${req.file.filename}`;
+        const photoPath = `/uploads/workorders/${req.file.filename}`;
         const createdAt = new Date().toISOString();
 
         // Görüntü Tabanlı Hasar Tespiti (Modül 15) — routes/isg.js POST / ile

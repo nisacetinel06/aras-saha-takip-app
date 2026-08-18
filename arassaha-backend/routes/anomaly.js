@@ -16,6 +16,7 @@ const express = require('express');
 const db = require('../database');
 const { requireRole } = require('../middleware/auth');
 const { createNotification } = require('../utils/notify');
+const { asyncHandler } = require('../utils/asyncHandler');
 
 const router = express.Router();
 
@@ -176,7 +177,7 @@ async function refreshAllAnomalyScores() {
 // POST /api/ml/refresh-anomaly-scores
 // Tüm sayaçların anomali skorunu yeniden hesaplatan bakım/yönetim aksiyonu —
 // yalnızca yönetici tetikleyebilir.
-router.post('/ml/refresh-anomaly-scores', requireRole('yonetici'), async (req, res) => {
+router.post('/ml/refresh-anomaly-scores', requireRole('yonetici'), asyncHandler(async (req, res) => {
   const result = await refreshAllAnomalyScores();
 
   if (result.updated === 0 && result.failed > 0) {
@@ -187,7 +188,7 @@ router.post('/ml/refresh-anomaly-scores', requireRole('yonetici'), async (req, r
   }
 
   res.json(result);
-});
+}));
 
 // GET /api/meters/suspicious
 // is_suspicious=1 olan sayaçları, anomaly_score'a göre azalan sırada,
@@ -217,7 +218,7 @@ router.get('/meters/suspicious', (req, res) => {
 // Önce meter_anomaly_scores tablosundan okur; hiç hesaplanmamışsa ML
 // servisine anlık istek atıp sonucu hem kaydeder hem döner. Yalnızca
 // equipment_type='sayac' olan ekipmanlar için anlamlıdır.
-router.get('/equipment/:id/anomaly', async (req, res) => {
+router.get('/equipment/:id/anomaly', asyncHandler(async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -245,7 +246,7 @@ router.get('/equipment/:id/anomaly', async (req, res) => {
       error: 'Anomali skoru hesaplanamadı (ML servisine ulaşılamıyor ya da tüketim verisi eksik olabilir).',
     });
   }
-});
+}));
 
 // GET /api/equipment/:id/consumption
 // Ekipman Detayı ekranındaki tüketim grafiği (fl_chart) için son 12 aylık

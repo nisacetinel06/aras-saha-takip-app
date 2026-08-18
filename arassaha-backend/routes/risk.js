@@ -17,6 +17,7 @@ const express = require('express');
 const db = require('../database');
 const { requireRole } = require('../middleware/auth');
 const { createNotification } = require('../utils/notify');
+const { asyncHandler } = require('../utils/asyncHandler');
 
 const router = express.Router();
 
@@ -181,7 +182,7 @@ async function refreshAllRiskScores() {
 // POST /api/ml/refresh-risk-scores
 // Tüm ekipmanların risk skorunu yeniden hesaplatan bakım/yönetim aksiyonu —
 // yalnızca yönetici tetikleyebilir.
-router.post('/ml/refresh-risk-scores', requireRole('yonetici'), async (req, res) => {
+router.post('/ml/refresh-risk-scores', requireRole('yonetici'), asyncHandler(async (req, res) => {
   const result = await refreshAllRiskScores();
 
   if (result.updated === 0 && result.failed > 0) {
@@ -194,12 +195,12 @@ router.post('/ml/refresh-risk-scores', requireRole('yonetici'), async (req, res)
   }
 
   res.json(result);
-});
+}));
 
 // GET /api/equipment/:id/risk
 // Önce equipment_risk_scores tablosundan okur; hiç hesaplanmamışsa ML
 // servisine anlık istek atıp sonucu hem kaydeder hem döner.
-router.get('/equipment/:id/risk', async (req, res) => {
+router.get('/equipment/:id/risk', asyncHandler(async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -224,7 +225,7 @@ router.get('/equipment/:id/risk', async (req, res) => {
       error: 'Risk skoru hesaplanamadı (ML servisine ulaşılamıyor olabilir).',
     });
   }
-});
+}));
 
 // GET /api/dashboard/risky-equipment?limit=5&il=Erzurum
 // Risk skoruna göre azalan sırayla en riskli ekipmanları döner. Bu bir

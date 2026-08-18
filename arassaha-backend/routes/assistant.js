@@ -18,6 +18,7 @@ const db = require('../database');
 const { parseUserIntent, formatAnswer, AssistantUnavailableError } = require('../services/assistantService');
 const { QUERY_FUNCTIONS, AssistantForbiddenError } = require('../services/assistantQueries');
 const { NAV_TARGETS } = require('../services/assistantIntents');
+const { asyncHandler } = require('../utils/asyncHandler');
 
 const router = express.Router();
 
@@ -35,7 +36,7 @@ function saveMessage(userId, role, message) {
 
 // POST /api/assistant/query
 // Body: { message: string }
-router.post('/query', async (req, res) => {
+router.post('/query', asyncHandler(async (req, res) => {
   const { message } = req.body;
   if (!message || typeof message !== 'string' || !message.trim()) {
     return res.status(400).json({ error: 'message alanı zorunludur.' });
@@ -104,7 +105,7 @@ router.post('/query', async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Asistan sorgusu işlenirken bir hata oluştu.' });
   }
-});
+}));
 
 // GET /api/assistant/history
 // Kullanıcının kendi sohbet geçmişini (son 50 mesaj, kronolojik sırada) döner.

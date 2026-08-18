@@ -11,6 +11,7 @@
 // tabanlı üretilmiş bir veri setiyle eğitildi — bkz.
 // arassaha-ml/generate_text_training_data.py ve arassaha-ml/README.md.
 const express = require('express');
+const { asyncHandler } = require('../utils/asyncHandler');
 
 const router = express.Router();
 
@@ -23,7 +24,7 @@ const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
 // Rol kısıtlaması YOK — giriş yapmış (verifyToken'dan geçmiş) her kullanıcı
 // "Yeni İş Emri Oluştur" formunda bu öneriyi görebilir (bkz. requireRole'ün
 // hiç kullanılmadığına dikkat — bu bilinçli bir tercih).
-router.post('/ml/classify-description', async (req, res) => {
+router.post('/ml/classify-description', asyncHandler(async (req, res) => {
   try {
     const { description } = req.body;
     if (!description || !description.trim()) {
@@ -52,6 +53,6 @@ router.post('/ml/classify-description', async (req, res) => {
       error: 'Açıklama sınıflandırılamadı (ML servisine ulaşılamıyor olabilir).',
     });
   }
-});
+}));
 
 module.exports = router;

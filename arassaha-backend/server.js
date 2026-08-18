@@ -14,6 +14,17 @@ try {
   // yoksa auth middleware'i başlangıçta bunu ayrıca kontrol eder.
 }
 
+// SEC-05: NODE_ENV bazı platformlarda varsayılan olarak ATANMAZ — "production
+// gibi davranır" varsaymak yerine, tanımsızsa AÇIKÇA bir konsol uyarısı
+// bırakılır. Bu ÖNEMLİ çünkü NODE_ENV production DEĞİLKEN Express'in
+// varsayılan hata işleyicisi tam stack trace'i client'a döndürür (bkz.
+// middleware/errorHandler.js) — merkezi hata işleyicimiz bunu zaten
+// engelliyor, ama bu uyarı bir deploy'un NODE_ENV'i unutması durumunda
+// SESSİZCE değil, AÇIKÇA fark edilir olsun diye ek bir güvenlik ağı.
+if (!process.env.NODE_ENV) {
+  console.warn('[UYARI] NODE_ENV tanımlı değil, varsayılan davranış öngörülemez olabilir');
+}
+
 const express = require('express');
 const cors = require('cors');
 const workOrdersRouter = require('./routes/workOrders');
@@ -32,10 +43,17 @@ const analyticsRouter = require('./routes/analytics');
 const reportsRouter = require('./routes/reports');
 const assistantRouter = require('./routes/assistant');
 const authRouter = require('./routes/auth');
+const uploadsRouter = require('./routes/uploads');
 const { verifyToken } = require('./middleware/auth');
+const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// SEC-05: Express'in varsayılan olarak eklediği `X-Powered-By: Express`
+// header'ını kaldırır — kullanılan framework'ü dışarıya açık etmeyi azaltan,
+// standart bir sertleştirme adımı (bkz. curl -I ile doğrulama).
+app.disable('x-powered-by');
 
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -43,13 +61,38 @@ fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 fs.mkdirSync(path.join(UPLOADS_DIR, 'isg'), { recursive: true });
 // Profil fotoğrafları (Modül 8 — Profil ve Kullanıcı Yönetimi) için ayrı bir alt klasör.
 fs.mkdirSync(path.join(UPLOADS_DIR, 'profiles'), { recursive: true });
+// İş emri fotoğrafları (Modül 1) için ayrı bir alt klasör — SEC-04 ÖNCESİ bu
+// dosyalar `uploads/` KÖKÜNE yazılıyordu (isg/profiles ile TUTARSIZ); yeni
+// güvenli statik route'un (routes/uploads.js) klasör whitelist'i ('isg',
+// 'workorders', 'profiles') üçünün de KENDİ alt klasörüne sahip olmasını
+// varsaydığı için bu tutarsızlık burada giderildi (bkz. routes/workOrders.js).
+fs.mkdirSync(path.join(UPLOADS_DIR, 'workorders'), { recursive: true });
 
 app.use(cors());
 app.use(express.json());
 
-// Fotoğraflar gerçekten bu klasörde saklanır ve buradan servis edilir
-// (bkz. ARCHITECTURE.md Bölüm 10 ve 11.2) — sunucu yeniden başlasa da kaybolmaz.
-app.use('/uploads', express.static(UPLOADS_DIR));
+// SEC-04: eski `express.static` yerine, güvenlik başlıkları ekleyen ve
+// path traversal'a karşı ayrıca (whitelist + path.basename + startsWith
+// kontrolü ile) savunma yapan özel bir router (bkz. routes/uploads.js).
+// Fotoğraflar hâlâ AYNI bu klasörde gerçekten saklanır (bkz. ARCHITECTURE.md
+// Bölüm 10 ve 11.2) — sunucu yeniden başlasa da kaybolmaz, yalnızca SERVİS
+// EDİLME şekli değişti.
+app.use('/uploads', uploadsRouter);
+
+// SEC-05 Adım 0 — GEÇİCİ, yalnızca test amaçlı endpoint. Bilerek yakalanmamış
+// bir hata fırlatır; amaç, Express'in varsayılan hata işleyicisinin (NODE_ENV
+// production DEĞİLKEN) tam stack trace'i/dosya yollarını client'a HTML olarak
+// sızdırdığını kanıtlamak (bkz. test/integration/errorHandling.test.js).
+// Yalnızca NODE_ENV === 'test' iken mount edilir — gerçek production/deploy'a
+// ASLA gitmez. Aşağıdaki `/api/...` router'larından (hepsi kendi başına
+// verifyToken uyguluyor) ÖNCE tanımlanmalı, aksi halde `app.use('/api', ...)`
+// ile mount edilen router'lardan biri (örn. riskRouter) bu path'i hiç
+// görmeden önce verifyToken 401 ile isteği keser.
+if (process.env.NODE_ENV === 'test') {
+  app.get('/api/__test-error', () => {
+    throw new Error('SEC-05 kasıtlı test hatası — bu asla production\'da tetiklenmemeli');
+  });
+}
 
 // /api/auth/login hariç TÜM API istekleri geçerli bir JWT taşımak zorunda
 // (bkz. ARCHITECTURE.md Modül 7 — Auth + RBAC). Rol bazlı ek kısıtlamalar
@@ -94,6 +137,20 @@ app.use('/api/assistant', verifyToken, assistantRouter);
 app.get('/', (req, res) => {
   res.json({ message: 'ArasSaha backend çalışıyor.' });
 });
+
+// SEC-05: var olmayan bir route'a istek atıldığında Express'in varsayılan
+// "Cannot GET /..." HTML sayfası yerine tutarlı, genel bir JSON yanıtı.
+// TÜM route'lardan SONRA, hata işleyiciden ÖNCE tanımlanmalı (bkz. Express'in
+// middleware eşleştirme sırası — buraya kadar hiçbir route eşleşmediyse
+// buraya düşer).
+app.use((req, res) => {
+  res.status(404).json({ error: 'Endpoint bulunamadı' });
+});
+
+// SEC-05: Merkezi hata işleyici — 4 parametreli (err, req, res, next)
+// middleware'ler Express tarafından hata işleyici olarak tanınır ve
+// ZİNCİRİN EN SONUNDA olmalıdır (bkz. middleware/errorHandler.js).
+app.use(errorHandler);
 
 // Test ortamında (NODE_ENV=test) sunucu GERÇEKTEN dinlemeye başlamaz —
 // supertest, app nesnesini doğrudan (bir port açmadan) kullanır. Bu, test
