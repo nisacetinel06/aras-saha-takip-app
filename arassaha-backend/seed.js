@@ -179,6 +179,17 @@ personnelSeed.forEach((person, i) => {
   }
 });
 
+// SEC-03 devamı — "atayan" (assigned_by_user_id) demo verisinde boş
+// görünmesin diye: her teknisyenin iş emirleri, GERÇEKÇİ bir şekilde KENDİ
+// dispeçerinin ("bu işi bana veren kişi") atadığı varsayılır — üretimde de
+// bir dispeçer tipik olarak kendi ekibine iş dağıtır.
+const technicianIdToSupervisorId = {};
+personnelSeed.forEach((person, i) => {
+  if (person.role === 'teknisyen' && person.supervisor) {
+    technicianIdToSupervisorId[insertedUserIds[i]] = userIdByPersonName[person.supervisor];
+  }
+});
+
 // --- Ekipman / Envanter (Modül 4) — bkz. ARCHITECTURE.md, DESIGN_SYSTEM.md ---
 // install_date/last_maintenance_date değerleri BİLİNÇLİ olarak çeşitlendirildi
 // (1-2 yıllık yeni ekipman ile 10+ yıllık eski ekipman karışık; bazılarında
@@ -291,9 +302,9 @@ try {
 
 const insertWorkOrder = db.prepare(`
   INSERT INTO work_orders
-    (title, description, status, priority, il, ilce, mahalle, location_name, lat, lng, assigned_user_id, equipment_id, created_at, updated_at)
+    (title, description, status, priority, il, ilce, mahalle, location_name, lat, lng, assigned_user_id, assigned_by_user_id, equipment_id, created_at, updated_at)
   VALUES
-    (@title, @description, @status, @priority, @il, @ilce, @mahalle, @location_name, @lat, @lng, @assigned_user_id, @equipment_id, @created_at, @updated_at)
+    (@title, @description, @status, @priority, @il, @ilce, @mahalle, @location_name, @lat, @lng, @assigned_user_id, @assigned_by_user_id, @equipment_id, @created_at, @updated_at)
 `);
 
 // node:sqlite'ın better-sqlite3'teki gibi bir db.transaction() sarmalayıcısı yok;
@@ -373,6 +384,7 @@ const rows = workOrderAssignments.map(({ technicianId, status }, index) => {
     lat: location.lat,
     lng: location.lng,
     assigned_user_id: technicianId,
+    assigned_by_user_id: technicianIdToSupervisorId[technicianId] ?? null,
     // equipment.id'ye giden gerçek bir FK — yalnızca "geçmiş arıza kaydı
     // olsun" diye işaretlenmiş ekipmanlardan seçilir (yukarıda); bu sayede
     // bazı ekipmanların gerçek geçmişi olur, bazılarınınsa hiç olmaz.

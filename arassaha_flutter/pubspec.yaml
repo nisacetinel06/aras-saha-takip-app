@@ -57,6 +57,12 @@ dependencies:
   # sonraki açılışta doğru modda gösterilebilmesi buna bağlı (bkz. MainActivity.kt).
   shared_preferences: ^2.3.3
 
+  # Auth (Modül 7): JWT token'ı artık SharedPreferences'ta düz metin DEĞİL,
+  # Android Keystore / iOS Keychain destekli şifreli depolamada tutuluyor
+  # (bkz. services/secure_storage_service.dart). minSdkVersion gereksinimi
+  # (18+) `flutter.minSdkVersion` varsayılanıyla zaten karşılanıyor.
+  flutter_secure_storage: ^9.2.2
+
   # Native splash ekranını Dart tarafından ne zaman kaldıracağımızı kontrol
   # etmek için (FlutterNativeSplash.preserve/remove) — tema tercihi
   # yüklenirken splash ekranda kalır, ani beyaz/varsayılan tema yanıp

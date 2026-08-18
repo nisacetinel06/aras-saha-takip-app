@@ -2,22 +2,32 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/work_order.dart' show AssignedUser;
 import '../services/api_service.dart';
+import '../services/secure_storage_service.dart';
 import '../utils/role_helper.dart' as role_helper;
 
 /// Auth (Modül 7 — Kullanıcı Rolleri ve Yetkilendirme) durumunu yönetir:
 /// giriş/çıkış, uygulama açılışında otomatik giriş denemesi ve rol bazlı
 /// erişim kontrolü için kolay erişilebilir getter'lar.
 class AuthProvider extends ChangeNotifier {
-  static const _tokenKey = 'auth_token';
+  // ESKİ (artık yalnızca tek seferlik MIGRATION için okunuyor, bkz.
+  // tryAutoLogin) — token bu anahtarla SharedPreferences'ta düz metin
+  // olarak tutuluyordu. Yeni token'lar ARTIK burada DEĞİL, _secureStorage'da
+  // saklanır (bkz. services/secure_storage_service.dart üstündeki NEDEN
+  // notu). Bu sabit SİLİNMEMELİ — mevcut kurulu uygulamalardaki
+  // kullanıcıların migration'ı bu anahtara bağlı.
+  static const _legacyTokenKey = 'auth_token';
 
   final ApiService _api;
+  final SecureStorageService _secureStorage;
 
   String? _token;
   AssignedUser? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
 
-  AuthProvider({ApiService? apiService}) : _api = apiService ?? ApiService() {
+  AuthProvider({ApiService? apiService, SecureStorageService? secureStorage})
+    : _api = apiService ?? ApiService(),
+      _secureStorage = secureStorage ?? SecureStorageService() {
     // Herhangi bir istek 401 dönerse (token süresi doldu/geçersiz), oturumu
     // burada temizleriz — AuthGate bunu dinleyip kullanıcıyı otomatik olarak
     // LoginScreen'e düşürür (bkz. main.dart).
@@ -59,8 +69,7 @@ class AuthProvider extends ChangeNotifier {
       _currentUser = result.user;
       ApiService.authToken = _token;
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_tokenKey, _token!);
+      await _secureStorage.saveToken(_token!);
 
       return true;
     } catch (e) {
@@ -85,8 +94,26 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final storedToken = prefs.getString(_tokenKey);
+      String? storedToken = await _secureStorage.getToken();
+
+      // MIGRATION (KRİTİK — bu güvenlik iyileştirmesinden ÖNCE yayınlanmış
+      // sürümlerde token SharedPreferences'ta düz metin olarak duruyordu).
+      // Güvenli depolamada token yoksa, eski konumda kalmış bir token olup
+      // olmadığına bakılır — varsa var olan kullanıcı habersizce "çıkış
+      // yapılmış" gibi GÖSTERİLMEMESİ için önce güvenli depolamaya taşınır,
+      // sonra eski (güvensiz) kopya SİLİNİR. Bu blok yalnızca BİR KEZ
+      // çalışır: taşıma sonrası _legacyTokenKey bir daha hiç yazılmaz, bu
+      // yüzden bir sonraki açılışta `legacyToken` zaten null olur ve bu dal
+      // atlanır.
+      if (storedToken == null) {
+        final prefs = await SharedPreferences.getInstance();
+        final legacyToken = prefs.getString(_legacyTokenKey);
+        if (legacyToken != null) {
+          await _secureStorage.saveToken(legacyToken);
+          await prefs.remove(_legacyTokenKey);
+          storedToken = legacyToken;
+        }
+      }
 
       if (storedToken == null) {
         return;
@@ -109,8 +136,12 @@ class AuthProvider extends ChangeNotifier {
     _currentUser = null;
     ApiService.authToken = null;
 
+    await _secureStorage.clearAll();
+    // Migration henüz hiç çalışmadan (örn. kullanıcı hiç açmadan) çıkış
+    // yapılan bir senaryoda bile eski anahtarın artık kalıntı olarak
+    // durmaması için burada da temizlenir.
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
+    await prefs.remove(_legacyTokenKey);
 
     notifyListeners();
   }

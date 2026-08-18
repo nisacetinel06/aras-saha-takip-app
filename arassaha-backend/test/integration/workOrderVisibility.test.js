@@ -6,10 +6,26 @@
 // teknisyen, kendisine atanmamış bir iş emrinin ID'sini bilerek/deneyerek
 // (1, 2, 3, ...) doğrudan görebiliyor VE durumunu değiştirebiliyordu.
 //
+// SEC-03 GENİŞLETMESİ: aynı açığın POST /api/workorders/:id/photos'ta da
+// var olduğu tespit edildi — bu endpoint SEC-02 kapsamı dışında kalmıştı,
+// hiçbir sahiplik (hatta hiçbir rol) kontrolü yapmıyordu. Kod tekrarını
+// önlemek için ortak kural artık utils/workOrderAccess.js'teki TEK bir
+// fonksiyonda (assertWorkOrderAccessible) — üç endpoint de (GET /:id,
+// PATCH /:id/status, POST /:id/photos) bunu kullanıyor. Bu dosyaya yeni bir
+// dosya AÇILMADI, mevcut SEC-02 dosyası büyütüldü (aşağıdaki
+// "POST /:id/photos" describe bloğu).
+//
 // Kapsam netleştirmesi (kod incelemesi):
-// - GET /:id            → sahiplik kontrolü YOKTU (BULGU — bu dosyanın konusu)
-// - PATCH /:id/status   → sahiplik kontrolü YOKTU (BULGU — bu dosyanın konusu,
-//                         ayrıca bir VERİ DEĞİŞTİRME riski, salt okuma değil)
+// - GET /:id            → sahiplik kontrolü YOKTU (BULGU — SEC-02)
+// - PATCH /:id/status   → sahiplik kontrolü YOKTU (BULGU — SEC-02, ayrıca bir
+//                         VERİ DEĞİŞTİRME riski, salt okuma değil)
+// - POST /:id/photos    → sahiplik kontrolü YOKTU (BULGU — SEC-03, bu dosyanın
+//                         yeni bölümü)
+// - GET /:id/photos (ayrı bir endpoint olarak) → YOK — fotoğraflar zaten
+//                         GET /:id yanıtının bir parçası (`photos` alanı),
+//                         bu yüzden "fotoğraf listeleme" IDOR koruması
+//                         yukarıdaki GET /:id testleriyle ZATEN kapsanıyor,
+//                         ayrı bir test gerekmiyor.
 // - PATCH /:id/assign   → zaten requireRole('dispecer','yonetici') ile ROL
 //                         bazlı korunuyor; teknisyen bu endpoint'e hiç
 //                         erişemiyor (403) — SAHİPLİK bazlı bir kontrol değil,
@@ -29,6 +45,8 @@
 // ilerlendi.
 const { describe, it, beforeEach } = require('node:test');
 const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
 const request = require('supertest');
 const app = require('../../server');
 const db = require('../../database');
@@ -37,6 +55,7 @@ const { getTestToken } = require('../helpers/authHelper');
 const { generateValidToken } = require('../helpers/tokenHelper');
 
 const NON_EXISTENT_ID = 99999;
+const VALID_JPEG_BUFFER = fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'valid-test-image.jpg'));
 
 describe('GET/PATCH /api/workorders/:id — IDOR / sahiplik kontrolü', () => {
   let seeded;
@@ -180,6 +199,102 @@ describe('GET/PATCH /api/workorders/:id — IDOR / sahiplik kontrolü', () => {
         .patch(`/api/workorders/${NON_EXISTENT_ID}/status`)
         .set('Authorization', `Bearer ${userBToken}`)
         .send({ status: 'yolda' });
+
+      assert.strictEqual(realResponse.status, 404);
+      assert.strictEqual(fakeResponse.status, 404);
+      assert.strictEqual(realResponse.body.error, fakeResponse.body.error);
+    });
+  });
+});
+
+describe('POST /api/workorders/:id/photos — IDOR / sahiplik kontrolü (SEC-03)', () => {
+  let seeded;
+  let workOrderXId;
+  let userAToken;
+  let userBToken;
+  let dispatcherToken;
+  let managerToken;
+
+  function countPhotos(workOrderId) {
+    return db.prepare('SELECT COUNT(*) AS c FROM work_order_photos WHERE work_order_id = ?').get(workOrderId).c;
+  }
+
+  function countUploadedFiles() {
+    const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
+    if (!fs.existsSync(uploadsDir)) return 0;
+    return fs.readdirSync(uploadsDir).length;
+  }
+
+  beforeEach(() => {
+    resetTestDatabase();
+    seeded = seedMinimalTestData();
+
+    workOrderXId = seeded.workOrders.ownWorkOrderId;
+    userAToken = getTestToken('teknisyen');
+    userBToken = generateValidToken({ id: seeded.users.otherTeknisyenId, role: 'teknisyen' });
+    dispatcherToken = getTestToken('dispecer');
+    managerToken = getTestToken('yonetici');
+  });
+
+  describe('[GÜVENLİK AÇIĞI KANITI] cross-user erişim engellenmeli', () => {
+    it("Kullanıcı B, Kullanıcı A'ya atanmış iş emrine fotoğraf EKLEYEMEMELİ (404), diskte de kalıcı dosya kalmamalı", async () => {
+      const beforeFileCount = countUploadedFiles();
+
+      const response = await request(app)
+        .post(`/api/workorders/${workOrderXId}/photos`)
+        .set('Authorization', `Bearer ${userBToken}`)
+        .attach('photo', VALID_JPEG_BUFFER, { filename: 'x.jpg', contentType: 'image/jpeg' });
+
+      assert.strictEqual(response.status, 404, JSON.stringify(response.body));
+      assert.strictEqual(countPhotos(workOrderXId), 0, 'reddedilen istek bir fotoğraf kaydı OLUŞTURMAMALI');
+      assert.strictEqual(
+        countUploadedFiles(),
+        beforeFileCount,
+        'reddedilen isteğin dosyası diskte YETİM olarak kalmamalı (silinmeli)'
+      );
+    });
+  });
+
+  describe('pozitif kontroller (fix meşru erişimi kısıtlamamalı — regresyon olmamalı)', () => {
+    it('Kullanıcı A kendi işine (İş Emri X) fotoğraf ekleyebilmeli (201)', async () => {
+      const response = await request(app)
+        .post(`/api/workorders/${workOrderXId}/photos`)
+        .set('Authorization', `Bearer ${userAToken}`)
+        .attach('photo', VALID_JPEG_BUFFER, { filename: 'x.jpg', contentType: 'image/jpeg' });
+
+      assert.strictEqual(response.status, 201, JSON.stringify(response.body));
+      assert.strictEqual(countPhotos(workOrderXId), 1);
+    });
+
+    it('dispeçer İş Emri X\'e fotoğraf ekleyebilmeli (201)', async () => {
+      const response = await request(app)
+        .post(`/api/workorders/${workOrderXId}/photos`)
+        .set('Authorization', `Bearer ${dispatcherToken}`)
+        .attach('photo', VALID_JPEG_BUFFER, { filename: 'x.jpg', contentType: 'image/jpeg' });
+
+      assert.strictEqual(response.status, 201, JSON.stringify(response.body));
+    });
+
+    it('yönetici İş Emri X\'e fotoğraf ekleyebilmeli (201)', async () => {
+      const response = await request(app)
+        .post(`/api/workorders/${workOrderXId}/photos`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .attach('photo', VALID_JPEG_BUFFER, { filename: 'x.jpg', contentType: 'image/jpeg' });
+
+      assert.strictEqual(response.status, 201, JSON.stringify(response.body));
+    });
+  });
+
+  describe('ID enumeration tutarlılığı', () => {
+    it('Kullanıcı B için gerçek İş Emri X ID\'si ile olmayan bir ID (99999) AYNI (404) yanıtı vermeli', async () => {
+      const realResponse = await request(app)
+        .post(`/api/workorders/${workOrderXId}/photos`)
+        .set('Authorization', `Bearer ${userBToken}`)
+        .attach('photo', VALID_JPEG_BUFFER, { filename: 'x.jpg', contentType: 'image/jpeg' });
+      const fakeResponse = await request(app)
+        .post(`/api/workorders/${NON_EXISTENT_ID}/photos`)
+        .set('Authorization', `Bearer ${userBToken}`)
+        .attach('photo', VALID_JPEG_BUFFER, { filename: 'x.jpg', contentType: 'image/jpeg' });
 
       assert.strictEqual(realResponse.status, 404);
       assert.strictEqual(fakeResponse.status, 404);

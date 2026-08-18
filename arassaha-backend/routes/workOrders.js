@@ -9,6 +9,7 @@ const { requireRole } = require('../middleware/auth');
 const validateImageContent = require('../middleware/validateImageContent');
 const { createNotification } = require('../utils/notify');
 const { classifyImageForDamage } = require('../utils/damageDetection');
+const { assertWorkOrderAccessible } = require('../utils/workOrderAccess');
 
 const router = express.Router();
 
@@ -63,10 +64,14 @@ const SELECT_WORK_ORDER_WITH_USER = `
     u.id AS assigned_user_id_join,
     u.name AS assigned_user_name,
     u.role AS assigned_user_role,
+    ab.id AS assigned_by_user_id_join,
+    ab.name AS assigned_by_user_name,
+    ab.role AS assigned_by_user_role,
     e.qr_code AS equipment_qr_code,
     e.equipment_type AS equipment_type_join
   FROM work_orders wo
   LEFT JOIN users u ON u.id = wo.assigned_user_id
+  LEFT JOIN users ab ON ab.id = wo.assigned_by_user_id
   LEFT JOIN equipment e ON e.id = wo.equipment_id
 `;
 
@@ -75,6 +80,9 @@ function mapWorkOrderRow(row) {
     assigned_user_id_join,
     assigned_user_name,
     assigned_user_role,
+    assigned_by_user_id_join,
+    assigned_by_user_name,
+    assigned_by_user_role,
     equipment_qr_code,
     equipment_type_join,
     ...workOrder
@@ -83,6 +91,13 @@ function mapWorkOrderRow(row) {
     ...workOrder,
     assigned_user: assigned_user_id_join
       ? { id: assigned_user_id_join, name: assigned_user_name, role: assigned_user_role }
+      : null,
+    // "Bu işi bana kim verdi" şeffaflığı (SEC-03 devamı) — assigned_by_user_id
+    // bu özellik eklenmeden ÖNCE oluşturulmuş kayıtlarda NULL olabilir (bkz.
+    // database.js migrasyon notu); bu durumda assigned_by_user açıkça null
+    // döner, Flutter tarafı bunu "eski kayıt" notuyla ele alır.
+    assigned_by_user: assigned_by_user_id_join
+      ? { id: assigned_by_user_id_join, name: assigned_by_user_name, role: assigned_by_user_role }
       : null,
     // Modül 4 (Ekipman) ile geriye dönük uyumluluk: Flutter tarafı bu alanı
     // QR kodu göstermek için okur; `equipment_id` ise Ekipman Detayı'na
@@ -268,9 +283,9 @@ router.post('/', requireRole('dispecer', 'yonetici'), (req, res) => {
     const info = db
       .prepare(
         `INSERT INTO work_orders
-           (title, description, status, priority, il, ilce, mahalle, location_name, lat, lng, assigned_user_id, equipment_id, created_at, updated_at)
+           (title, description, status, priority, il, ilce, mahalle, location_name, lat, lng, assigned_user_id, assigned_by_user_id, equipment_id, created_at, updated_at)
          VALUES
-           (@title, @description, 'acik', @priority, @il, @ilce, @mahalle, @location_name, @lat, @lng, @assigned_user_id, @equipment_id, @created_at, @updated_at)`
+           (@title, @description, 'acik', @priority, @il, @ilce, @mahalle, @location_name, @lat, @lng, @assigned_user_id, @assigned_by_user_id, @equipment_id, @created_at, @updated_at)`
       )
       .run({
         title: title.trim(),
@@ -284,6 +299,11 @@ router.post('/', requireRole('dispecer', 'yonetici'), (req, res) => {
         lat: equipment.lat,
         lng: equipment.lng,
         assigned_user_id: assignedUserId,
+        // "Atayan" HER ZAMAN oturum açan kullanıcıdan (req.user.id) türetilir,
+        // istemcinin body'sinden ASLA okunmaz — TEST-09'daki mass assignment
+        // dersiyle tutarlı (istemci kendini/başkasını "atayan" olarak beyan
+        // edemez, bkz. test/integration/workOrdersValidation.test.js).
+        assigned_by_user_id: req.user.id,
         equipment_id: equipmentId,
         created_at: now,
         updated_at: now,
@@ -365,12 +385,9 @@ router.get('/:id', (req, res) => {
     if (!row) {
       return res.status(404).json({ error: 'İş emri bulunamadı.' });
     }
-    // IDOR koruması: teknisyen yalnızca KENDİSİNE atanan iş emrinin detayına
-    // erişebilir (bkz. applyVisibilityFilter'daki AYNI kural, listede zaten
-    // uygulanıyordu — burada tekil kayda ID ile doğrudan erişimde de
-    // uygulanır). 403 DEĞİL 404 dönülür: "kayıt var ama senin değil" bilgisini
-    // sızdırmamak, ID enumeration'a karşı savunma. Dispeçer/yönetici muaftır.
-    if (req.user.role === 'teknisyen' && row.assigned_user_id !== req.user.id) {
+    // IDOR koruması (bkz. utils/workOrderAccess.js): teknisyen yalnızca
+    // KENDİSİNE atanan iş emrinin detayına erişebilir. 403 DEĞİL 404 dönülür.
+    if (!assertWorkOrderAccessible(row, req.user)) {
       return res.status(404).json({ error: 'İş emri bulunamadı.' });
     }
 
@@ -424,7 +441,7 @@ router.patch('/:id/status', requireRole('teknisyen', 'dispecer'), (req, res) => 
     if (!existing) {
       return res.status(404).json({ error: 'İş emri bulunamadı.' });
     }
-    if (req.user.role === 'teknisyen' && existing.assigned_user_id !== req.user.id) {
+    if (!assertWorkOrderAccessible(existing, req.user)) {
       return res.status(404).json({ error: 'İş emri bulunamadı.' });
     }
 
@@ -534,11 +551,12 @@ router.patch('/:id/assign', requireRole('dispecer', 'yonetici'), (req, res) => {
     }
 
     const updatedAt = new Date().toISOString();
-    db.prepare('UPDATE work_orders SET assigned_user_id = ?, updated_at = ? WHERE id = ?').run(
-      assignedUserId,
-      updatedAt,
-      id
-    );
+    // Yeniden atama SIRASINDA "atayan" da güncellenir — bir iş emri birden
+    // fazla kez el değiştirirse en son kim atadıysa o görünür (bkz. dosya
+    // başı PATCH /:id/assign yorumu). İSTEMCİDEN DEĞİL, her zaman req.user.id.
+    db.prepare(
+      'UPDATE work_orders SET assigned_user_id = ?, assigned_by_user_id = ?, updated_at = ? WHERE id = ?'
+    ).run(assignedUserId, req.user.id, updatedAt, id);
 
     const updated = db.prepare(`${SELECT_WORK_ORDER_WITH_USER} WHERE wo.id = ?`).get(id);
 
@@ -582,8 +600,25 @@ router.post('/:id/photos', (req, res) => {
     // istemcinin beyanıdır, sahtelenebilir (bkz. middleware/validateImageContent.js).
     validateImageContent(req, res, async () => {
       try {
-        const workOrder = db.prepare('SELECT id FROM work_orders WHERE id = ?').get(id);
+        const workOrder = db.prepare('SELECT id, assigned_user_id FROM work_orders WHERE id = ?').get(id);
         if (!workOrder) {
+          return res.status(404).json({ error: 'İş emri bulunamadı.' });
+        }
+        // IDOR koruması (SEC-03 — bkz. utils/workOrderAccess.js): bu kontrol
+        // önceden burada YOKTU, bir teknisyen kendine atanmamış bir iş
+        // emrinin ID'sini bilerek fotoğraf ekleyebiliyordu. GET /:id ve
+        // PATCH /:id/status'taki AYNI kural burada da uygulanır.
+        if (!assertWorkOrderAccessible(workOrder, req.user)) {
+          // Dosya zaten diske yazıldı (multer diskStorage) — reddedilen
+          // istekte kalıcı bir yetim dosya kalmaması için silinir (bkz.
+          // middleware/validateImageContent.js'teki AYNI temizlik deseni).
+          if (req.file.path) {
+            try {
+              fs.unlinkSync(req.file.path);
+            } catch (unlinkErr) {
+              console.error('Reddedilen fotoğraf silinirken hata:', unlinkErr);
+            }
+          }
           return res.status(404).json({ error: 'İş emri bulunamadı.' });
         }
 

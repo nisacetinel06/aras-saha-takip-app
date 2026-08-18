@@ -111,10 +111,12 @@ db.exec(`
     lat REAL,
     lng REAL,
     assigned_user_id INTEGER,
+    assigned_by_user_id INTEGER,
     equipment_id INTEGER,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (assigned_user_id) REFERENCES users (id),
+    FOREIGN KEY (assigned_by_user_id) REFERENCES users (id),
     FOREIGN KEY (equipment_id) REFERENCES equipment (id)
   );
 
@@ -437,7 +439,15 @@ for (const [column, type] of Object.entries(equipmentColumnAdditions)) {
 }
 
 const workOrderColumns = db.prepare('PRAGMA table_info(work_orders)').all();
-const workOrderColumnAdditions = { il: 'TEXT', ilce: 'TEXT', mahalle: 'TEXT' };
+// assigned_by_user_id (SEC-03 devamı — "bu işi bana kim verdi" şeffaflığı):
+// NULLABLE, FOREIGN KEY tanımı olmadan eklenir çünkü SQLite'ta ALTER TABLE
+// ADD COLUMN bir REFERENCES kısıtlaması EKLEYEMEZ (yalnızca CREATE TABLE
+// anında tanımlanabilir) — bu, mevcut/production aras_saha.db dosyalarında
+// bu sütun eksikken de sorunsuz çalışır. Var olan (bu değişiklikten önce
+// oluşturulmuş) kayıtlarda bu alan NULL kalır; routes/workOrders.js ve
+// Flutter tarafı bunu "eski kayıt, atayan bilgisi mevcut değil" olarak ele
+// alır, hata FIRLATMAZ.
+const workOrderColumnAdditions = { il: 'TEXT', ilce: 'TEXT', mahalle: 'TEXT', assigned_by_user_id: 'INTEGER' };
 for (const [column, type] of Object.entries(workOrderColumnAdditions)) {
   if (!workOrderColumns.some((col) => col.name === column)) {
     db.exec(`ALTER TABLE work_orders ADD COLUMN ${column} ${type}`);

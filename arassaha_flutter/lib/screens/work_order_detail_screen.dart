@@ -18,6 +18,7 @@ import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
+import '../utils/role_helper.dart' as role_helper;
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_top_bar.dart';
@@ -190,6 +191,41 @@ class _WorkOrderDetailBody extends StatelessWidget {
                                     fontSize: 12,
                                   ),
                                 ),
+                              // SEC-03 Kısım B — "bu işi bana kim verdi"
+                              // şeffaflığı. "Atanan Personel"in doğal bir
+                              // devamı gibi (ayrı bir bölüm AÇILMADAN), AYNI
+                              // ikon boyutu/font ile gösterilir. Eski (bu
+                              // özellik öncesi) kayıtlarda assignedByUser
+                              // null'dur — bu durumda boş bırakmak veya hata
+                              // göstermek yerine kısa, dürüst bir not
+                              // gösterilir (bkz. WorkOrder modelindeki NOT).
+                              const SizedBox(height: 4),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.badge_outlined,
+                                    size: 14,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      workOrder.assignedByUser != null
+                                          ? 'Atayan: ${workOrder.assignedByUser!.name} (${role_helper.roleLabel(workOrder.assignedByUser!.role)})'
+                                          : 'Atayan bilgisi mevcut değil (eski kayıt)',
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                               if (workOrder.equipmentRef.isNotEmpty) ...[
                                 const SizedBox(height: 8),
                                 // Modül 4 (Ekipman) ile gerçek, İKİ YÖNLÜ bağlantı:

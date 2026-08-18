@@ -140,6 +140,11 @@ class WorkOrder {
   final double lat;
   final double lng;
   final AssignedUser? assignedUser;
+  // SEC-03 Kısım B — "bu işi bana kim verdi" şeffaflığı. Bu özellik
+  // eklenmeden ÖNCE oluşturulmuş kayıtlarda backend bunu null döner (bkz.
+  // routes/workOrders.js mapWorkOrderRow) — HER ZAMAN null-safe ele alınmalı,
+  // asla "veri eksik" hatası olarak GÖSTERİLMEMELİ (bkz. work_order_detail_screen.dart).
+  final AssignedUser? assignedByUser;
   final String equipmentRef;
   // Modül 4 (Ekipman) ile gerçek bağlantı: bu iş emri bir ekipmana bağlıysa
   // equipment.id'ye giden değer — Ekipman Detay ekranına gitmek için kullanılır.
@@ -167,6 +172,7 @@ class WorkOrder {
     required this.lat,
     required this.lng,
     required this.assignedUser,
+    this.assignedByUser,
     required this.equipmentRef,
     this.equipmentId,
     this.equipmentType,
@@ -189,6 +195,9 @@ class WorkOrder {
       lng: (json['lng'] as num?)?.toDouble() ?? 0.0,
       assignedUser: json['assigned_user'] != null
           ? AssignedUser.fromJson(json['assigned_user'] as Map<String, dynamic>)
+          : null,
+      assignedByUser: json['assigned_by_user'] != null
+          ? AssignedUser.fromJson(json['assigned_by_user'] as Map<String, dynamic>)
           : null,
       equipmentRef: json['equipment_ref'] as String? ?? '',
       equipmentId: json['equipment_id'] as int?,
@@ -220,6 +229,7 @@ class WorkOrder {
       'lat': lat,
       'lng': lng,
       'assigned_user': assignedUser?.toJson(),
+      'assigned_by_user': assignedByUser?.toJson(),
       'equipment_ref': equipmentRef,
       'equipment_id': equipmentId,
       'equipment_type': equipmentType?.name,
@@ -248,6 +258,7 @@ class WorkOrder {
       lat: lat,
       lng: lng,
       assignedUser: assignedUser,
+      assignedByUser: assignedByUser,
       equipmentRef: equipmentRef,
       equipmentId: equipmentId,
       equipmentType: equipmentType,
