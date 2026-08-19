@@ -1,0 +1,45 @@
+name: Flutter Dependency Audit
+
+# GERÇEKLİK NOTU (bkz. arassaha-backend/README.md "CI/CD Gate" bölümü):
+# Node.js'in `npm audit`'i veya Python'ın `pip-audit`'i gibi, Dart/Flutter
+# ekosisteminde resmi/yerleşik bir "audit" komutu YOK (`dart pub audit` diye
+# bir şey yok). `flutter pub get` pub.dev'in GitHub Advisory Database
+# entegrasyonu sayesinde bilinen açıkları BİLGİLENDİRME amaçlı gösterir ama
+# build'i kırmaz (`--audit-level` gibi bir eşiği/exit code davranışı yok).
+# Bu yüzden Google'ın OSV-Scanner'ı kullanılıyor — pubspec.lock'u OSV (Open
+# Source Vulnerabilities) veritabanına karşı tarayan, fail edilebilir bir
+# exit code döndüren (dolayısıyla GERÇEK bir CI gate'i olabilen) genel bir
+# araç. Bu workflow BİLİNÇLİ olarak yalnızca bu audit gate'ini içerir —
+# `flutter test`/`flutter analyze` gibi genel bir CI adımı bu görevin
+# kapsamı dışında bırakıldı (bkz. görev raporu "Bilinçli Kapsam Sınırı").
+#
+# ŞİDDET SEVİYESİ POLİTİKASI (bkz. arassaha-backend/README.md tablosu):
+# OSV-Scanner, pip-audit ile AYNI şekilde varsayılan olarak BİLİNEN HERHANGİ
+# BİR açıkta başarısız olur — Flutter bağımlılık ağacı da backend'e göre
+# görece sığ olduğu için bu sıkı eşik kabul edilebilir. Gerekirse istisnalar
+# `.osv-scanner.toml` ile tanımlanabilir (şu an hiçbir istisna tanımlı değil).
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: arassaha_flutter
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+
+      - run: flutter pub get
+
+      - name: OSV-Scanner ile bağımlılık taraması
+        uses: google/osv-scanner-action/osv-scanner-action@v1
+        with:
+          scan-args: |-
+            --lockfile=pubspec.lock

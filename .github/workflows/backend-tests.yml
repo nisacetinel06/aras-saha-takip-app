@@ -42,3 +42,14 @@ jobs:
       - run: npm run test:coverage
         env:
           JWT_SECRET: test-only-ci-secret
+
+      # Bağımlılık Güvenlik Taraması (Gate) — bkz. README.md "CI/CD Gate"
+      # bölümündeki Şiddet Seviyesi Politikası tablosu. --audit-level=high:
+      # yalnızca YÜKSEK/KRİTİK önemdeki bilinen açıklar workflow'u kırmızı
+      # yakar (non-zero exit code); düşük/orta önemdekiler `npm audit`
+      # çıktısında görünür ama build'i DURDURMAZ — node_modules ağacı çok
+      # derin olduğu için düşük önemli/yalnızca-geliştirme bağımlılıklarında
+      # sık çıkan bulguları anında çözmek pratik değil. Kırmızı->yeşil kanıtı
+      # (bilerek eski/açıklı bir paket eklenip gerçekten başarısız olduğu,
+      # sonra geri alındığı) görev raporunda belgelendi.
+      - run: npm audit --audit-level=high

@@ -1,0 +1,43 @@
+name: ML Service Dependency Audit
+
+# GERÇEKLİK NOTU: arassaha-ml için henüz bir pytest/unit test paketi yok
+# (bkz. proje geçmişi) — bu yüzden bu workflow, backend-tests.yml'in
+# aksine, TESTLERİ değil YALNIZCA bağımlılık güvenlik taramasını çalıştırır.
+# İsim (`ml-service-tests.yml`) ileride gerçek bir test adımı eklenirse aynı
+# dosyada büyüyebilsin diye genel tutuldu; bugün tek işi bu audit gate'idir.
+#
+# ŞİDDET SEVİYESİ POLİTİKASI (bkz. arassaha-backend/README.md "CI/CD Gate"
+# bölümündeki tablo): pip-audit varsayılan olarak BİLİNEN HERHANGİ BİR
+# açıkta başarısız olur (npm audit'teki gibi bir --audit-level eşiği YOK) —
+# bu, backend'e göre daha sıkı bir politika; gerekçe: arassaha-ml'in
+# requirements.txt'i backend'in node_modules ağacından çok daha SIĞ (11
+# doğrudan paket, derin transitive bağımlılık zinciri yok), bu yüzden her
+# bulguyu anında değerlendirmek pratik. Kabul edilebilir, gerçek risk
+# taşımayan bir bulgu çıkarsa `pip-audit --ignore-vuln <VULN_ID>` ile
+# BİLİNÇLİ olarak yok sayılabilir — ama her yok sayma kararı burada bir
+# yorum satırıyla gerekçelendirilmelidir (şu an hiçbiri yok sayılmıyor).
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: arassaha-ml
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install pip-audit
+
+      # Herhangi bir bilinen açık bulunursa (severity ayrımı yapılmaz) bu
+      # adım non-zero exit code ile başarısız olur ve workflow kırmızı yanar.
+      - run: pip-audit -r requirements.txt
