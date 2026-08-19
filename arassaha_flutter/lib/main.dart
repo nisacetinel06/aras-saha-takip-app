@@ -11,6 +11,7 @@ import 'providers/dashboard_provider.dart';
 import 'providers/device_provider.dart';
 import 'providers/equipment_provider.dart';
 import 'providers/isg_provider.dart';
+import 'providers/kvkk_provider.dart';
 import 'providers/maintenance_provider.dart';
 import 'providers/map_provider.dart';
 import 'providers/material_provider.dart';
@@ -105,6 +106,7 @@ class _ArasSahaAppState extends State<ArasSahaApp> {
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider(create: (_) => ReportsProvider()),
         ChangeNotifierProvider(create: (_) => AssistantProvider()),
+        ChangeNotifierProvider(create: (_) => KvkkProvider()),
         ChangeNotifierProvider.value(value: widget.themeProvider),
         ChangeNotifierProvider.value(value: widget.settingsProvider),
         // ConnectivityProvider/OfflineQueueService singleton'dır (bkz. kendi

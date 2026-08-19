@@ -11,6 +11,7 @@ import '../models/description_classification.dart';
 import '../models/equipment.dart';
 import '../models/equipment_risk.dart';
 import '../models/isg_report.dart';
+import '../models/kvkk_models.dart';
 import '../models/maintenance_recommendation.dart';
 import '../models/managed_device.dart';
 import '../models/material.dart';
@@ -1881,6 +1882,149 @@ class ApiService {
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return AssistantReply.fromJson(data);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  // --- KVKK Uyum Modülü ---
+  // GET /my-data-summary + POST /deletion-requests giriş yapmış HERKESE açık
+  // (kendi verisi/kendi talebi); GET (liste) + approve/reject yalnızca
+  // yönetici — bkz. routes/kvkk.js dosya başındaki RBAC tablosu.
+
+  /// GET /api/kvkk/aydinlatma-metni — sabit taslak metni backend'den okur.
+  /// [isDraft]/[draftWarning] UI'da HER ZAMAN gösterilmeli — hukuk/KVKK uyum
+  /// birimi onayına kadar bu metin resmi değildir (bkz. routes/kvkk.js).
+  Future<({String title, bool isDraft, String draftWarning, String content})>
+  getKvkkAydinlatmaMetni() async {
+    try {
+      final uri = Uri.parse('$baseUrl/kvkk/aydinlatma-metni');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'Aydınlatma metni alınamadı.'),
+        );
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return (
+        title: data['title'] as String,
+        isDraft: data['is_draft'] as bool? ?? true,
+        draftWarning: data['draft_warning'] as String? ?? '',
+        content: data['content'] as String,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// GET /api/kvkk/my-data-summary — giriş yapmış kullanıcının kendi
+  /// verisinin sayısal özeti.
+  Future<KvkkDataSummary> getMyDataSummary() async {
+    try {
+      final uri = Uri.parse('$baseUrl/kvkk/my-data-summary');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'Kişisel veri özeti alınamadı.'),
+        );
+      }
+
+      return KvkkDataSummary.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// POST /api/kvkk/deletion-requests — yalnızca KENDİ adına talep açar
+  /// (user_id istemciden gönderilmez, backend token'dan doldurur).
+  Future<void> submitDeletionRequest({
+    required KvkkRequestType requestType,
+    String? reason,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/kvkk/deletion-requests');
+      final response = await _post(
+        uri,
+        body: jsonEncode({
+          'request_type': requestType.toJson(),
+          if (reason != null && reason.trim().isNotEmpty)
+            'reason': reason.trim(),
+        }),
+      );
+
+      if (response.statusCode != 201) {
+        throw ApiException(
+          _extractError(response, 'Silme talebi oluşturulamadı.'),
+        );
+      }
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// GET /api/kvkk/deletion-requests — yalnızca yönetici.
+  Future<List<KvkkDeletionRequest>> getAllDeletionRequests() async {
+    try {
+      final uri = Uri.parse('$baseUrl/kvkk/deletion-requests');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _extractError(response, 'Silme talepleri alınamadı.'),
+        );
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => KvkkDeletionRequest.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// PATCH /api/kvkk/deletion-requests/:id/approve — yalnızca yönetici.
+  /// Talebi onaylar VE anonimleştirmeyi (backend'de senkron/tek transaction
+  /// içinde) tetikler — bkz. routes/kvkk.js "En Kritik Kısım" notu.
+  Future<void> approveDeletionRequest(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/kvkk/deletion-requests/$id/approve');
+      final response = await _patch(uri, body: jsonEncode({}));
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Talep onaylanamadı.'));
+      }
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// PATCH /api/kvkk/deletion-requests/:id/reject — yalnızca yönetici.
+  /// [reviewerNote] (red gerekçesi) backend'de ZORUNLUDUR.
+  Future<void> rejectDeletionRequest(int id, String reviewerNote) async {
+    try {
+      final uri = Uri.parse('$baseUrl/kvkk/deletion-requests/$id/reject');
+      final response = await _patch(
+        uri,
+        body: jsonEncode({'reviewer_note': reviewerNote.trim()}),
+      );
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Talep reddedilemedi.'));
+      }
     } on ApiException {
       rethrow;
     } catch (e) {

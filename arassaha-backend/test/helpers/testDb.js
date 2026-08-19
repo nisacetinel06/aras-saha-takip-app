@@ -10,6 +10,8 @@ const db = require('../../database');
 // aksi halde `PRAGMA foreign_keys = ON` nedeniyle FOREIGN KEY constraint
 // failed hatası alınır.
 const TABLES_CHILD_TO_PARENT = [
+  'login_attempts',
+  'data_deletion_requests',
   'device_action_logs',
   'work_order_photos',
   'material_stock_movements',

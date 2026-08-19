@@ -4,10 +4,9 @@
 // farklı olarak, gerçek HTTP isteği -> gerçek route -> gerçek DB sorgusu ->
 // gerçek bcrypt karşılaştırması -> gerçek JWT üretimi zincirini doğrular.
 //
-// GÜVENLİK NOTU (kapsam dışı, belgelendi — bkz. SECURITY_NOTES.md): login
-// endpoint'i şu anda art arda başarısız deneme sayısını sınırlamıyor (rate
-// limiting yok). Bu görev kapsamında bilinçli olarak ele alınmadı; ayrı bir
-// güvenlik görevi (öneri: express-rate-limit) olarak backlog'a eklenmeli.
+// Brute-force / rate limiting senaryoları (sicil_no + IP bazlı kilit) BURADA
+// DEĞİL, ayrı test/integration/loginRateLimit.test.js dosyasındadır — bkz.
+// middleware/loginRateLimit.js ve SECURITY_NOTES.md.
 const { describe, it, beforeEach } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');

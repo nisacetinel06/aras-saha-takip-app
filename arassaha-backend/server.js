@@ -42,6 +42,7 @@ const materialsRouter = require('./routes/materials');
 const analyticsRouter = require('./routes/analytics');
 const reportsRouter = require('./routes/reports');
 const assistantRouter = require('./routes/assistant');
+const kvkkRouter = require('./routes/kvkk');
 const authRouter = require('./routes/auth');
 const uploadsRouter = require('./routes/uploads');
 const { verifyToken } = require('./middleware/auth');
@@ -49,6 +50,17 @@ const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Railway (ve genel olarak her ters proxy arkasındaki deploy) bir tek hop
+// (reverse proxy) üzerinden istekleri iletir. Bu ayar olmadan Express,
+// `req.ip`'yi HER ZAMAN proxy'nin kendi IP'si olarak görür — gerçek istemci
+// IP'si `X-Forwarded-For` header'ında gelir ama Express bunu OKUMAZ. Sonuç:
+// tüm istekler aynı (proxy) IP'den geliyormuş gibi görünür ve IP bazlı her
+// türlü kontrol (bkz. middleware/loginRateLimit.js, routes/auth.js
+// loginIpLimiter) anlamsızlaşır — farklı kullanıcılar birbirini kilitler.
+// `1` = yalnızca EN YAKIN (bir) hop'a güven; bu, Railway gibi tek katmanlı
+// bir proxy önünde çalışırken doğru ve güvenli varsayılan davranıştır.
+app.set('trust proxy', 1);
 
 // SEC-05: Express'in varsayılan olarak eklediği `X-Powered-By: Express`
 // header'ını kaldırır — kullanılan framework'ü dışarıya açık etmeyi azaltan,
@@ -133,6 +145,10 @@ app.use('/api/reports', verifyToken, reportsRouter);
 // AI Asistan / Sohbet Arayüzü (Modül 16) — tüm roller erişebilir (kendi
 // RBAC kapsamındaki veriyi sorgular, bkz. services/assistantQueries.js).
 app.use('/api/assistant', verifyToken, assistantRouter);
+// KVKK Uyum Modülü — aydınlatma metni + veri özeti + silme talebi akışı
+// (bkz. routes/kvkk.js). Diğer tüm modüller gibi verifyToken arkasında;
+// yalnızca giriş yapmış kullanıcılar kendi verilerini görebilir/talep açabilir.
+app.use('/api/kvkk', verifyToken, kvkkRouter);
 
 app.get('/', (req, res) => {
   res.json({ message: 'ArasSaha backend çalışıyor.' });

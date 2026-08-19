@@ -4,19 +4,29 @@ Bu dosya, kod incelemeleri/test görevleri sırasında tespit edilen, o görevin
 kapsamında ÇÖZÜLMEYEN (bilinçli olarak ertelenen) güvenlik bulgularını
 biriktirir. Her madde ayrı bir backlog kartına dönüşene kadar burada durur.
 
-## Login endpoint'inde rate limiting / brute-force koruması yok (TEST-06)
+## Login endpoint'inde rate limiting / brute-force koruması yoktu — düzeltildi
 
-`POST /api/auth/login` (bkz. [routes/auth.js](routes/auth.js)), art arda
-yapılan başarısız giriş denemelerini SINIRLAMIYOR. Bir saldırgan, bilinen bir
-sicil_no için şifreyi otomatik olarak deneme yanılma (brute-force) ile
-sınırsız sayıda deneyebilir.
+`POST /api/auth/login` (bkz. [routes/auth.js](routes/auth.js)) art arda
+yapılan başarısız giriş denemelerini SINIRLAMIYORDU. Bir saldırgan, bilinen
+bir sicil_no için şifreyi otomatik olarak deneme yanılma (brute-force) ile
+sınırsız sayıda deneyebiliyordu. Bu, TEST-06 (login akışının uçtan uca test
+edilmesi) kapsamında bilinçli olarak ele ALINMAMIŞTI.
 
-Bu, TEST-06 (login akışının uçtan uca test edilmesi) kapsamında bilinçli
-olarak ele ALINMADI — kart notunda "brute-force koruması bu kartın kapsamı
-dışında" belirtilmişti. Ayrı bir güvenlik görevi olarak backlog'a eklenmeli.
+Düzeltme (bkz. [test/integration/loginRateLimit.test.js](test/integration/loginRateLimit.test.js)):
 
-**Öneri:** `express-rate-limit` paketiyle `/api/auth/login` endpoint'ine
-(örn. IP başına 15 dakikada 5-10 deneme) bir rate limit middleware'i eklemek.
+- `login_attempts` tablosu (bkz. [database.js](database.js)) her giriş
+  denemesini (başarılı/başarısız, sicil_no, IP, zaman) kaydeder.
+- [middleware/loginRateLimit.js](middleware/loginRateLimit.js) —
+  `checkLoginRateLimit`: sicil_no + IP kombinasyonu bazında, son 15 dakikada
+  5 başarısız deneme varsa 429 döner. Kullanıcı numaralandırmayı önlemek için
+  sicil_no'nun DB'de var olup olmadığına BAKMAKSIZIN uygulanır.
+- `express-rate-limit` ile ayrıca genel bir IP bazlı katman (dakikada 20
+  istek) — sicil_no bazlı sayaç mantığını çok sayıda farklı sicil_no
+  deneyerek atlatmaya çalışan bir saldırgana karşı.
+- `app.set('trust proxy', 1)` (bkz. [server.js](server.js)) — Railway gibi
+  bir proxy arkasında `req.ip`'nin gerçek istemci IP'sini yansıtması için
+  zorunlu; aksi halde tüm istekler proxy'nin IP'siyle geliyormuş gibi görünür
+  ve IP bazlı hiçbir kontrol anlamlı çalışmaz.
 
 ## Pasif kullanıcı girişi engellenmiyordu — TEST-06 kapsamında düzeltildi
 

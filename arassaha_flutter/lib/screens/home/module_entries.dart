@@ -3,6 +3,7 @@ import '../../models/work_order.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_colors.dart';
 import '../admin/analytics_screen.dart';
+import '../admin/deletion_requests_screen.dart';
 import '../admin/user_management_list_screen.dart';
 import '../dashboard_screen.dart';
 import '../devices/device_list_screen.dart';
@@ -140,6 +141,15 @@ List<ModuleEntry> buildModuleEntries(
         category: 'Yönetim',
         color: AppColors.primary,
         screenBuilder: (_) => const AnalyticsScreen(),
+      ),
+      // KVKK Uyum Modülü — bkz. routes/kvkk.js, screens/kvkk/*.
+      ModuleEntry(
+        icon: Icons.delete_forever_outlined,
+        title: 'Silme Talepleri',
+        subtitle: 'KVKK veri silme/anonimleştirme onayı',
+        category: 'Yönetim',
+        color: AppColors.positive,
+        screenBuilder: (_) => const DeletionRequestsScreen(),
       ),
     ],
     ModuleEntry(

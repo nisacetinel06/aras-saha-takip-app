@@ -120,10 +120,14 @@ db.exec(`
     FOREIGN KEY (equipment_id) REFERENCES equipment (id)
   );
 
+  -- photo_path NULLABLE'dır (başlangıçta NOT NULL'du — bkz. aşağıdaki KVKK
+  -- migrasyon notu): KVKK 'tum_kisisel_verilerimi_sil' onayında, kaydın
+  -- kendisi SİLİNMEDEN yalnızca fotoğrafın diskteki dosyası + bu referansı
+  -- temizlenebilsin diye (bkz. routes/kvkk.js).
   CREATE TABLE IF NOT EXISTS work_order_photos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     work_order_id INTEGER NOT NULL,
-    photo_path TEXT NOT NULL,
+    photo_path TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (work_order_id) REFERENCES work_orders (id)
   );
@@ -393,6 +397,43 @@ db.exec(`
     response_json TEXT NOT NULL,
     created_at TEXT NOT NULL
   );
+
+  -- Login brute-force koruması — bkz. middleware/loginRateLimit.js ve
+  -- routes/auth.js. sicil_no bilerek bir FOREIGN KEY DEĞİL (users.sicil_no'ya
+  -- işaret etmiyor): var olmayan bir sicil_no ile yapılan denemeler de burada
+  -- kaydedilip sayılabilmeli (kilit, kullanıcı numaralandırmayı önlemek için
+  -- hesabın gerçekten var olup olmadığından BAĞIMSIZ çalışır). ip_address
+  -- her zaman req.ip'dir — Railway gibi bir proxy arkasında doğru çalışması
+  -- server.js'teki 'trust proxy' ayarına bağlıdır.
+  CREATE TABLE IF NOT EXISTS login_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sicil_no TEXT NOT NULL,
+    ip_address TEXT NOT NULL,
+    success INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+  );
+
+  -- KVKK Uyum Modülü — bkz. routes/kvkk.js. request_type:
+  -- 'profil_fotografi_sil' | 'tum_kisisel_verilerimi_sil'. status:
+  -- 'beklemede' | 'onaylandi' | 'reddedildi' | 'tamamlandi' ('onaylandi' bu
+  -- akışta fiilen kullanılmaz çünkü onay VE anonimleştirme routes/kvkk.js'te
+  -- TEK bir işlemde/senkron olarak yapılır — onaylanan bir talep doğrudan
+  -- 'tamamlandi' olur; alan yine de ileride "onaylandı ama işlenmesi
+  -- gecikti" gibi bir ara duruma geçilebilsin diye şemada tutulur).
+  CREATE TABLE IF NOT EXISTS data_deletion_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    request_type TEXT NOT NULL,
+    reason TEXT,
+    status TEXT NOT NULL DEFAULT 'beklemede',
+    reviewer_note TEXT,
+    reviewed_by_user_id INTEGER,
+    created_at TEXT NOT NULL,
+    reviewed_at TEXT,
+    completed_at TEXT,
+    FOREIGN KEY (user_id) REFERENCES users (id),
+    FOREIGN KEY (reviewed_by_user_id) REFERENCES users (id)
+  );
 `);
 
 // Migrasyon: bu proje ilk kurulduğunda `users` tablosu `password_hash`
@@ -484,6 +525,47 @@ const workOrderPhotoColumns = db.prepare('PRAGMA table_info(work_order_photos)')
 for (const [column, type] of Object.entries(cvColumnAdditions)) {
   if (!workOrderPhotoColumns.some((col) => col.name === column)) {
     db.exec(`ALTER TABLE work_order_photos ADD COLUMN ${column} ${type}`);
+  }
+}
+
+// Migrasyon: KVKK Uyum Modülü (bkz. routes/kvkk.js) — 'tum_kisisel_verilerimi_sil'
+// onayında, bir kullanıcıya atanmış iş emirlerindeki fotoğraflar diskten
+// silinip work_order_photos.photo_path NULL yapılmalı (KAYDIN KENDİSİ
+// SİLİNMEDEN — bkz. kvkk.js başındaki "silme vs anonimleştirme" ayrımı).
+// photo_path ilk kurulumda NOT NULL tanımlanmıştı; SQLite'ta ALTER TABLE ile
+// bir NOT NULL kısıtlaması DOĞRUDAN kaldırılamaz, bu yüzden standart SQLite
+// "tabloyu yeniden kur" deseni kullanılır (yeni/gevşetilmiş şemayla tablo
+// oluşturulur, veriler kopyalanır, eskisi silinip yenisi eski adını alır).
+// Idempotent: yalnızca sütun HÂLÂ NOT NULL ise (notnull === 1) çalışır.
+const workOrderPhotoColumnsAfterCv = db.prepare('PRAGMA table_info(work_order_photos)').all();
+const photoPathColumnInfo = workOrderPhotoColumnsAfterCv.find((col) => col.name === 'photo_path');
+if (photoPathColumnInfo && photoPathColumnInfo.notnull === 1) {
+  db.exec('PRAGMA foreign_keys = OFF'); // tablo yeniden kurulurken FK kontrolleri geçici kapatılır
+  db.exec('BEGIN');
+  try {
+    db.exec(`
+      CREATE TABLE work_order_photos_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        work_order_id INTEGER NOT NULL,
+        photo_path TEXT,
+        created_at TEXT NOT NULL,
+        cv_is_damaged INTEGER,
+        cv_damage_probability REAL,
+        FOREIGN KEY (work_order_id) REFERENCES work_orders (id)
+      );
+    `);
+    db.exec(`
+      INSERT INTO work_order_photos_new (id, work_order_id, photo_path, created_at, cv_is_damaged, cv_damage_probability)
+      SELECT id, work_order_id, photo_path, created_at, cv_is_damaged, cv_damage_probability FROM work_order_photos;
+    `);
+    db.exec('DROP TABLE work_order_photos;');
+    db.exec('ALTER TABLE work_order_photos_new RENAME TO work_order_photos;');
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
   }
 }
 
