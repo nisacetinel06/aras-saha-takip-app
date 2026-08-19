@@ -43,10 +43,13 @@ const analyticsRouter = require('./routes/analytics');
 const reportsRouter = require('./routes/reports');
 const assistantRouter = require('./routes/assistant');
 const kvkkRouter = require('./routes/kvkk');
+const adminRouter = require('./routes/admin');
+const auditLogRouter = require('./routes/auditLog');
 const authRouter = require('./routes/auth');
 const uploadsRouter = require('./routes/uploads');
 const { verifyToken } = require('./middleware/auth');
 const errorHandler = require('./middleware/errorHandler');
+const { startScheduledPurgeJobs } = require('./jobs/scheduler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -149,6 +152,12 @@ app.use('/api/assistant', verifyToken, assistantRouter);
 // (bkz. routes/kvkk.js). Diğer tüm modüller gibi verifyToken arkasında;
 // yalnızca giriş yapmış kullanıcılar kendi verilerini görebilir/talep açabilir.
 app.use('/api/kvkk', verifyToken, kvkkRouter);
+// Yönetici Bakım Araçları — bkz. routes/admin.js (kendi içinde
+// requireRole('yonetici') uygular, burada yalnızca verifyToken).
+app.use('/api/admin', verifyToken, adminRouter);
+// Denetim Logu — bkz. routes/auditLog.js (kendi içinde requireRole('yonetici')
+// uygular, burada yalnızca verifyToken).
+app.use('/api/audit-log', verifyToken, auditLogRouter);
 
 app.get('/', (req, res) => {
   res.json({ message: 'ArasSaha backend çalışıyor.' });
@@ -203,6 +212,12 @@ if (process.env.NODE_ENV !== 'test') {
     } catch (err) {
       console.warn('Başlangıçta anomali skorları güncellenemedi (ML servisi kapalı olabilir):', err.message);
     }
+
+    // Dosya Temizleme (Orphan + Saklama Süresi) — bkz. jobs/scheduler.js.
+    // Yalnızca sunucu GERÇEKTEN dinlemeye başladığında kurulur (testte
+    // asla) — her `node --test` çalıştırmasında arka planda asılı kalan bir
+    // cron zamanlayıcısı istenmez.
+    startScheduledPurgeJobs();
   });
 }
 

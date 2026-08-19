@@ -3,6 +3,7 @@ import '../../models/work_order.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_colors.dart';
 import '../admin/analytics_screen.dart';
+import '../admin/audit_log_screen.dart';
 import '../admin/deletion_requests_screen.dart';
 import '../admin/user_management_list_screen.dart';
 import '../dashboard_screen.dart';
@@ -150,6 +151,16 @@ List<ModuleEntry> buildModuleEntries(
         category: 'Yönetim',
         color: AppColors.positive,
         screenBuilder: (_) => const DeletionRequestsScreen(),
+      ),
+      // Denetim Logu — bkz. services/auditLogAggregator.js,
+      // screens/admin/audit_log_screen.dart.
+      ModuleEntry(
+        icon: Icons.fact_check_outlined,
+        title: 'Güvenlik & Denetim Logu',
+        subtitle: 'Tüm sistemdeki işlemlerin birleşik görünümü',
+        category: 'Yönetim',
+        color: AppColors.primary,
+        screenBuilder: (_) => const AuditLogScreen(),
       ),
     ],
     ModuleEntry(

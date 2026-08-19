@@ -10,6 +10,7 @@ import '../models/dashboard_summary.dart';
 import '../models/description_classification.dart';
 import '../models/equipment.dart';
 import '../models/equipment_risk.dart';
+import '../models/audit_log_entry.dart';
 import '../models/isg_report.dart';
 import '../models/kvkk_models.dart';
 import '../models/maintenance_recommendation.dart';
@@ -2025,6 +2026,43 @@ class ApiService {
       if (response.statusCode != 200) {
         throw ApiException(_extractError(response, 'Talep reddedilemedi.'));
       }
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  // --- Denetim Logu (Audit Log) — yalnızca yönetici ---
+  // GET /api/audit-log?category=&actor_id=&from=&to=&page=&limit= — bkz.
+  // routes/auditLog.js + services/auditLogAggregator.js. Sistemdeki tüm
+  // state-changing işlemlerin (login denemeleri, kullanıcı/cihaz yönetimi,
+  // stok hareketleri, KVKK talepleri, otomatik dosya temizliği) TEK, birleşik
+  // bir görünümü.
+  Future<AuditLogPage> getAuditLog({
+    AuditLogCategory? category,
+    int? actorId,
+    DateTime? fromDate,
+    DateTime? toDate,
+    int page = 1,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/audit-log').replace(
+        queryParameters: {
+          if (category != null) 'category': category.toJson(),
+          if (actorId != null) 'actor_id': '$actorId',
+          if (fromDate != null) 'from': fromDate.toUtc().toIso8601String(),
+          if (toDate != null) 'to': toDate.toUtc().toIso8601String(),
+          'page': '$page',
+        },
+      );
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Denetim logu alınamadı.'));
+      }
+
+      return AuditLogPage.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
     } catch (e) {

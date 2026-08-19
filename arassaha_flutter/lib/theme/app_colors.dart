@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../models/audit_log_entry.dart';
 import '../models/equipment.dart';
 import '../models/equipment_risk.dart';
 import '../models/work_order.dart';
@@ -72,6 +73,29 @@ class AppColors {
   static const darkRoleTeknisyen = Color(0xFF60A5FA);
   static const darkRoleDispecer = Color(0xFFA78BFA);
   static const darkRoleYonetici = Color(0xFFFB923C);
+
+  // --- Denetim Logu kategori paleti (bkz. screens/admin/audit_log_screen.dart) ---
+  // BİLİNÇLİ olarak durum renklerinden (danger/warning/success/primary)
+  // AYRI: bu kategoriler "iyi/kötü/acil" bir DURUMU değil, yalnızca HANGİ
+  // MODÜLE ait olduğunu gösterir — nötr, göz yormayan, birbirinden ayırt
+  // edilebilir ama "alarm" hissi vermeyen tonlar. Yalnızca başarısız giriş
+  // denemesi (giris_basarisiz) AYRICA `AppColors.danger` ile vurgulanır
+  // (audit_log_screen.dart'taki kenar şeridi) — bu bir KATEGORİ rengi değil,
+  // güvenlik açısından dikkat çekici bir OLAY vurgusudur, burada tekrar
+  // tanımlanmaz.
+  static const lightAuditGiris = Color(0xFF0891B2); // camgöbeği
+  static const lightAuditKullaniciYonetimi = Color(0xFF64748B); // slate
+  static const lightAuditCihazYonetimi = Color(0xFF7C3AED); // mor (rol paletindeki dispeçer moruyla AYNI aile, kasıtlı — ikisi de "yönetimsel" bir işlemi imler)
+  static const lightAuditStok = Color(0xFF0D9488); // teal
+  static const lightAuditKvkk = Color(0xFFA16207); // amber-kahve
+  static const lightAuditDosyaTemizleme = Color(0xFF475569); // koyu slate
+
+  static const darkAuditGiris = Color(0xFF67E8F9);
+  static const darkAuditKullaniciYonetimi = Color(0xFF94A3B8);
+  static const darkAuditCihazYonetimi = Color(0xFFC4B5FD);
+  static const darkAuditStok = Color(0xFF5EEAD4);
+  static const darkAuditKvkk = Color(0xFFD9A441);
+  static const darkAuditDosyaTemizleme = Color(0xFFCBD5E1);
 
   static Color primary(BuildContext c) => _pick(c, lightPrimary, darkPrimary);
   static Color positive(BuildContext c) =>
@@ -214,3 +238,30 @@ Color riskLevelColor(BuildContext context, RiskLevel level) {
 /// Risk seviyesi renginin üzerine gelecek metin/ikon rengi — bkz. [accessibleOnColor].
 Color onRiskLevelColor(BuildContext context, RiskLevel level) =>
     accessibleOnColor(riskLevelColor(context, level));
+
+/// Denetim Logu kategori rengi — bkz. AppColors'taki "Denetim Logu kategori
+/// paleti" notu. `category` null ise (backend'in tanımadığı/yeni bir
+/// kategori) nötr [AppColors.textSecondary] döner — UI hiçbir zaman çökmez.
+Color auditCategoryColor(BuildContext context, AuditLogCategory? category) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  switch (category) {
+    case AuditLogCategory.giris:
+      return isDark ? AppColors.darkAuditGiris : AppColors.lightAuditGiris;
+    case AuditLogCategory.kullaniciYonetimi:
+      return isDark ? AppColors.darkAuditKullaniciYonetimi : AppColors.lightAuditKullaniciYonetimi;
+    case AuditLogCategory.cihazYonetimi:
+      return isDark ? AppColors.darkAuditCihazYonetimi : AppColors.lightAuditCihazYonetimi;
+    case AuditLogCategory.stok:
+      return isDark ? AppColors.darkAuditStok : AppColors.lightAuditStok;
+    case AuditLogCategory.kvkk:
+      return isDark ? AppColors.darkAuditKvkk : AppColors.lightAuditKvkk;
+    case AuditLogCategory.dosyaTemizleme:
+      return isDark ? AppColors.darkAuditDosyaTemizleme : AppColors.lightAuditDosyaTemizleme;
+    case null:
+      return AppColors.textSecondary(context);
+  }
+}
+
+/// Kategori renginin üzerine gelecek metin/ikon rengi — bkz. [accessibleOnColor].
+Color onAuditCategoryColor(BuildContext context, AuditLogCategory? category) =>
+    accessibleOnColor(auditCategoryColor(context, category));

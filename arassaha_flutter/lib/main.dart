@@ -4,6 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'providers/anomaly_provider.dart';
 import 'providers/assistant_provider.dart';
+import 'providers/audit_log_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/completed_work_orders_provider.dart';
 import 'providers/connectivity_provider.dart';
@@ -107,6 +108,7 @@ class _ArasSahaAppState extends State<ArasSahaApp> {
         ChangeNotifierProvider(create: (_) => ReportsProvider()),
         ChangeNotifierProvider(create: (_) => AssistantProvider()),
         ChangeNotifierProvider(create: (_) => KvkkProvider()),
+        ChangeNotifierProvider(create: (_) => AuditLogProvider()),
         ChangeNotifierProvider.value(value: widget.themeProvider),
         ChangeNotifierProvider.value(value: widget.settingsProvider),
         // ConnectivityProvider/OfflineQueueService singleton'dır (bkz. kendi

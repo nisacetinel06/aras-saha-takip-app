@@ -12,6 +12,7 @@ const db = require('../../database');
 const TABLES_CHILD_TO_PARENT = [
   'login_attempts',
   'data_deletion_requests',
+  'file_purge_log',
   'device_action_logs',
   'work_order_photos',
   'material_stock_movements',

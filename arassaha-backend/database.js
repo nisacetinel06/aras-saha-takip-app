@@ -434,6 +434,44 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users (id),
     FOREIGN KEY (reviewed_by_user_id) REFERENCES users (id)
   );
+
+  -- Dosya Temizleme (Orphan + Saklama Süresi) Görevleri — bkz. jobs/orphanFilePurge.js,
+  -- jobs/retentionPurge.js. Yalnızca GERÇEK silme işlemlerinde (dry-run
+  -- DEĞİLKEN) bir satır eklenir — "ne zaman, neden, hangi dosya silindi"
+  -- sorusunun sonradan cevaplanabilmesi için (hem denetim hem de yanlış bir
+  -- silme şüphesi doğarsa geriye dönük inceleme). related_table/related_record_id
+  -- yalnızca saklama süresi silmelerinde (silinen dosyanın hangi DB satırına
+  -- ait olduğu bilindiği için) dolar; orphan silmelerinde NULL kalır — o
+  -- dosyanın TANIM GEREĞİ hiçbir DB kaydına bağlı olmadığı zaten bilinir.
+  -- FOREIGN KEY YOK (bilerek): related_record_id'nin işaret ettiği satır
+  -- (örn. bir isg_reports satırı) ileride başka bir sebeple silinse bile
+  -- (bu tabloda satır silme YOK ama teoride) bu log kaydı KALICI/bağımsız
+  -- kalmalı — bir denetim izi hiçbir zaman kaynağına bağımlı olmamalı.
+  CREATE TABLE IF NOT EXISTS file_purge_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_path TEXT,
+    related_table TEXT,
+    related_record_id INTEGER,
+    reason TEXT NOT NULL,
+    deleted_at TEXT NOT NULL
+  );
+`);
+
+// Denetim Logu Toplayıcı (bkz. services/auditLogAggregator.js) — PERFORMANS.
+// Toplayıcı, bu 6 tabloyu UNION ALL ile birleştirip HER ZAMAN timestamp'e
+// göre (DESC) sıralayıp filtreliyor; veri arttıkça (özellikle login_attempts
+// gibi her giriş denemesinde yazılan bir tabloda) bu sütunlarda index
+// OLMADAN yapılan bir tam tablo taraması (full table scan) gözle görülür
+// biçimde yavaşlar. `IF NOT EXISTS` ile idempotent — var olan bir
+// production veritabanında da güvenle tekrar çalıştırılabilir.
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_device_action_logs_created_at ON device_action_logs (created_at);
+  CREATE INDEX IF NOT EXISTS idx_user_action_logs_created_at ON user_action_logs (created_at);
+  CREATE INDEX IF NOT EXISTS idx_login_attempts_created_at ON login_attempts (created_at);
+  CREATE INDEX IF NOT EXISTS idx_data_deletion_requests_created_at ON data_deletion_requests (created_at);
+  CREATE INDEX IF NOT EXISTS idx_data_deletion_requests_reviewed_at ON data_deletion_requests (reviewed_at);
+  CREATE INDEX IF NOT EXISTS idx_file_purge_log_deleted_at ON file_purge_log (deleted_at);
+  CREATE INDEX IF NOT EXISTS idx_material_stock_movements_created_at ON material_stock_movements (created_at);
 `);
 
 // Migrasyon: bu proje ilk kurulduğunda `users` tablosu `password_hash`
