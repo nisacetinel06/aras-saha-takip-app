@@ -137,7 +137,8 @@ describe('İki Faktörlü Doğrulama (2FA)', () => {
       assert.strictEqual(loginResponse.status, 200);
       assert.strictEqual(loginResponse.body.requires_2fa, true);
       assert.strictEqual(typeof loginResponse.body.pending_token, 'string');
-      assert.strictEqual(loginResponse.body.token, undefined, 'TAM token HENÜZ verilmemeli');
+      assert.strictEqual(loginResponse.body.access_token, undefined, 'TAM access_token HENÜZ verilmemeli');
+      assert.strictEqual(loginResponse.body.refresh_token, undefined, 'refresh_token HENÜZ verilmemeli');
       assert.strictEqual(loginResponse.body.user, undefined);
     });
   });
@@ -156,13 +157,14 @@ describe('İki Faktörlü Doğrulama (2FA)', () => {
         .send({ pending_token: pendingToken, code: currentTotpCode(secret) });
 
       assert.strictEqual(verifyResponse.status, 200, JSON.stringify(verifyResponse.body));
-      assert.strictEqual(typeof verifyResponse.body.token, 'string');
+      assert.strictEqual(typeof verifyResponse.body.access_token, 'string');
+      assert.strictEqual(typeof verifyResponse.body.refresh_token, 'string');
       assert.strictEqual(verifyResponse.body.user.role, 'yonetici');
 
-      // Dönen tam token GERÇEKTEN normal yetkili istekler için kullanılabiliyor mu?
+      // Dönen tam access_token GERÇEKTEN normal yetkili istekler için kullanılabiliyor mu?
       const meResponse = await request(app)
         .get('/api/auth/me')
-        .set('Authorization', `Bearer ${verifyResponse.body.token}`);
+        .set('Authorization', `Bearer ${verifyResponse.body.access_token}`);
       assert.strictEqual(meResponse.status, 200);
       assert.strictEqual(meResponse.body.id, seeded.users.yoneticiId);
     });
@@ -180,7 +182,7 @@ describe('İki Faktörlü Doğrulama (2FA)', () => {
         .send({ pending_token: loginResponse.body.pending_token, code: '000000' });
 
       assert.strictEqual(verifyResponse.status, 401);
-      assert.strictEqual(verifyResponse.body.token, undefined);
+      assert.strictEqual(verifyResponse.body.access_token, undefined);
     });
   });
 
@@ -198,7 +200,7 @@ describe('İki Faktörlü Doğrulama (2FA)', () => {
         .post('/api/auth/2fa/verify')
         .send({ pending_token: pendingToken, code: oneBackupCode });
       assert.strictEqual(firstUse.status, 200, JSON.stringify(firstUse.body));
-      assert.strictEqual(typeof firstUse.body.token, 'string');
+      assert.strictEqual(typeof firstUse.body.access_token, 'string');
 
       // used=1 GERÇEKTEN DB'de işaretlendi mi?
       const usedRow = db.prepare('SELECT used FROM totp_backup_codes WHERE user_id = ?').all(seeded.users.yoneticiId).find((r) => r.used === 1);
@@ -223,7 +225,8 @@ describe('İki Faktörlü Doğrulama (2FA)', () => {
         .send({ sicil_no: '1001', password: DEMO_PASSWORD });
 
       assert.strictEqual(response.status, 200);
-      assert.strictEqual(typeof response.body.token, 'string');
+      assert.strictEqual(typeof response.body.access_token, 'string');
+      assert.strictEqual(typeof response.body.refresh_token, 'string');
       assert.strictEqual(response.body.requires_2fa, undefined);
     });
 
@@ -233,7 +236,8 @@ describe('İki Faktörlü Doğrulama (2FA)', () => {
         .send({ sicil_no: '2001', password: DEMO_PASSWORD });
 
       assert.strictEqual(response.status, 200);
-      assert.strictEqual(typeof response.body.token, 'string');
+      assert.strictEqual(typeof response.body.access_token, 'string');
+      assert.strictEqual(typeof response.body.refresh_token, 'string');
     });
 
     it('2FA\'sı KAPALI bir yönetici de tek adımda tam token alır (yalnızca 2FA etkin yöneticiler etkilenir)', async () => {
@@ -242,7 +246,7 @@ describe('İki Faktörlü Doğrulama (2FA)', () => {
         .send({ sicil_no: '3001', password: DEMO_PASSWORD });
 
       assert.strictEqual(response.status, 200);
-      assert.strictEqual(typeof response.body.token, 'string');
+      assert.strictEqual(typeof response.body.access_token, 'string');
       assert.strictEqual(response.body.requires_2fa, undefined);
     });
   });
@@ -267,7 +271,7 @@ describe('İki Faktörlü Doğrulama (2FA)', () => {
         .send({ pending_token: pendingToken, code: currentTotpCode(secret) });
 
       assert.strictEqual(lockedResponse.status, 429, 'eşiğe ulaşıldıktan sonra DOĞRU kod bile işe yaramamalı');
-      assert.strictEqual(lockedResponse.body.token, undefined);
+      assert.strictEqual(lockedResponse.body.access_token, undefined);
     });
   });
 
@@ -288,7 +292,7 @@ describe('İki Faktörlü Doğrulama (2FA)', () => {
 
       const response = await request(app)
         .post('/api/auth/2fa/verify')
-        .send({ pending_token: loginResponse.body.token, code: '123456' });
+        .send({ pending_token: loginResponse.body.access_token, code: '123456' });
       assert.strictEqual(response.status, 400);
     });
 
@@ -324,7 +328,7 @@ describe('İki Faktörlü Doğrulama (2FA)', () => {
       const loginResponse = await request(app)
         .post('/api/auth/login')
         .send({ sicil_no: '3001', password: DEMO_PASSWORD });
-      assert.strictEqual(typeof loginResponse.body.token, 'string');
+      assert.strictEqual(typeof loginResponse.body.access_token, 'string');
       assert.strictEqual(loginResponse.body.requires_2fa, undefined);
     });
 

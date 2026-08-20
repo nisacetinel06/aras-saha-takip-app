@@ -85,6 +85,53 @@ router.get('/materials', (req, res) => {
   }
 });
 
+// GET /api/materials/off-assignment-usage — yalnızca yönetici. Son 30
+// gündeki TÜM is_off_assignment=1 kayıtlarını listeler — "kim, ne zaman,
+// hangi işe atanmamış malzeme kaydetti" sorusuna toplu bir yanıt (bkz.
+// görev talimatı, opsiyonel özet endpoint'i). "/materials/:id" route'undan
+// ÖNCE tanımlanmalı — aksi halde Express "off-assignment-usage" değerini
+// bir id parametresi sanır (bkz. routes/users.js "/me" ile AYNI ilke).
+router.get('/materials/off-assignment-usage', requireRole('yonetici'), (req, res) => {
+  try {
+    const rows = db
+      .prepare(
+        `SELECT
+           wom.id, wom.work_order_id, wom.material_id, wom.quantity_used, wom.recorded_by_role, wom.created_at,
+           wo.title AS work_order_title, wo.assigned_user_id,
+           au.name AS assigned_user_name,
+           m.name AS material_name, m.unit AS material_unit,
+           u.id AS recorded_by_id, u.name AS recorded_by_name
+         FROM work_order_materials wom
+         JOIN work_orders wo ON wo.id = wom.work_order_id
+         JOIN materials m ON m.id = wom.material_id
+         JOIN users u ON u.id = wom.recorded_by_user_id
+         LEFT JOIN users au ON au.id = wo.assigned_user_id
+         WHERE wom.is_off_assignment = 1
+           AND wom.created_at > datetime('now', '-30 days')
+         ORDER BY wom.created_at DESC`
+      )
+      .all();
+
+    res.json(
+      rows.map((row) => ({
+        id: row.id,
+        work_order_id: row.work_order_id,
+        work_order_title: row.work_order_title,
+        assigned_user: row.assigned_user_id
+          ? { id: row.assigned_user_id, name: row.assigned_user_name }
+          : null,
+        material: { id: row.material_id, name: row.material_name, unit: row.material_unit },
+        quantity_used: row.quantity_used,
+        recorded_by: { id: row.recorded_by_id, name: row.recorded_by_name, role: row.recorded_by_role },
+        created_at: row.created_at,
+      }))
+    );
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Atanmamış iş emri malzeme kullanım özeti alınırken bir hata oluştu.' });
+  }
+});
+
 // GET /api/materials/:id — detay + kullanım geçmişi (hangi iş emrinde, ne
 // zaman, kim tarafından ne kadar kullanıldığı).
 router.get('/materials/:id', (req, res) => {
@@ -326,6 +373,7 @@ router.get('/workorders/:workOrderId/materials', (req, res) => {
       .prepare(
         `SELECT
            wom.id, wom.work_order_id, wom.material_id, wom.quantity_used, wom.created_at,
+           wom.recorded_by_role, wom.is_off_assignment,
            m.name AS material_name, m.unit AS material_unit, m.category AS material_category,
            u.id AS recorded_by_id, u.name AS recorded_by_name
          FROM work_order_materials wom
@@ -344,6 +392,12 @@ router.get('/workorders/:workOrderId/materials', (req, res) => {
         created_at: row.created_at,
         material: { id: row.material_id, name: row.material_name, unit: row.material_unit, category: row.material_category },
         recorded_by: { id: row.recorded_by_id, name: row.recorded_by_name },
+        // is_off_assignment/recorded_by_role bu değişiklikten ÖNCE oluşmuş
+        // kayıtlarda NULL'dır (bkz. database.js migrasyon notu) —
+        // is_off_assignment burada Boolean(null)=false'a düşer, yani eski
+        // kayıtlar Flutter tarafında sessizce "normal" (işaretsiz) görünür.
+        is_off_assignment: Boolean(row.is_off_assignment),
+        recorded_by_role: row.recorded_by_role,
       }))
     );
   } catch (err) {
@@ -389,7 +443,7 @@ router.post('/workorders/:workOrderId/materials', (req, res) => {
       return res.status(400).json({ error: 'Geçersiz iş emri id değeri.' });
     }
 
-    const workOrder = db.prepare('SELECT id FROM work_orders WHERE id = ?').get(workOrderId);
+    const workOrder = db.prepare('SELECT id, assigned_user_id FROM work_orders WHERE id = ?').get(workOrderId);
     if (!workOrder) {
       return res.status(404).json({ error: 'İş emri bulunamadı.' });
     }
@@ -416,6 +470,17 @@ router.post('/workorders/:workOrderId/materials', (req, res) => {
       });
     }
 
+    // "Atanmamış iş emrine malzeme kaydı" görünürlüğü (hesap verebilirlik,
+    // bkz. görev talimatı) — bu, POST endpoint'inin herkese (teknisyen dahil)
+    // açık kalma kararını GERİ ALMAZ (sahada bir meslektaşına yardım eden
+    // teknisyen senaryosu HÂLÂ engellenmez), yalnızca fark edilir/loglanır
+    // hâle getirir. Yalnızca TEKNİSYEN rolü için anlamlıdır: dispeçer/yönetici
+    // zaten tüm işleri yönetir/atar, onlar için "atanmamışlık" bir anomali
+    // DEĞİLDİR — is_off_assignment bu iki rol için her zaman 0'dır.
+    const isOffAssignment =
+      req.user.role === 'teknisyen' &&
+      (!workOrder.assigned_user_id || workOrder.assigned_user_id !== req.user.id);
+
     const now = new Date().toISOString();
     const previousQuantity = material.stock_quantity;
     const newQuantity = previousQuantity - quantityUsed;
@@ -425,10 +490,11 @@ router.post('/workorders/:workOrderId/materials', (req, res) => {
     try {
       const info = db
         .prepare(
-          `INSERT INTO work_order_materials (work_order_id, material_id, quantity_used, recorded_by_user_id, created_at)
-           VALUES (?, ?, ?, ?, ?)`
+          `INSERT INTO work_order_materials
+             (work_order_id, material_id, quantity_used, recorded_by_user_id, recorded_by_role, is_off_assignment, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
         )
-        .run(workOrderId, materialId, quantityUsed, req.user.id, now);
+        .run(workOrderId, materialId, quantityUsed, req.user.id, req.user.role, isOffAssignment ? 1 : 0, now);
       usageId = info.lastInsertRowid;
 
       db.prepare('UPDATE materials SET stock_quantity = ? WHERE id = ?').run(newQuantity, materialId);
@@ -455,6 +521,7 @@ router.post('/workorders/:workOrderId/materials', (req, res) => {
     const usage = db
       .prepare(
         `SELECT wom.id, wom.work_order_id, wom.material_id, wom.quantity_used, wom.created_at,
+                wom.recorded_by_role, wom.is_off_assignment,
                 u.id AS recorded_by_id, u.name AS recorded_by_name
          FROM work_order_materials wom
          JOIN users u ON u.id = wom.recorded_by_user_id
@@ -462,14 +529,24 @@ router.post('/workorders/:workOrderId/materials', (req, res) => {
       )
       .get(usageId);
 
-    res.status(201).json({
+    const responseBody = {
       id: usage.id,
       work_order_id: usage.work_order_id,
       quantity_used: usage.quantity_used,
       created_at: usage.created_at,
       material: mapMaterialRow(db.prepare('SELECT * FROM materials WHERE id = ?').get(materialId)),
       recorded_by: { id: usage.recorded_by_id, name: usage.recorded_by_name },
-    });
+      is_off_assignment: Boolean(usage.is_off_assignment),
+      recorded_by_role: usage.recorded_by_role,
+    };
+    // Bloklayıcı bir hata DEĞİL — yalnızca bilgilendirici, işlemi engellemez
+    // (bkz. görev talimatı). isOffAssignment zaten yalnızca teknisyen için
+    // true olabildiğinden, bu uyarı dispeçer/yönetici kayıtlarında hiç görünmez.
+    if (isOffAssignment) {
+      responseBody.warning = 'Bu iş emri size atanmamış, kayıt yine de işlendi ve loglandı.';
+    }
+
+    res.status(201).json(responseBody);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Malzeme kullanımı kaydedilirken bir hata oluştu.' });

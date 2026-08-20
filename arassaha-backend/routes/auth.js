@@ -6,7 +6,14 @@ const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const { verifyToken, JWT_SECRET } = require('../middleware/auth');
 const { checkLoginRateLimit } = require('../middleware/loginRateLimit');
-const { generateFullAuthToken } = require('../utils/authToken');
+const { generateAccessToken, issueTokenPair } = require('../utils/authToken');
+const {
+  hashToken,
+  issueRefreshToken,
+  findRefreshTokenByHash,
+  revokeRefreshToken,
+  revokeAllRefreshTokensForUser,
+} = require('../utils/refreshToken');
 
 const router = express.Router();
 
@@ -87,10 +94,15 @@ router.post('/login', loginIpLimiter, checkLoginRateLimit, (req, res) => {
       return res.json({ requires_2fa: true, pending_token: pendingToken });
     }
 
-    const token = generateFullAuthToken(user);
+    // İki Parçalı Token Sistemi (Access + Refresh) — bkz. utils/authToken.js,
+    // utils/refreshToken.js. access_token kısa ömürlü (15 dk, stateless
+    // JWT); refresh_token uzun ömürlü (30 gün) AMA sunucu tarafında
+    // İZLENEBİLİR/İPTAL EDİLEBİLİR (bkz. POST /refresh, POST /logout).
+    const { accessToken, refreshToken } = issueTokenPair(user);
 
     res.json({
-      token,
+      access_token: accessToken,
+      refresh_token: refreshToken,
       user: { id: user.id, name: user.name, role: user.role },
     });
   } catch (err) {
@@ -112,6 +124,104 @@ router.get('/me', verifyToken, (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Kullanıcı bilgisi alınırken bir hata oluştu.' });
+  }
+});
+
+// POST /api/auth/refresh — herkese açık (verifyToken KULLANILMAZ; access
+// token zaten geçersiz/süresi dolmuş olabileceği için asıl kimlik kanıtı
+// burada refresh_token'ın KENDİSİDİR). Body: { refresh_token }
+//
+// ROTASYON + YENİDEN KULLANIM TESPİTİ (en kritik kısım — bkz. görev
+// talimatı): HER başarılı /refresh çağrısı, KULLANILAN token'ı iptal edip
+// YENİ bir çift üretir — bu sayede her refresh token TEK KULLANIMLIKTIR.
+// İPTAL EDİLMİŞ bir token TEKRAR kullanılmaya çalışılırsa, bu GÜÇLÜ bir
+// çalınma sinyalidir: meşru istemci zaten rotasyonla yeni bir token almıştı,
+// aynı eski (artık geçersiz) token'ı BAŞKA biri de kullanmaya çalışıyor
+// demektir — bu durumda kullanıcının TÜM refresh token'ları (yeni alınanı
+// DAHİL) iptal edilir, savunmacı bir "her yerden zorla çıkış".
+router.post('/refresh', (req, res) => {
+  try {
+    const { refresh_token } = req.body;
+    if (!refresh_token || typeof refresh_token !== 'string') {
+      return res.status(400).json({ error: 'refresh_token gerekli.' });
+    }
+
+    const tokenHash = hashToken(refresh_token);
+    const record = findRefreshTokenByHash(tokenHash);
+
+    if (!record) {
+      return res.status(401).json({ error: 'Geçersiz refresh token.' });
+    }
+
+    if (record.revoked === 1) {
+      revokeAllRefreshTokensForUser(record.user_id);
+      console.error(
+        `[GÜVENLİK UYARISI] Kullanıcı #${record.user_id} için refresh token yeniden kullanım denemesi tespit edildi — tüm oturumlar iptal edildi.`
+      );
+      return res.status(401).json({ error: 'Güvenlik ihlali tespit edildi, lütfen tekrar giriş yapın.' });
+    }
+
+    if (new Date(record.expires_at) < new Date()) {
+      return res.status(401).json({ error: 'Refresh token süresi dolmuş, lütfen tekrar giriş yapın.' });
+    }
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(record.user_id);
+    if (!user || !user.is_active) {
+      return res.status(401).json({ error: 'Hesap bulunamadı veya pasif.' });
+    }
+
+    // ROTASYON: eski token'ı iptal et, yeni bir çift üret — TEK bir
+    // transaction içinde (bkz. routes/materials.js/routes/kvkk.js'teki AYNI
+    // disiplin): eski token iptal edilip yenisi hiç üretilmeden aradaki bir
+    // hata kullanıcıyı "elindeki tek token iptal, yenisi yok" durumunda
+    // kilitli bırakabilirdi.
+    let newAccessToken;
+    let newRefreshToken;
+    db.exec('BEGIN');
+    try {
+      newAccessToken = generateAccessToken(user);
+      newRefreshToken = issueRefreshToken(user.id);
+      revokeRefreshToken(record.id, hashToken(newRefreshToken));
+      db.exec('COMMIT');
+    } catch (txErr) {
+      db.exec('ROLLBACK');
+      throw txErr;
+    }
+
+    res.json({ access_token: newAccessToken, refresh_token: newRefreshToken });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Token yenilenirken bir hata oluştu.' });
+  }
+});
+
+// POST /api/auth/logout — herkese açık (access token ZATEN süresi dolmuş
+// olabilir, kullanıcı yine de "çıkış yapmak" isteyebilir — bu yüzden
+// verifyToken KULLANILMAZ). Body: { refresh_token }
+//
+// Yalnızca YEREL depolamayı temizlemek YETERLİ DEĞİLDİ (bkz. "Güvenli
+// Token Saklama" görevi) — bu artık GERÇEK bir sunucu tarafı iptaldir:
+// refresh_token revoked=1 yapılır, bir daha /refresh'te KABUL EDİLMEZ.
+// İdempotent: token zaten yoksa/geçersizse/zaten iptal edilmişse bile
+// İSTEMCİ AÇISINDAN başarı sayılır (200) — "çıkış" işlemi asla
+// başarısız GÖRÜNMEMELİDİR.
+router.post('/logout', (req, res) => {
+  try {
+    const { refresh_token } = req.body;
+    if (!refresh_token || typeof refresh_token !== 'string') {
+      return res.status(400).json({ error: 'refresh_token gerekli.' });
+    }
+
+    const tokenHash = hashToken(refresh_token);
+    const record = findRefreshTokenByHash(tokenHash);
+    if (record && record.revoked === 0) {
+      revokeRefreshToken(record.id);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Çıkış yapılırken bir hata oluştu.' });
   }
 });
 

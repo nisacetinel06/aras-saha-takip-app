@@ -31,11 +31,25 @@ class SecureStorageService {
           );
 
   static const _tokenKey = 'jwt_token';
+  static const _refreshTokenKey = 'refresh_token';
   static const _userJsonKey = 'current_user';
 
   Future<void> saveToken(String token) => _storage.write(key: _tokenKey, value: token);
   Future<String?> getToken() => _storage.read(key: _tokenKey);
   Future<void> deleteToken() => _storage.delete(key: _tokenKey);
+
+  // Access + Refresh Token Sistemi — bkz. providers/auth_provider.dart,
+  // services/api_service.dart. `_tokenKey` artık kısa ömürlü (15 dk) bir
+  // access_token tutar; bu üçü, uzun ömürlü ama sunucu tarafında iptal
+  // edilebilir (30 gün) refresh_token için — AYNI güvenli depolama (Android
+  // Keystore/iOS Keychain) mekanizması kullanılır, düz metin/SharedPreferences
+  // DEĞİL (bkz. sınıf başındaki "NEDEN SharedPreferences DEĞİL" notu — bir
+  // refresh_token, access_token'dan bile daha uzun süre geçerli olduğu için
+  // GÜVENLİ depolama burada EN AZ o kadar kritiktir).
+  Future<void> saveRefreshToken(String refreshToken) =>
+      _storage.write(key: _refreshTokenKey, value: refreshToken);
+  Future<String?> getRefreshToken() => _storage.read(key: _refreshTokenKey);
+  Future<void> deleteRefreshToken() => _storage.delete(key: _refreshTokenKey);
 
   // AuthProvider şu an kullanıcı bilgisini diskte AYRICA saklamıyor (uygulama
   // açılışında token'ın geçerliliği zaten GET /api/auth/me ile doğrulanırken

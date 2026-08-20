@@ -330,7 +330,7 @@ describe('PATCH /api/kvkk/deletion-requests/:id/approve — tum_kisisel_verileri
       .send({ sicil_no: '1001', password: 'sifre123' });
 
     assert.strictEqual(loginResponse.status, 403, 'pasifleştirilmiş (anonimleştirilmiş) hesap girişi reddedilmeli');
-    assert.strictEqual(loginResponse.body.token, undefined);
+    assert.strictEqual(loginResponse.body.access_token, undefined);
   });
 
   it('bir yönetici KENDİ tum_kisisel_verilerimi_sil talebini onaylayamaz', async () => {

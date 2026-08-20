@@ -20,7 +20,11 @@ const { resetTestDatabase } = require('../helpers/testDb');
 const { AUTH_TEST_USERS, seedAuthTestUsers } = require('../helpers/authFixtures');
 
 const PROD_DB_PATH = path.join(__dirname, '..', '..', 'aras_saha.db');
-const SEVEN_DAYS_IN_SECONDS = 7 * 24 * 60 * 60;
+// GÜVENLİK NOTU (Access + Refresh Token Sistemi): access token ömrü artık
+// 7 gün DEĞİL, 15 dakika — bkz. utils/authToken.js ACCESS_TOKEN_EXPIRES_IN.
+// Uzun ömürlü oturum artık refresh_token (30 gün, sunucu tarafında
+// iptal edilebilir) üzerinden sağlanıyor.
+const FIFTEEN_MINUTES_IN_SECONDS = 15 * 60;
 const EXPIRY_TOLERANCE_SECONDS = 5;
 
 // Bu dosyanın testleri BAŞLAMADAN ÖNCE (modül yüklenirken) alınan anlık
@@ -46,8 +50,10 @@ describe('POST /api/auth/login (uçtan uca)', () => {
       .send({ sicil_no: AUTH_TEST_USERS.activeUser.sicil_no, password: AUTH_TEST_USERS.activeUser.plainPassword });
 
     assert.strictEqual(response.status, 200);
-    assert.strictEqual(typeof response.body.token, 'string');
-    assert.ok(response.body.token.length > 0, 'token boş olmamalı');
+    assert.strictEqual(typeof response.body.access_token, 'string');
+    assert.ok(response.body.access_token.length > 0, 'access_token boş olmamalı');
+    assert.strictEqual(typeof response.body.refresh_token, 'string');
+    assert.ok(response.body.refresh_token.length > 0, 'refresh_token boş olmamalı');
 
     assert.strictEqual(response.body.user.id, userIds.activeUser);
     assert.strictEqual(response.body.user.name, AUTH_TEST_USERS.activeUser.name);
@@ -65,7 +71,8 @@ describe('POST /api/auth/login (uçtan uca)', () => {
     assert.strictEqual(response.status, 401);
     assert.strictEqual(typeof response.body.error, 'string');
     assert.ok(response.body.error.length > 0);
-    assert.strictEqual(response.body.token, undefined);
+    assert.strictEqual(response.body.access_token, undefined);
+    assert.strictEqual(response.body.refresh_token, undefined);
   });
 
   it('olmayan sicil no: 401, "yanlış şifre" ile AYNI genel mesaj (user enumeration önlenmiş)', async () => {
@@ -78,7 +85,7 @@ describe('POST /api/auth/login (uçtan uca)', () => {
       .send({ sicil_no: '9999', password: AUTH_TEST_USERS.activeUser.plainPassword });
 
     assert.strictEqual(nonExistentUserResponse.status, 401);
-    assert.strictEqual(nonExistentUserResponse.body.token, undefined);
+    assert.strictEqual(nonExistentUserResponse.body.access_token, undefined);
 
     // Kod incelemesi bulgusu: routes/auth.js her iki durumda da AYNI
     // invalidCredentials() yardımcısını çağırıyor — bu test bunu somut
@@ -99,7 +106,8 @@ describe('POST /api/auth/login (uçtan uca)', () => {
     assert.strictEqual(response.status, 403);
     assert.strictEqual(typeof response.body.error, 'string');
     assert.ok(response.body.error.length > 0);
-    assert.strictEqual(response.body.token, undefined);
+    assert.strictEqual(response.body.access_token, undefined);
+    assert.strictEqual(response.body.refresh_token, undefined);
   });
 
   it('eksik sicil_no: 400, sunucu çökmez (500 DEĞİL)', async () => {
@@ -155,27 +163,27 @@ describe('POST /api/auth/login (uçtan uca)', () => {
         .post('/api/auth/login')
         .send({ sicil_no: AUTH_TEST_USERS.activeUser.sicil_no, password: AUTH_TEST_USERS.activeUser.plainPassword });
 
-      const decoded = jwt.verify(response.body.token, JWT_SECRET);
+      const decoded = jwt.verify(response.body.access_token, JWT_SECRET);
 
       const dbUser = db.prepare('SELECT id FROM users WHERE sicil_no = ?').get(AUTH_TEST_USERS.activeUser.sicil_no);
       assert.strictEqual(decoded.id, dbUser.id);
       assert.strictEqual(decoded.role, 'teknisyen');
     });
 
-    it('decoded.exp, iat\'tan yaklaşık 7 gün sonrası olmalı (birkaç saniye tolerans)', async () => {
+    it('decoded.exp, iat\'tan yaklaşık 15 dakika sonrası olmalı (birkaç saniye tolerans)', async () => {
       const response = await request(app)
         .post('/api/auth/login')
         .send({ sicil_no: AUTH_TEST_USERS.activeUser.sicil_no, password: AUTH_TEST_USERS.activeUser.plainPassword });
 
-      const decoded = jwt.verify(response.body.token, JWT_SECRET);
+      const decoded = jwt.verify(response.body.access_token, JWT_SECRET);
 
       assert.ok(decoded.exp, 'token bir exp claim\'i içermeli');
       assert.ok(decoded.iat, 'token bir iat claim\'i içermeli');
 
       const lifetimeSeconds = decoded.exp - decoded.iat;
       assert.ok(
-        Math.abs(lifetimeSeconds - SEVEN_DAYS_IN_SECONDS) <= EXPIRY_TOLERANCE_SECONDS,
-        `token ömrü ~7 gün (${SEVEN_DAYS_IN_SECONDS}sn) olmalı, gerçek: ${lifetimeSeconds}sn`
+        Math.abs(lifetimeSeconds - FIFTEEN_MINUTES_IN_SECONDS) <= EXPIRY_TOLERANCE_SECONDS,
+        `token ömrü ~15 dakika (${FIFTEEN_MINUTES_IN_SECONDS}sn) olmalı, gerçek: ${lifetimeSeconds}sn`
       );
     });
 
@@ -185,7 +193,7 @@ describe('POST /api/auth/login (uçtan uca)', () => {
         .send({ sicil_no: AUTH_TEST_USERS.activeUser.sicil_no, password: AUTH_TEST_USERS.activeUser.plainPassword });
 
       assert.throws(() => {
-        jwt.verify(response.body.token, 'bu-kesinlikle-yanlis-bir-secret');
+        jwt.verify(response.body.access_token, 'bu-kesinlikle-yanlis-bir-secret');
       });
     });
   });

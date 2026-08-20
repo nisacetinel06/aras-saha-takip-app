@@ -26,7 +26,7 @@ class AuthProvider extends ChangeNotifier {
   String? _errorMessage;
 
   // İki Faktörlü Doğrulama (2FA) — bkz. routes/twoFactor.js. `login()`
-  // 2FA etkin bir yönetici için TAM token yerine bu kısa ömürlü (5 dk)
+  // 2FA etkin bir yönetici için TAM token çifti yerine bu kısa ömürlü (5 dk)
   // ara token'ı döndürdüğünde burada saklanır; giriş `verifyTwoFactor()`
   // BAŞARILI olana kadar TAMAMLANMAZ (isAuthenticated hâlâ false kalır).
   String? _pendingTwoFactorToken;
@@ -34,10 +34,19 @@ class AuthProvider extends ChangeNotifier {
   AuthProvider({ApiService? apiService, SecureStorageService? secureStorage})
     : _api = apiService ?? ApiService(),
       _secureStorage = secureStorage ?? SecureStorageService() {
-    // Herhangi bir istek 401 dönerse (token süresi doldu/geçersiz), oturumu
-    // burada temizleriz — AuthGate bunu dinleyip kullanıcıyı otomatik olarak
-    // LoginScreen'e düşürür (bkz. main.dart).
-    ApiService.onUnauthorized = _clearSession;
+    // Herhangi bir istek 401 dönerse VE sessiz yenileme (bkz.
+    // ApiService._refreshAccessToken) DE başarısız olursa (refresh_token
+    // kendisi de süresi dolmuş/iptal edilmiş) oturumu burada temizleriz —
+    // AuthGate bunu dinleyip kullanıcıyı otomatik olarak LoginScreen'e
+    // düşürür (bkz. main.dart). Sessiz yenileme BAŞARILI olduğu (çok daha
+    // sık rastlanan) durumda bu HİÇ tetiklenmez.
+    ApiService.onUnauthorized = handleSessionExpired;
+    // 401 sonrası sessiz bir yenileme (VEYA tryAutoLogin sırasında açık bir
+    // yenileme) YENİ bir token çifti ürettiğinde, bunu KALICI depolamaya
+    // (SecureStorageService) yazmak için çağrılır — aksi halde uygulama bir
+    // sonraki açılışta hâlâ ESKİ (artık rotasyonla iptal edilmiş) refresh
+    // token'ı kullanmaya çalışırdı.
+    ApiService.onTokenRefreshed = _persistRefreshedTokens;
   }
 
   String? get token => _token;
@@ -86,11 +95,13 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
 
-      _token = result.token;
+      _token = result.accessToken;
       _currentUser = result.user;
-      ApiService.authToken = _token;
+      ApiService.authToken = result.accessToken;
+      ApiService.refreshToken = result.refreshToken;
 
-      await _secureStorage.saveToken(_token!);
+      await _secureStorage.saveToken(result.accessToken!);
+      await _secureStorage.saveRefreshToken(result.refreshToken!);
 
       return true;
     } catch (e) {
@@ -115,11 +126,13 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final result = await _api.verifyTwoFactor(pendingToken: pendingToken, code: code);
-      _token = result.token;
+      _token = result.accessToken;
       _currentUser = result.user;
-      ApiService.authToken = _token;
+      ApiService.authToken = result.accessToken;
+      ApiService.refreshToken = result.refreshToken;
 
-      await _secureStorage.saveToken(_token!);
+      await _secureStorage.saveToken(result.accessToken);
+      await _secureStorage.saveRefreshToken(result.refreshToken);
       _pendingTwoFactorToken = null;
 
       return true;
@@ -140,20 +153,37 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// GERÇEK bir sunucu taraflı oturum sonlandırma — yalnızca yerel depolamayı
+  /// temizlemek YETERSİZDİR (bkz. "Güvenli Token Saklama" görevi): çalınmış
+  /// bir refresh_token, yerel temizlik yapılsa bile başka bir cihazdan hâlâ
+  /// kullanılabilirdi. Bu yüzden önce backend'e POST /api/auth/logout ile
+  /// refresh_token'ı İPTAL ETTİRİR (bkz. ApiService.logout, routes/auth.js),
+  /// ANCAK BUNDAN SONRA yerel oturumu temizler.
   Future<void> logout() async {
-    await _clearSession();
+    final storedRefreshToken = await _secureStorage.getRefreshToken();
+    if (storedRefreshToken != null) {
+      // ApiService.logout ağ hatasını zaten sessizce yutar (bkz. oradaki
+      // dokümantasyon notu) — çıkış akışı bu yüzden asla kullanıcıyı
+      // kilitlemez, ama backend'e iptal isteği GERÇEKTEN gönderilmiş olur.
+      await _api.logout(storedRefreshToken);
+    }
+    await handleSessionExpired();
   }
 
-  /// Uygulama açılışında çağrılır: cihazda kayıtlı bir token varsa
-  /// GET /api/auth/me ile geçerliliğini kontrol eder. Token geçersizse
-  /// (süresi dolmuş, kullanıcı silinmiş vb.) sessizce temizlenir ve
-  /// kullanıcı LoginScreen'e yönlendirilir (AuthGate isAuthenticated'a bakar).
+  /// Uygulama açılışında çağrılır: cihazda kayıtlı bir access token varsa
+  /// GET /api/auth/me ile geçerliliğini kontrol eder. Access token süresi
+  /// dolmuşsa (bkz. Access + Refresh Token Sistemi, 15 dk) ama kayıtlı bir
+  /// refresh_token HÂLÂ geçerliyse, kullanıcıya HİÇ fark ettirmeden bir
+  /// yenileme denenir — yalnızca refresh_token da geçersiz/süresi
+  /// dolmuşsa/hiç yoksa oturum gerçekten temizlenir ve kullanıcı
+  /// LoginScreen'e yönlendirilir (AuthGate isAuthenticated'a bakar).
   Future<void> tryAutoLogin() async {
     _isLoading = true;
     notifyListeners();
 
     try {
       String? storedToken = await _secureStorage.getToken();
+      final storedRefreshToken = await _secureStorage.getRefreshToken();
 
       // MIGRATION (KRİTİK — bu güvenlik iyileştirmesinden ÖNCE yayınlanmış
       // sürümlerde token SharedPreferences'ta düz metin olarak duruyordu).
@@ -163,7 +193,9 @@ class AuthProvider extends ChangeNotifier {
       // sonra eski (güvensiz) kopya SİLİNİR. Bu blok yalnızca BİR KEZ
       // çalışır: taşıma sonrası _legacyTokenKey bir daha hiç yazılmaz, bu
       // yüzden bir sonraki açılışta `legacyToken` zaten null olur ve bu dal
-      // atlanır.
+      // atlanır. (Bu MIGRATION döneminden kalma token'lar için hiçbir
+      // refresh_token YOKTUR — bu, süresi dolduklarında normal şekilde
+      // yeniden girişe düşecekleri anlamına gelir, bu BEKLENEN bir davranıştır.)
       if (storedToken == null) {
         final prefs = await SharedPreferences.getInstance();
         final legacyToken = prefs.getString(_legacyTokenKey);
@@ -178,22 +210,72 @@ class AuthProvider extends ChangeNotifier {
         return;
       }
 
-      final user = await _api.getMe(storedToken);
+      ApiService.authToken = storedToken;
+      ApiService.refreshToken = storedRefreshToken;
+
+      AssignedUser user;
+      try {
+        user = await _api.getMe(storedToken);
+      } on ApiException {
+        // Access token GERÇEKTEN süresi dolmuş/geçersiz olabilir — GERÇEKTEN
+        // oturumu bitirmeden önce, hâlâ geçerli olabilecek bir refresh_token
+        // varsa sessizce bir yenileme denenir (bkz. sınıf başı dokümantasyonu).
+        if (storedRefreshToken == null) {
+          rethrow;
+        }
+        final refreshed = await _api.refresh(storedRefreshToken);
+        await _persistRefreshedTokens(
+          refreshed.accessToken,
+          refreshed.refreshToken,
+        );
+        storedToken = refreshed.accessToken;
+        user = await _api.getMe(storedToken);
+      }
+
       _token = storedToken;
       _currentUser = user;
       ApiService.authToken = storedToken;
     } catch (_) {
-      await _clearSession();
+      await handleSessionExpired();
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> _clearSession() async {
+  /// Sessiz bir yenileme (401 sonrası otomatik VEYA tryAutoLogin sırasında
+  /// açık) YENİ bir token çifti ürettiğinde çağrılır — ApiService.authToken/
+  /// refreshToken static alanları ZATEN güncel (bkz. ApiService.onTokenRefreshed
+  /// çağrı noktası); burada asıl iş, bu YENİ çiftin KALICI depolamaya
+  /// (SecureStorageService) da yazılmasıdır — aksi halde uygulama bir sonraki
+  /// açılışta hâlâ ESKİ (rotasyonla artık iptal edilmiş) refresh_token'ı
+  /// kullanmaya çalışırdı.
+  Future<void> _persistRefreshedTokens(
+    String accessToken,
+    String refreshToken,
+  ) async {
+    _token = accessToken;
+    ApiService.authToken = accessToken;
+    ApiService.refreshToken = refreshToken;
+
+    await _secureStorage.saveToken(accessToken);
+    await _secureStorage.saveRefreshToken(refreshToken);
+
+    notifyListeners();
+  }
+
+  /// GERÇEK bir oturum sonlandırma anı: ya `logout()` (kullanıcı bilerek
+  /// çıkış yaptı) ya da bir isteğin 401 dönüp sessiz yenilemenin DE
+  /// başarısız olduğu an (bkz. ApiService.onUnauthorized — refresh_token'ın
+  /// kendisi de süresi dolmuş/iptal edilmiş) çağrılır. Her iki durumda da
+  /// AuthGate bunu (isAuthenticated=false) dinleyip kullanıcıyı otomatik
+  /// olarak LoginScreen'e düşürür (bkz. main.dart) — bu, "SessionExpiredException
+  /// + global oturum-bitti mekanizması" gereksiniminin uygulama tarafıdır.
+  Future<void> handleSessionExpired() async {
     _token = null;
     _currentUser = null;
     ApiService.authToken = null;
+    ApiService.refreshToken = null;
 
     await _secureStorage.clearAll();
     // Migration henüz hiç çalışmadan (örn. kullanıcı hiç açmadan) çıkış

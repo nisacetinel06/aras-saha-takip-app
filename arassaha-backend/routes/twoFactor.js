@@ -24,7 +24,7 @@ const { generateSecret, generateURI, verifySync } = require('otplib');
 const db = require('../database');
 const { verifyToken, requireRole, JWT_SECRET } = require('../middleware/auth');
 const { createAttemptRateLimiter } = require('../middleware/rateLimiting');
-const { generateFullAuthToken } = require('../utils/authToken');
+const { issueTokenPair } = require('../utils/authToken');
 
 const router = express.Router();
 
@@ -245,8 +245,15 @@ router.post('/verify', attachPendingTwoFactorUser, checkTwoFactorRateLimit, (req
       db.prepare('UPDATE totp_backup_codes SET used = 1 WHERE id = ?').run(matchedBackupId);
     }
 
-    const token = generateFullAuthToken(user);
-    res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
+    // İki Parçalı Token Sistemi — bkz. routes/auth.js POST /login'deki AYNI
+    // issueTokenPair çağrısı. 2FA doğrulaması da, normal (2FA'sız) girişle
+    // BİREBİR aynı access+refresh token çiftini üretir.
+    const { accessToken, refreshToken } = issueTokenPair(user);
+    res.json({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      user: { id: user.id, name: user.name, role: user.role },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: '2FA doğrulanırken bir hata oluştu.' });

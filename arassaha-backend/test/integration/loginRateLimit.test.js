@@ -51,7 +51,7 @@ describe('POST /api/auth/login — brute-force koruması (sicil_no + IP kilidi)'
       .send({ sicil_no: AUTH_TEST_USERS.activeUser.sicil_no, password: AUTH_TEST_USERS.activeUser.plainPassword });
 
     assert.strictEqual(response.status, 429, 'eşiğe ulaşıldıktan sonra DOĞRU şifre bile işe yaramamalı');
-    assert.strictEqual(response.body.token, undefined);
+    assert.strictEqual(response.body.access_token, undefined);
   });
 
   it('farklı IP\'den aynı sicil_no: bir IP kilitlense de farklı bir IP\'nin kendi sayacı temiz kalır (IP+sicil_no kombinasyonu)', async () => {
@@ -77,7 +77,7 @@ describe('POST /api/auth/login — brute-force koruması (sicil_no + IP kilidi)'
       .set('X-Forwarded-For', IP_B)
       .send({ sicil_no: AUTH_TEST_USERS.activeUser.sicil_no, password: AUTH_TEST_USERS.activeUser.plainPassword });
     assert.strictEqual(otherIpResponse.status, 200, 'IP-B hiç denemedi, kendi sayacı temiz olduğu için başarılı olmalı');
-    assert.strictEqual(typeof otherIpResponse.body.token, 'string');
+    assert.strictEqual(typeof otherIpResponse.body.access_token, 'string');
   });
 
   it('farklı sicil_no aynı IP: bir sicil_no kilitlense de aynı IP\'den farklı bir sicil_no\'nun kendi sayacı temiz kalır', async () => {

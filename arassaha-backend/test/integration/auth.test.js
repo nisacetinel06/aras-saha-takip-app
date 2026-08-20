@@ -18,7 +18,8 @@ describe('POST /api/auth/login', () => {
     const response = await request(app).post('/api/auth/login').send({ sicil_no: '1001', password: DEMO_PASSWORD });
 
     assert.strictEqual(response.status, 200);
-    assert.ok(response.body.token, 'yanıt bir token içermeli');
+    assert.ok(response.body.access_token, 'yanıt bir access_token içermeli');
+    assert.ok(response.body.refresh_token, 'yanıt bir refresh_token içermeli');
     assert.strictEqual(response.body.user.role, 'teknisyen');
   });
 
@@ -59,7 +60,7 @@ describe('GET /api/auth/me', () => {
 
   it("geçerli bir token ile giriş yapan kullanıcının bilgisini dönmeli", async () => {
     const login = await request(app).post('/api/auth/login').send({ sicil_no: '3001', password: DEMO_PASSWORD });
-    const token = login.body.token;
+    const token = login.body.access_token;
 
     const response = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
 
@@ -89,8 +90,15 @@ describe('GET /api/auth/me', () => {
 
     const login = await request(app).post('/api/auth/login').send({ sicil_no: sicilNo, password: DEMO_PASSWORD });
     assert.strictEqual(login.status, 200, JSON.stringify(login.body));
-    const token = login.body.token;
+    const token = login.body.access_token;
 
+    // Access + Refresh Token Sistemi (bkz. utils/refreshToken.js): login artık
+    // BU kullanıcıya FK ile bağlı bir refresh_tokens satırı da yaratıyor — hard
+    // DELETE'ten önce bu satır da temizlenmeli, aksi halde FOREIGN KEY
+    // constraint ihlaline düşer. Gerçek uygulamada kullanıcılar ASLA hard
+    // DELETE edilmez (bkz. routes/users.js DELETE /:id — yalnızca soft delete/
+    // is_active=0), bu yüzden bu, yalnızca bu testin yapay senaryosuna özgü.
+    db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(insertedId);
     db.prepare('DELETE FROM users WHERE id = ?').run(insertedId);
 
     const response = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);

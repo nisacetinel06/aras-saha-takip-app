@@ -252,6 +252,18 @@ class WorkOrderMaterialUsage {
   final int recordedById;
   final String recordedByName;
 
+  /// "Atanmamış iş emrine malzeme kaydı" görünürlüğü — bkz. routes/materials.js.
+  /// true ise bu kayıt, iş emrinin atanan kişisinden FARKLI biri (veya hiç
+  /// atanmamış bir iş emrine) tarafından işlenmiştir. Yalnızca [recordedByRole]
+  /// 'teknisyen' olan kayıtlarda true olabilir — dispeçer/yönetici için bu
+  /// alan HER ZAMAN false'tur (onlar için "atanmamışlık" bir anomali değildir).
+  final bool isOffAssignment;
+
+  /// Kaydı yapan kişinin O ANKİ rolünün anlık görüntüsü. Bu değişiklikten
+  /// ÖNCE oluşturulmuş eski kayıtlarda null olabilir (bkz. backend migrasyon
+  /// notu) — bu normaldir, hata değildir.
+  final String? recordedByRole;
+
   WorkOrderMaterialUsage({
     required this.id,
     required this.workOrderId,
@@ -262,6 +274,8 @@ class WorkOrderMaterialUsage {
     required this.materialUnit,
     required this.recordedById,
     required this.recordedByName,
+    this.isOffAssignment = false,
+    this.recordedByRole,
   });
 
   factory WorkOrderMaterialUsage.fromJson(Map<String, dynamic> json) {
@@ -277,6 +291,8 @@ class WorkOrderMaterialUsage {
       materialUnit: MaterialUnit.fromJson(material['unit'] as String),
       recordedById: recordedBy['id'] as int,
       recordedByName: recordedBy['name'] as String,
+      isOffAssignment: json['is_off_assignment'] as bool? ?? false,
+      recordedByRole: json['recorded_by_role'] as String?,
     );
   }
 }

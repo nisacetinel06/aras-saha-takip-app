@@ -66,6 +66,14 @@ class MaterialProvider extends ChangeNotifier {
   bool get isSubmitting => _isSubmitting;
   String? get submitErrorMessage => _submitErrorMessage;
 
+  /// Son BAŞARILI recordMaterialUsage çağrısının uyarısı — yalnızca kayıt
+  /// "atanmamış iş emri" olarak işaretlendiyse dolu olur (bkz.
+  /// routes/materials.js `is_off_assignment`). BLOKLAYICI bir hata DEĞİLDİR;
+  /// [submitErrorMessage]'den ayrı tutulur çünkü işlem zaten başarıyla
+  /// tamamlanmıştır — yalnızca bilgilendirme amaçlıdır.
+  String? _lastRecordWarning;
+  String? get lastRecordWarning => _lastRecordWarning;
+
   /// Arama sonuçlarını, verilen ekipman tipine (varsa) göre YENİDEN sıralar —
   /// [equipmentTypeHint] ile uyumlu malzemeler listenin BAŞINA taşınır, geri
   /// kalanı backend'in zaten döndürdüğü (isme göre alfabetik) sırada kalır.
@@ -193,14 +201,16 @@ class MaterialProvider extends ChangeNotifier {
   ) async {
     _isSubmitting = true;
     _submitErrorMessage = null;
+    _lastRecordWarning = null;
     notifyListeners();
 
     try {
-      await _apiService.recordMaterialUsage(
+      final result = await _apiService.recordMaterialUsage(
         workOrderId,
         materialId,
         quantityUsed,
       );
+      _lastRecordWarning = result.warning;
       await fetchWorkOrderMaterials(workOrderId);
       return true;
     } catch (e) {

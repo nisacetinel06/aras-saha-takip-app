@@ -31,6 +31,25 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// Access + Refresh Token Sistemi — bkz. utils/authToken.js (backend),
+/// _authenticated/_refreshAccessToken (aşağıda). Bir istek 401 döner VE
+/// sessiz yenileme (POST /api/auth/refresh) DE başarısız olursa (refresh_token
+/// kendisi de süresi dolmuş/iptal edilmiş/hiç yoksa) fırlatılır — bu, "normal"
+/// bir ApiException DEĞİLDİR: oturum GERÇEKTEN bitmiştir, kullanıcı yeniden
+/// giriş yapmadan devam edemez. AuthProvider.handleSessionExpired() (bkz.
+/// ApiService.onUnauthorized) bu noktaya HER ZAMAN bu exception'dan ÖNCE
+/// tetiklenir; bu tip yalnızca çağıran tarafın (varsa) kendi hata mesajını
+/// bastırıp sessizce Login ekranına geçişe izin vermesi için mevcuttur.
+class SessionExpiredException implements Exception {
+  final String message;
+  SessionExpiredException([
+    this.message = 'Oturum süresi doldu, lütfen tekrar giriş yapın.',
+  ]);
+
+  @override
+  String toString() => message;
+}
+
 class ApiService {
   // Backend Railway'de canlı: https://arassaha-backend-production.up.railway.app
   // Lokal test için geçici olarak değiştirmek istersen (yerelde test bitince
@@ -66,10 +85,37 @@ class ApiService {
   // kendi başına token okumasına gerek kalmaz.
   static String? authToken;
 
-  /// Herhangi bir istek 401 (oturum geçersiz/süresi dolmuş) dönerse çağrılır.
-  /// AuthProvider bunu kendi oturum temizleme mantığına bağlar; bu sayede
-  /// token süresi dolduğunda kullanıcı otomatik olarak LoginScreen'e düşer.
+  /// Access + Refresh Token Sistemi — bkz. routes/auth.js POST /refresh
+  /// (backend). access_token kısa ömürlü (15 dk) olduğu için normal
+  /// kullanımda sıkça süresi dolar; refresh_token (30 gün, sunucu tarafında
+  /// izlenebilir/iptal edilebilir) bu durumda İSTEMCİ TARAFINDAN GÖRÜNMEDEN
+  /// yeni bir access_token almak için kullanılır (bkz. _refreshAccessToken).
+  static String? refreshToken;
+
+  /// Sessiz bir yenileme (401 sonrası otomatik refresh) VEYA açık bir
+  /// AuthProvider.login/verifyTwoFactor çağrısı YENİ bir token çifti
+  /// ürettiğinde çağrılır — AuthProvider bunu SecureStorageService'e KALICI
+  /// yazmaya bağlar. ApiService bilinçli olarak SecureStorageService'e
+  /// DOĞRUDAN bağımlı değildir (servisler arası döngüsel bağımlılığı önlemek
+  /// + tek sorumluluk ilkesi, bkz. onUnauthorized ile AYNI callback deseni).
+  static Future<void> Function(String accessToken, String refreshToken)?
+  onTokenRefreshed;
+
+  /// Bir istek 401 döner VE sessiz yenileme DE başarısız olursa (refresh_token
+  /// kendisi de süresi dolmuş/iptal edilmiş/hiç yoksa) çağrılır. AuthProvider
+  /// bunu handleSessionExpired()'a bağlar; bu sayede oturum GERÇEKTEN bittiğinde
+  /// kullanıcı otomatik olarak LoginScreen'e düşer — sessiz yenilemenin
+  /// BAŞARILI olduğu (çok daha sık rastlanan) durumda bu HİÇ tetiklenmez,
+  /// kullanıcı hiçbir kesinti fark etmez.
   static void Function()? onUnauthorized;
+
+  // Aynı anda birden fazla istek 401 alırsa (örn. Ana Sayfa açılışında
+  // paralel giden dashboard/bildirim/iş emri çağrıları), her biri KENDİ
+  // refresh çağrısını AYRI AYRI tetiklemesin diye TEK bir devam eden refresh
+  // Future'ı paylaşılır — aksi halde rotasyon kuralı (bkz. backend "her
+  // refresh_token TEK KULLANIMLIKTIR") ikinci eşzamanlı çağrıyı GERÇEK bir
+  // yeniden-kullanım saldırısıymış gibi (yanlışlıkla) reddederdi.
+  static Future<bool>? _refreshInFlight;
 
   Map<String, String> _headers({bool json = false}) {
     return {
@@ -78,41 +124,103 @@ class ApiService {
     };
   }
 
-  /// Auth header'ı otomatik ekleyen ve 401 durumunda global oturum
-  /// temizleme callback'ini tetikleyen ortak GET/POST/PATCH yardımcıları.
-  /// Tüm iş modülü metodları (workorders, equipment, isg, devices, dashboard,
-  /// risk) bunlar üzerinden çağrı yapar — Authorization header'ını tekrar
-  /// tekrar elle eklemek gerekmez.
-  Future<http.Response> _get(Uri uri) async {
-    final response = await http.get(uri, headers: _headers());
-    _reportIfUnauthorized(response);
-    return response;
-  }
-
-  Future<http.Response> _post(Uri uri, {Object? body}) async {
-    final response = await http.post(
-      uri,
-      headers: _headers(json: body != null),
-      body: body,
-    );
-    _reportIfUnauthorized(response);
-    return response;
-  }
-
-  Future<http.Response> _patch(Uri uri, {Object? body}) async {
-    final response = await http.patch(
-      uri,
-      headers: _headers(json: body != null),
-      body: body,
-    );
-    _reportIfUnauthorized(response);
-    return response;
-  }
-
-  void _reportIfUnauthorized(http.Response response) {
-    if (response.statusCode == 401) {
-      onUnauthorized?.call();
+  /// POST /api/auth/refresh ile sessizce YENİ bir access+refresh token çifti
+  /// alır, `authToken`/`refreshToken`'ı günceller. Başarılıysa true, mevcut
+  /// refresh_token yoksa YA DA backend bunu reddederse (401 — süresi dolmuş,
+  /// iptal edilmiş, ya da rotasyon yeniden-kullanım tespiti) false döner.
+  Future<bool> _refreshAccessToken() {
+    final currentRefreshToken = refreshToken;
+    if (currentRefreshToken == null) {
+      return Future.value(false);
     }
+
+    _refreshInFlight ??= () async {
+      try {
+        final uri = Uri.parse('$baseUrl/auth/refresh');
+        final response = await http.post(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'refresh_token': currentRefreshToken}),
+        );
+
+        if (response.statusCode != 200) {
+          return false;
+        }
+
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final newAccessToken = data['access_token'] as String;
+        final newRefreshToken = data['refresh_token'] as String;
+        authToken = newAccessToken;
+        refreshToken = newRefreshToken;
+        await onTokenRefreshed?.call(newAccessToken, newRefreshToken);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }();
+
+    return _refreshInFlight!.whenComplete(() => _refreshInFlight = null);
+  }
+
+  /// TÜM auth gerektiren isteklerin GEÇTİĞİ merkezi nokta: [sendRequest] ilk
+  /// denemede 401 dönerse, KULLANICIYA GÖRÜNMEDEN sessizce bir refresh
+  /// dener ve BAŞARILIYSA isteği YENİ access_token ile TEKRAR gönderir. Bu
+  /// ikinci deneme de 401 dönerse (ya da refresh'in kendisi başarısız
+  /// olduysa) oturum GERÇEKTEN bitmiştir: `onUnauthorized` tetiklenir ve
+  /// `SessionExpiredException` fırlatılır.
+  Future<http.Response> _authenticated(
+    Future<http.Response> Function() sendRequest,
+  ) async {
+    var response = await sendRequest();
+
+    if (response.statusCode == 401) {
+      final refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        response = await sendRequest();
+      }
+
+      if (response.statusCode == 401) {
+        onUnauthorized?.call();
+        throw SessionExpiredException();
+      }
+    }
+
+    return response;
+  }
+
+  /// Auth header'ı otomatik ekleyen, 401 durumunda sessiz yenileme + tekrar
+  /// deneme uygulayan ortak GET/POST/PATCH/DELETE yardımcıları. Tüm iş
+  /// modülü metodları (workorders, equipment, isg, devices, dashboard, risk)
+  /// bunlar üzerinden çağrı yapar — Authorization header'ını VEYA 401/refresh
+  /// mantığını tekrar tekrar elle eklemek gerekmez.
+  Future<http.Response> _get(Uri uri) =>
+      _authenticated(() => http.get(uri, headers: _headers()));
+
+  Future<http.Response> _post(Uri uri, {Object? body}) => _authenticated(
+    () => http.post(uri, headers: _headers(json: body != null), body: body),
+  );
+
+  Future<http.Response> _patch(Uri uri, {Object? body}) => _authenticated(
+    () => http.patch(uri, headers: _headers(json: body != null), body: body),
+  );
+
+  Future<http.Response> _delete(Uri uri) =>
+      _authenticated(() => http.delete(uri, headers: _headers()));
+
+  /// Multipart (dosya yükleme) istekleri _get/_post/_patch'in düz http
+  /// çağrılarına benzemez — bir `MultipartRequest` yalnızca BİR KEZ
+  /// gönderilebilir. Bu yüzden [buildRequest] bir FABRİKA fonksiyonudur:
+  /// olası bir 401->refresh->tekrar deneme döngüsünde HER denemede TAZE bir
+  /// istek nesnesi üretir (dosya baytları zaten belleğe okunmuş olduğundan
+  /// bu, diskten tekrar okuma GEREKTİRMEZ — bkz. addPhoto/uploadUserPhoto/
+  /// submitIsgReport).
+  Future<http.Response> _sendMultipart(
+    http.MultipartRequest Function() buildRequest,
+  ) {
+    return _authenticated(() async {
+      final streamedResponse = await buildRequest().send();
+      return http.Response.fromStream(streamedResponse);
+    });
   }
 
   /// POST /api/auth/login
@@ -121,16 +229,27 @@ class ApiService {
   /// callback'i BİLEREK tetiklenmez; hata doğrudan LoginScreen'e mesaj
   /// olarak döner.
   /// İki Faktörlü Doğrulama (2FA) — bkz. routes/twoFactor.js. Şifre
-  /// DOĞRUYSA bile, 2FA etkin bir yönetici için backend TAM token yerine
-  /// `requires_2fa: true` + kısa ömürlü bir `pending_token` döner (bkz.
-  /// routes/auth.js login akışı). Bu yüzden bu metodun dönüş tipi HER İKİ
-  /// sonucu da (tam giriş VEYA 2FA'nın gerektiği) tek bir kayıt (record)
-  /// içinde temsil eder — `token`/`user` yalnızca 2FA gerekmiyorsa dolu,
-  /// `pendingToken` yalnızca 2FA gerekiyorsa doludur.
-  Future<({String? token, AssignedUser? user, bool requiresTwoFactor, String? pendingToken})> login({
-    required String sicilNo,
-    required String password,
-  }) async {
+  /// DOĞRUYSA bile, 2FA etkin bir yönetici için backend TAM token çifti
+  /// yerine `requires_2fa: true` + kısa ömürlü bir `pending_token` döner
+  /// (bkz. routes/auth.js login akışı). Bu yüzden bu metodun dönüş tipi HER
+  /// İKİ sonucu da (tam giriş VEYA 2FA'nın gerektiği) tek bir kayıt (record)
+  /// içinde temsil eder — `accessToken`/`refreshToken`/`user` yalnızca 2FA
+  /// gerekmiyorsa dolu, `pendingToken` yalnızca 2FA gerekiyorsa doludur.
+  ///
+  /// Access + Refresh Token Sistemi — bkz. routes/auth.js (backend): başarılı
+  /// girişte artık TEK bir `token` DEĞİL, kısa ömürlü (15 dk) `access_token`
+  /// + uzun ömürlü ama sunucu tarafında iptal edilebilir (30 gün)
+  /// `refresh_token` çifti döner.
+  Future<
+    ({
+      String? accessToken,
+      String? refreshToken,
+      AssignedUser? user,
+      bool requiresTwoFactor,
+      String? pendingToken,
+    })
+  >
+  login({required String sicilNo, required String password}) async {
     try {
       final uri = Uri.parse('$baseUrl/auth/login');
       final response = await http.post(
@@ -148,7 +267,8 @@ class ApiService {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       if (data['requires_2fa'] == true) {
         return (
-          token: null,
+          accessToken: null,
+          refreshToken: null,
           user: null,
           requiresTwoFactor: true,
           pendingToken: data['pending_token'] as String,
@@ -156,12 +276,21 @@ class ApiService {
       }
 
       return (
-        token: data['token'] as String,
+        accessToken: data['access_token'] as String,
+        refreshToken: data['refresh_token'] as String,
         user: AssignedUser.fromJson(data['user'] as Map<String, dynamic>),
         requiresTwoFactor: false,
         pendingToken: null,
       );
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -173,10 +302,8 @@ class ApiService {
   /// authenticator uygulamasındaki 6 haneli TOTP kodu YA DA (authenticator'a
   /// erişim yoksa) kurulumda alınan 8 haneli yedek kodlardan biri olabilir —
   /// backend AYNI alanda ikisini de kabul eder.
-  Future<({String token, AssignedUser user})> verifyTwoFactor({
-    required String pendingToken,
-    required String code,
-  }) async {
+  Future<({String accessToken, String refreshToken, AssignedUser user})>
+  verifyTwoFactor({required String pendingToken, required String code}) async {
     try {
       final uri = Uri.parse('$baseUrl/auth/2fa/verify');
       final response = await http.post(
@@ -191,10 +318,19 @@ class ApiService {
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return (
-        token: data['token'] as String,
+        accessToken: data['access_token'] as String,
+        refreshToken: data['refresh_token'] as String,
         user: AssignedUser.fromJson(data['user'] as Map<String, dynamic>),
       );
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -222,6 +358,14 @@ class ApiService {
       );
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -238,6 +382,14 @@ class ApiService {
         throw ApiException(_extractError(response, 'Kod doğrulanamadı.'));
       }
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -256,6 +408,14 @@ class ApiService {
         throw ApiException(_extractError(response, '2FA devre dışı bırakılamadı.'));
       }
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -282,8 +442,75 @@ class ApiService {
       return AssignedUser.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// POST /api/auth/refresh — süresi dolmuş bir access_token'ı, HÂLÂ geçerli
+  /// bir refresh_token karşılığında yeniler. `_refreshAccessToken` (401
+  /// sonrası SESSİZ/otomatik yenileme için) BUNU DOĞRUDAN ÇAĞIRMAZ — kendi
+  /// `authToken`/`refreshToken` static alanlarını güncellemesi ve eşzamanlı
+  /// çağrıları TEK bir istekte birleştirmesi gerektiği için ayrı bir dahili
+  /// implementasyonu var. Bu genel metod, AuthProvider'ın (örn. uygulama
+  /// açılışında, tryAutoLogin sırasında) GEREKTİĞİNDE AÇIKÇA bir yenileme
+  /// tetikleyebilmesi için mevcuttur.
+  Future<({String accessToken, String refreshToken})> refresh(
+    String refreshTokenValue,
+  ) async {
+    try {
+      final uri = Uri.parse('$baseUrl/auth/refresh');
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refresh_token': refreshTokenValue}),
+      );
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Oturum yenilenemedi.'));
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return (
+        accessToken: data['access_token'] as String,
+        refreshToken: data['refresh_token'] as String,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// POST /api/auth/logout — refresh_token'ı SUNUCU TARAFINDA iptal eder
+  /// (bkz. routes/auth.js POST /logout). Yalnızca YEREL depolamayı temizlemek
+  /// YETERSİZDİR: çalınmış bir refresh_token, yerel temizlik yapılsa bile
+  /// başka bir cihazdan hâlâ kullanılabilirdi — bu çağrı GERÇEK bir sunucu
+  /// taraflı oturum sonlandırmadır. Backend bu endpoint'i İDEMPOTENT ve HER
+  /// ZAMAN 200 dönecek şekilde tasarladığı için (bkz. routes/auth.js "çıkış
+  /// işlemi asla başarısız GÖRÜNMEMELİDİR" notu), burada network hatası
+  /// dışında bir başarısızlık BEKLENMEZ; yine de logout akışının asla
+  /// kullanıcıyı kilitlememesi için hata sessizce yutulur (çağıran taraf
+  /// zaten ardından yerel depolamayı temizleyecektir).
+  Future<void> logout(String refreshTokenValue) async {
+    try {
+      final uri = Uri.parse('$baseUrl/auth/logout');
+      await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refresh_token': refreshTokenValue}),
+      );
+    } catch (_) {
+      // bkz. yukarıdaki dokümantasyon notu — logout ASLA çağıran tarafı
+      // yerel oturum temizliğini yapmaktan alıkoymamalı.
     }
   }
 
@@ -319,6 +546,14 @@ class ApiService {
       return data.map((json) => WorkOrder.fromJson(json)).toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -342,6 +577,14 @@ class ApiService {
       return data.map((json) => WorkOrderMapPin.fromJson(json)).toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -360,6 +603,14 @@ class ApiService {
 
       return WorkOrder.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -393,6 +644,14 @@ class ApiService {
       return WorkOrder.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -417,6 +676,14 @@ class ApiService {
 
       return WorkOrder.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -458,6 +725,14 @@ class ApiService {
       return WorkOrder.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -477,20 +752,18 @@ class ApiService {
           : 'image/jpeg';
       final filename = imageFile.path.split(Platform.pathSeparator).last;
 
-      final request = http.MultipartRequest('POST', uri)
-        ..headers.addAll(_headers())
-        ..files.add(
-          http.MultipartFile.fromBytes(
-            'photo',
-            bytes,
-            filename: filename,
-            contentType: MediaType.parse(mimeType),
-          ),
-        );
-
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-      _reportIfUnauthorized(response);
+      final response = await _sendMultipart(() {
+        return http.MultipartRequest('POST', uri)
+          ..headers.addAll(_headers())
+          ..files.add(
+            http.MultipartFile.fromBytes(
+              'photo',
+              bytes,
+              filename: filename,
+              contentType: MediaType.parse(mimeType),
+            ),
+          );
+      });
 
       if (response.statusCode != 201) {
         throw ApiException(_extractError(response, 'Fotoğraf eklenemedi.'));
@@ -498,6 +771,14 @@ class ApiService {
 
       return WorkOrderPhoto.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -530,6 +811,14 @@ class ApiService {
       return data.map((json) => AssignedUser.fromJson(json)).toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -557,6 +846,14 @@ class ApiService {
       return AppUser.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -579,6 +876,14 @@ class ApiService {
       return data.map((json) => AppUser.fromJson(json)).toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -598,6 +903,14 @@ class ApiService {
 
       return AppUser.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -640,6 +953,14 @@ class ApiService {
 
       return AppUser.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -688,6 +1009,14 @@ class ApiService {
       return AppUser.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -707,20 +1036,18 @@ class ApiService {
           : 'image/jpeg';
       final filename = imageFile.path.split(Platform.pathSeparator).last;
 
-      final request = http.MultipartRequest('POST', uri)
-        ..headers.addAll(_headers())
-        ..files.add(
-          http.MultipartFile.fromBytes(
-            'photo',
-            bytes,
-            filename: filename,
-            contentType: MediaType.parse(mimeType),
-          ),
-        );
-
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-      _reportIfUnauthorized(response);
+      final response = await _sendMultipart(() {
+        return http.MultipartRequest('POST', uri)
+          ..headers.addAll(_headers())
+          ..files.add(
+            http.MultipartFile.fromBytes(
+              'photo',
+              bytes,
+              filename: filename,
+              contentType: MediaType.parse(mimeType),
+            ),
+          );
+      });
 
       if (response.statusCode != 200) {
         throw ApiException(
@@ -730,6 +1057,14 @@ class ApiService {
 
       return AppUser.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -742,8 +1077,7 @@ class ApiService {
   Future<AppUser> deactivateUser(int id) async {
     try {
       final uri = Uri.parse('$baseUrl/users/$id');
-      final response = await http.delete(uri, headers: _headers());
-      _reportIfUnauthorized(response);
+      final response = await _delete(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(
@@ -753,6 +1087,14 @@ class ApiService {
 
       return AppUser.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -773,6 +1115,14 @@ class ApiService {
 
       return AppUser.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -795,6 +1145,14 @@ class ApiService {
         throw ApiException(_extractError(response, 'Şifre sıfırlanamadı.'));
       }
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -821,6 +1179,14 @@ class ApiService {
       return DashboardSummary.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -846,6 +1212,14 @@ class ApiService {
       return data.map((json) => ManagedDevice.fromJson(json)).toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -862,6 +1236,14 @@ class ApiService {
 
       return ManagedDevice.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -880,6 +1262,14 @@ class ApiService {
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => DeviceActionLog.fromJson(json)).toList();
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -905,6 +1295,14 @@ class ApiService {
 
       return ManagedDevice.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -980,6 +1378,14 @@ class ApiService {
       return data.map((json) => Equipment.fromJson(json)).toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1004,6 +1410,14 @@ class ApiService {
       return Equipment.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1023,6 +1437,14 @@ class ApiService {
 
       return Equipment.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1044,6 +1466,14 @@ class ApiService {
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => EquipmentHistoryEntry.fromJson(json)).toList();
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1069,6 +1499,14 @@ class ApiService {
       return EquipmentRisk.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1092,6 +1530,14 @@ class ApiService {
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => RiskyEquipmentSummary.fromJson(json)).toList();
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1120,6 +1566,14 @@ class ApiService {
       return data.map((json) => SuspiciousMeterSummary.fromJson(json)).toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1138,6 +1592,14 @@ class ApiService {
 
       return MeterAnomaly.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1162,6 +1624,14 @@ class ApiService {
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => MeterConsumptionEntry.fromJson(json)).toList();
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1190,6 +1660,14 @@ class ApiService {
       return data.map((json) => IsgReport.fromJson(json)).toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1208,6 +1686,14 @@ class ApiService {
 
       return IsgReport.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1242,28 +1728,28 @@ class ApiService {
           : 'image/jpeg';
       final filename = photo.path.split(Platform.pathSeparator).last;
 
-      final request = http.MultipartRequest('POST', uri)
-        ..headers.addAll(_headers())
-        ..fields['description'] = description
-        ..fields['category'] = category.toJson()
-        ..fields['lat'] = '$lat'
-        ..fields['lng'] = '$lng'
-        ..files.add(
-          http.MultipartFile.fromBytes(
-            'photo',
-            bytes,
-            filename: filename,
-            contentType: MediaType.parse(mimeType),
-          ),
-        );
+      final response = await _sendMultipart(() {
+        final request = http.MultipartRequest('POST', uri)
+          ..headers.addAll(_headers())
+          ..fields['description'] = description
+          ..fields['category'] = category.toJson()
+          ..fields['lat'] = '$lat'
+          ..fields['lng'] = '$lng'
+          ..files.add(
+            http.MultipartFile.fromBytes(
+              'photo',
+              bytes,
+              filename: filename,
+              contentType: MediaType.parse(mimeType),
+            ),
+          );
 
-      if (locationName != null && locationName.trim().isNotEmpty) {
-        request.fields['location_name'] = locationName.trim();
-      }
+        if (locationName != null && locationName.trim().isNotEmpty) {
+          request.fields['location_name'] = locationName.trim();
+        }
 
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-      _reportIfUnauthorized(response);
+        return request;
+      });
 
       if (response.statusCode != 201) {
         throw ApiException(
@@ -1273,6 +1759,14 @@ class ApiService {
 
       return IsgReport.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1304,6 +1798,14 @@ class ApiService {
       return IsgReport.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1331,6 +1833,14 @@ class ApiService {
       return data.map((json) => AppNotification.fromJson(json)).toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1352,6 +1862,14 @@ class ApiService {
       return data['count'] as int;
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1371,6 +1889,14 @@ class ApiService {
       return AppNotification.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1387,6 +1913,14 @@ class ApiService {
         );
       }
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1420,6 +1954,14 @@ class ApiService {
 
       return DescriptionClassification.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1456,6 +1998,14 @@ class ApiService {
       );
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1486,6 +2036,14 @@ class ApiService {
           .map((json) => MaintenanceRecommendation.fromJson(json))
           .toList();
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1522,6 +2080,14 @@ class ApiService {
       return WorkOrder.fromJson(data['work_order'] as Map<String, dynamic>);
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1545,6 +2111,14 @@ class ApiService {
 
       return MaintenanceRecommendation.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1582,6 +2156,14 @@ class ApiService {
       return data.map((json) => MaterialItem.fromJson(json)).toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1601,6 +2183,14 @@ class ApiService {
 
       return MaterialDetail.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1641,6 +2231,14 @@ class ApiService {
       return MaterialItem.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1661,6 +2259,14 @@ class ApiService {
 
       return MaterialItem.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1685,6 +2291,14 @@ class ApiService {
       return data.map((json) => WorkOrderMaterialUsage.fromJson(json)).toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1693,7 +2307,12 @@ class ApiService {
   /// POST /api/workorders/:id/materials — giriş yapmış HERKES (teknisyen
   /// dahil). Stok yetersizse backend 400 + net bir hata mesajı döner (bkz.
   /// routes/materials.js) — bu mesaj olduğu gibi ApiException'a taşınır.
-  Future<WorkOrderMaterialUsage> recordMaterialUsage(
+  ///
+  /// [warning] yalnızca kayıt "atanmamış iş emri" olarak işaretlendiyse
+  /// dolu gelir (bkz. routes/materials.js `is_off_assignment`) — BLOKLAYICI
+  /// bir hata DEĞİLDİR, işlem zaten başarıyla tamamlanmıştır; yalnızca
+  /// bilgilendirme amaçlıdır (bkz. MaterialProvider.lastRecordWarning).
+  Future<({WorkOrderMaterialUsage usage, String? warning})> recordMaterialUsage(
     int workOrderId,
     int materialId,
     double quantityUsed,
@@ -1714,8 +2333,20 @@ class ApiService {
         );
       }
 
-      return WorkOrderMaterialUsage.fromJson(jsonDecode(response.body));
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return (
+        usage: WorkOrderMaterialUsage.fromJson(data),
+        warning: data['warning'] as String?,
+      );
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1729,8 +2360,7 @@ class ApiService {
       final uri = Uri.parse(
         '$baseUrl/workorders/$workOrderId/materials/$usageId',
       );
-      final response = await http.delete(uri, headers: _headers());
-      _reportIfUnauthorized(response);
+      final response = await _delete(uri);
 
       if (response.statusCode != 200) {
         throw ApiException(
@@ -1738,6 +2368,14 @@ class ApiService {
         );
       }
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1762,6 +2400,14 @@ class ApiService {
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => MaterialItem.fromJson(json)).toList();
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1806,6 +2452,14 @@ class ApiService {
       return UsageAnalyticsSummary.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1832,6 +2486,14 @@ class ApiService {
       return data.map((json) => RegionalRiskSummary.fromJson(json)).toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1852,6 +2514,14 @@ class ApiService {
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => RegionFaultCount.fromJson(json)).toList();
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1879,6 +2549,14 @@ class ApiService {
           .toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1902,6 +2580,14 @@ class ApiService {
       return data.map((json) => MonthlyFaultCount.fromJson(json)).toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1922,6 +2608,14 @@ class ApiService {
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => RegionAnomalySummary.fromJson(json)).toList();
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1946,6 +2640,14 @@ class ApiService {
       return data.map((json) => TopMaterialUsage.fromJson(json)).toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -1968,6 +2670,14 @@ class ApiService {
       final List<dynamic> data = jsonDecode(response.body);
       return data.map((json) => ChatMessage.fromJson(json)).toList();
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -1996,6 +2706,14 @@ class ApiService {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return AssistantReply.fromJson(data);
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -2031,6 +2749,14 @@ class ApiService {
       );
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -2051,6 +2777,14 @@ class ApiService {
 
       return KvkkDataSummary.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -2081,6 +2815,14 @@ class ApiService {
       }
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -2102,6 +2844,14 @@ class ApiService {
       return data.map((json) => KvkkDeletionRequest.fromJson(json)).toList();
     } on ApiException {
       rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
     }
@@ -2119,6 +2869,14 @@ class ApiService {
         throw ApiException(_extractError(response, 'Talep onaylanamadı.'));
       }
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -2139,6 +2897,14 @@ class ApiService {
         throw ApiException(_extractError(response, 'Talep reddedilemedi.'));
       }
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');
@@ -2176,6 +2942,14 @@ class ApiService {
 
       return AuditLogPage.fromJson(jsonDecode(response.body));
     } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
+      // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
+      // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
+      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
+      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
+      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
       rethrow;
     } catch (e) {
       throw ApiException('Sunucuya bağlanılamadı: $e');

@@ -296,12 +296,20 @@ db.exec(`
   -- yalnızca "kim ne kaydetti" bilgisini tutar; STOK DÜŞÜRME işleminin kendisi
   -- (materials.stock_quantity güncellemesi) routes/materials.js'te AYNI
   -- transaction içinde yapılır — bkz. o dosyadaki not.
+  -- recorded_by_role/is_off_assignment: "atanmamış iş emrine malzeme kaydı"
+  -- görünürlüğü — bkz. routes/materials.js POST /workorders/:workOrderId/materials.
+  -- recorded_by_role, kaydı yapan kişinin O ANKİ rolünün anlık görüntüsüdür
+  -- (ileride rol değişse bile bu kayıt tarihsel olarak doğru kalır).
+  -- is_off_assignment yalnızca TEKNİSYEN rolü için anlamlıdır — dispeçer/
+  -- yönetici kayıtlarında her zaman 0'dır (bkz. o dosyadaki not).
   CREATE TABLE IF NOT EXISTS work_order_materials (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     work_order_id INTEGER NOT NULL,
     material_id INTEGER NOT NULL,
     quantity_used REAL NOT NULL,
     recorded_by_user_id INTEGER NOT NULL,
+    recorded_by_role TEXT,
+    is_off_assignment INTEGER DEFAULT 0,
     created_at TEXT NOT NULL,
     FOREIGN KEY (work_order_id) REFERENCES work_orders (id),
     FOREIGN KEY (material_id) REFERENCES materials (id),
@@ -485,6 +493,51 @@ db.exec(`
     created_at TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users (id)
   );
+
+  -- İki Parçalı Token Sistemi (Access + Refresh) — bkz. utils/refreshToken.js,
+  -- routes/auth.js POST /refresh. Access token (kısa ömürlü, 15 dk) artık
+  -- stateless JWT olarak KALIR — bu tablo SADECE refresh token'ları (uzun
+  -- ömürlü, 30 gün) izler, çünkü YALNIZCA refresh token'ların sunucu
+  -- tarafında GERÇEKTEN iptal edilebilmesi (logout, yeniden kullanım
+  -- tespiti) gerekiyor.
+  --
+  -- token_hash, DÜZ METİN DEĞİL: refresh token, kullanıcı tarafından
+  -- hatırlanan/girilen bir şey DEĞİL — crypto.randomBytes(32) ile üretilen
+  -- 256 bitlik, yüksek entropili rastgele bir değer. Şifrelerin aksine
+  -- (insan tarafından seçildiği, tahmin edilebilir kalıplar taşıyabildiği
+  -- için bcrypt gibi BİLEREK YAVAŞ bir hash gerekir) burada brute-force ile
+  -- 256 bitlik rastgele bir değeri bulmak zaten pratik olarak imkansızdır;
+  -- bcrypt'in yavaşlığı burada HİÇBİR ek güvenlik sağlamadan yalnızca
+  -- gereksiz CPU maliyeti katardı. Bu yüzden basit/hızlı bir SHA-256 hash
+  -- yeterli ve doğru tercihtir (bkz. utils/refreshToken.js hashToken).
+  --
+  -- replaced_by_token_hash: rotasyon zincirini takip eder — bir token
+  -- kullanılıp yenisiyle değiştirildiğinde (revoked=1 olduğunda) hangi yeni
+  -- token'ın onun yerine geçtiği burada tutulur. Bu, GERİYE DÖNÜK bir
+  -- inceleme/denetim izi sağlar ("bu eski token'dan zincir nereye gitti?");
+  -- yeniden kullanım tespitinin KENDİSİ ise 'revoked' sütununa bakar,
+  -- replaced_by_token_hash'e değil.
+  CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    revoked INTEGER NOT NULL DEFAULT 0,
+    replaced_by_token_hash TEXT,
+    FOREIGN KEY (user_id) REFERENCES users (id)
+  );
+`);
+
+// refresh_tokens PERFORMANS — POST /refresh'in HER çağrısı token_hash'e göre
+// bir SELECT yapar (en sık/en kritik sorgu deseni); yeniden kullanım
+// tespitinde bir kullanıcının TÜM token'larını user_id'ye göre toplu iptal
+// etmek de gerekir (bkz. routes/auth.js). İkisi de index olmadan, token
+// sayısı arttıkça (her login/refresh yeni bir satır ekler) gözle görülür
+// biçimde yavaşlar.
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens (token_hash);
+  CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens (user_id);
 `);
 
 // Denetim Logu Toplayıcı (bkz. services/auditLogAggregator.js) — PERFORMANS.
@@ -646,6 +699,23 @@ if (photoPathColumnInfo && photoPathColumnInfo.notnull === 1) {
     throw err;
   } finally {
     db.exec('PRAGMA foreign_keys = ON');
+  }
+}
+
+// Migrasyon: "atanmamış iş emrine malzeme kaydı" görünürlüğü — sonradan
+// eklenen recorded_by_role/is_off_assignment sütunları (bkz. yukarıdaki
+// CREATE TABLE notu ve routes/materials.js). Bu değişiklikten ÖNCE
+// oluşturulmuş kayıtlarda bu alanlar NULL/0 kalır — bilerek, geriye dönük
+// olarak "atanmamış" sayılmazlar (bkz. görev talimatı "var olan kayıtları
+// bozmadan" ilkesi).
+const workOrderMaterialColumns = db.prepare('PRAGMA table_info(work_order_materials)').all();
+const workOrderMaterialColumnAdditions = {
+  recorded_by_role: 'TEXT',
+  is_off_assignment: 'INTEGER DEFAULT 0',
+};
+for (const [column, type] of Object.entries(workOrderMaterialColumnAdditions)) {
+  if (!workOrderMaterialColumns.some((col) => col.name === column)) {
+    db.exec(`ALTER TABLE work_order_materials ADD COLUMN ${column} ${type}`);
   }
 }
 

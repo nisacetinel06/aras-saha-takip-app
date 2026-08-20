@@ -913,6 +913,7 @@ class _MaterialsSection extends StatelessWidget {
       builder: (sheetContext) => _AddMaterialSheet(
         workOrderId: workOrder.id,
         equipmentTypeHint: workOrder.equipmentType?.name,
+        assignedUserId: workOrder.assignedUser?.id,
       ),
     );
   }
@@ -1046,9 +1047,33 @@ class _MaterialUsageRow extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 2),
-              Text(
-                '${usage.recordedByName} · ${formatRelativeTime(usage.createdAt)}',
-                style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      '${usage.recordedByName} · ${formatRelativeTime(usage.createdAt)}',
+                      style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // "Atanmamış iş emrine malzeme kaydı" görünürlüğü — bkz.
+                  // routes/materials.js is_off_assignment. Alarm verici
+                  // olmayan, dikkat çekici bir turuncu ton (AppColors.warning) —
+                  // kırmızı/danger DEĞİL, bu bloklayıcı bir hata değil.
+                  if (usage.isOffAssignment) ...[
+                    const SizedBox(width: 6),
+                    Tooltip(
+                      message:
+                          'Bu kayıt, iş emrine atanmamış bir kullanıcı '
+                          'tarafından işlendi (${usage.recordedByRole ?? 'bilinmiyor'})',
+                      child: Icon(
+                        Icons.warning_amber_rounded,
+                        size: 16,
+                        color: AppColors.warning(context),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ],
           ),
@@ -1075,9 +1100,16 @@ class _MaterialUsageRow extends StatelessWidget {
 class _AddMaterialSheet extends StatefulWidget {
   final int workOrderId;
   final String? equipmentTypeHint;
+
+  /// İş emrinin ATANAN kişisi (varsa) — "atanmamış iş emrine malzeme kaydı"
+  /// onay dialogunu (bkz. _submit) tetiklemek için AuthProvider'daki mevcut
+  /// kullanıcı id'siyle karşılaştırılır. null ise iş emri hiç atanmamıştır.
+  final int? assignedUserId;
+
   const _AddMaterialSheet({
     required this.workOrderId,
     required this.equipmentTypeHint,
+    required this.assignedUserId,
   });
 
   @override
@@ -1107,10 +1139,55 @@ class _AddMaterialSheetState extends State<_AddMaterialSheet> {
         !_isSubmitting;
   }
 
+  /// "Atanmamış iş emrine malzeme kaydı" hafif onay adımı (bkz. görev
+  /// talimatı) — tam bir yönetici onay akışı DEĞİL, yalnızca kullanıcının
+  /// bunun sıra dışı bir işlem olduğunun farkında olarak devam etmesini
+  /// sağlar. Backend ZATEN işaretleyip loglayacak (bkz. routes/materials.js
+  /// is_off_assignment) — bu yalnızca istemci tarafında bir sürtünme noktası.
+  /// Yalnızca TEKNİSYEN için anlamlıdır; dispeçer/yönetici için hiç sorulmaz
+  /// (backend'de de bu iki rol için is_off_assignment her zaman 0'dır).
+  Future<bool> _confirmOffAssignmentIfNeeded() async {
+    final auth = context.read<AuthProvider>();
+    if (!auth.isTeknisyen) return true;
+
+    final currentUserId = auth.currentUser?.id;
+    final isOffAssignment =
+        widget.assignedUserId == null || widget.assignedUserId != currentUserId;
+    if (!isOffAssignment) return true;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Bu İş Emri Size Atanmamış'),
+        content: const Text(
+          'Bu iş emri size atanmamış. Yine de malzeme kaydı eklemek '
+          'istediğinize emin misiniz? Bu işlem kayıt altına alınacaktır.',
+        ),
+        actions: [
+          AppButton(
+            label: 'Vazgeç',
+            variant: AppButtonVariant.text,
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+          ),
+          AppButton(
+            label: 'Evet, Devam Et',
+            variant: AppButtonVariant.destructive,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    return confirmed == true;
+  }
+
   Future<void> _submit() async {
     final material = _selectedMaterial;
     final qty = _parsedQuantity;
     if (material == null || qty == null || qty <= 0) return;
+
+    final proceed = await _confirmOffAssignmentIfNeeded();
+    if (!proceed || !mounted) return;
 
     setState(() {
       _isSubmitting = true;
@@ -1131,8 +1208,15 @@ class _AddMaterialSheetState extends State<_AddMaterialSheet> {
 
     if (success) {
       navigator.pop();
+      // Backend'in is_off_assignment uyarısı varsa (bkz.
+      // MaterialProvider.lastRecordWarning) onu göster, yoksa normal
+      // başarı mesajını — bu, bloklayıcı bir hata DEĞİL, bilgilendirmedir.
       messenger.showSnackBar(
-        const SnackBar(content: Text('Malzeme kullanımı kaydedildi.')),
+        SnackBar(
+          content: Text(
+            provider.lastRecordWarning ?? 'Malzeme kullanımı kaydedildi.',
+          ),
+        ),
       );
     } else {
       setState(
