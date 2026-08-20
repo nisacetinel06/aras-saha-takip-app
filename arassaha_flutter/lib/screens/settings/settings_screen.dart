@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import '../../models/work_order.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/connectivity_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../providers/two_factor_provider.dart';
+import '../../providers/user_provider.dart';
 import '../../services/cache_service.dart';
 import '../../services/offline_queue_service.dart';
 import '../../theme/app_colors.dart';
@@ -15,6 +18,7 @@ import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
+import 'two_factor_setup_screen.dart';
 
 /// Ayarlar ve Çevrimdışı Mod (Modül 17) — Ayarlar ekranı.
 ///
@@ -28,6 +32,8 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isYonetici = context.watch<AuthProvider>().isYonetici;
+
     return Scaffold(
       appBar: const AppTopBar(title: 'Ayarlar'),
       body: SafeArea(
@@ -39,23 +45,169 @@ class SettingsScreen extends StatelessWidget {
             AppSpacing.md,
             AppSpacing.xl,
           ),
-          children: const [
-            _SectionLabel('Görünüm'),
-            _ThemeSection(),
-            SizedBox(height: AppSpacing.lg),
-            _SectionLabel('Bildirimler'),
-            _NotificationsSection(),
-            SizedBox(height: AppSpacing.lg),
-            _SectionLabel('Önbellek Yönetimi'),
-            _CacheSection(),
-            SizedBox(height: AppSpacing.lg),
-            _SectionLabel('Bekleyen İşlemler'),
-            _PendingActionsSection(),
-            SizedBox(height: AppSpacing.lg),
-            _SectionLabel('Hakkında'),
-            _AboutSection(),
+          children: [
+            const _SectionLabel('Görünüm'),
+            const _ThemeSection(),
+            const SizedBox(height: AppSpacing.lg),
+            const _SectionLabel('Bildirimler'),
+            const _NotificationsSection(),
+            const SizedBox(height: AppSpacing.lg),
+            // İki Faktörlü Doğrulama (2FA) — yalnızca yönetici rolü, bkz.
+            // routes/twoFactor.js. Diğer roller için bu bölüm hiç görünmez
+            // (teknisyen/dispeçer hesaplarında 2FA kavramı yok).
+            if (isYonetici) ...[
+              const _SectionLabel('Güvenlik'),
+              const _TwoFactorSettingsSection(),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            const _SectionLabel('Önbellek Yönetimi'),
+            const _CacheSection(),
+            const SizedBox(height: AppSpacing.lg),
+            const _SectionLabel('Bekleyen İşlemler'),
+            const _PendingActionsSection(),
+            const SizedBox(height: AppSpacing.lg),
+            const _SectionLabel('Hakkında'),
+            const _AboutSection(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// İki Faktörlü Doğrulama (2FA) durumu/kontrolü — bkz.
+/// two_factor_setup_screen.dart (etkinleştirme akışı). Kendi profilini
+/// (totp_enabled durumu için) BURADA AYRICA çeker — Ayarlar ekranına Profil
+/// ekranından ÖNCE girilmiş olabileceği için UserProvider.myProfile henüz
+/// dolu olmayabilir.
+class _TwoFactorSettingsSection extends StatefulWidget {
+  const _TwoFactorSettingsSection();
+
+  @override
+  State<_TwoFactorSettingsSection> createState() =>
+      _TwoFactorSettingsSectionState();
+}
+
+class _TwoFactorSettingsSectionState extends State<_TwoFactorSettingsSection> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<UserProvider>().fetchMyProfile();
+    });
+  }
+
+  Future<void> _openSetup() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const TwoFactorSetupScreen()),
+    );
+    if (!mounted) return;
+    context.read<UserProvider>().fetchMyProfile();
+  }
+
+  Future<void> _confirmDisable() async {
+    final passwordController = TextEditingController();
+    final password = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          return AlertDialog(
+            title: const Text('2FA\'yı Devre Dışı Bırak'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Güvenlik için mevcut şifrenizi tekrar girin.'),
+                const SizedBox(height: AppSpacing.sm + 4),
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  autofocus: true,
+                  decoration: const InputDecoration(labelText: 'Şifre'),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Vazgeç'),
+              ),
+              TextButton(
+                onPressed: passwordController.text.isEmpty
+                    ? null
+                    : () =>
+                        Navigator.of(dialogContext).pop(passwordController.text),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(dialogContext).colorScheme.error,
+                ),
+                child: const Text('Devre Dışı Bırak'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    passwordController.dispose();
+    if (password == null || password.isEmpty || !mounted) return;
+
+    final provider = context.read<TwoFactorProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final success = await provider.disable(password);
+    if (!mounted) return;
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? '2FA devre dışı bırakıldı.'
+              : (provider.disableErrorMessage ?? 'İşlem başarısız oldu.'),
+        ),
+      ),
+    );
+    if (success) {
+      context.read<UserProvider>().fetchMyProfile();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final userProvider = context.watch<UserProvider>();
+    final scheme = Theme.of(context).colorScheme;
+    final isEnabled = userProvider.myProfile?.totpEnabled ?? false;
+
+    return AppCard(
+      child: Row(
+        children: [
+          Icon(
+            isEnabled ? Icons.verified_user_outlined : Icons.gpp_maybe_outlined,
+            color: isEnabled ? AppColors.success(context) : scheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: AppSpacing.sm + 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('İki Faktörlü Doğrulama'),
+                const SizedBox(height: 2),
+                Text(
+                  isEnabled
+                      ? 'Etkin — girişte authenticator kodu istenir'
+                      : 'Devre dışı — hesabınızı ek bir katmanla koruyun',
+                  style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          isEnabled
+              ? AppButton(
+                  label: 'Devre Dışı Bırak',
+                  variant: AppButtonVariant.destructive,
+                  onPressed: _confirmDisable,
+                )
+              : AppButton(label: 'Etkinleştir', onPressed: _openSetup),
+        ],
       ),
     );
   }

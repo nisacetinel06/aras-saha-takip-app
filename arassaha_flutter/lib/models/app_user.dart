@@ -67,6 +67,12 @@ class AppUser {
   final int? supervisorId;
   final List<UserActionLog> logs;
 
+  /// İki Faktörlü Doğrulama (2FA) — bkz. routes/twoFactor.js. Yalnızca
+  /// yönetici rolü için anlamlıdır; diğer rollerde her zaman false gelir.
+  /// `totp_secret` (ham TOTP anahtarı) HİÇBİR yanıtta dönmez, bu yüzden
+  /// modelde de YOKTUR — yalnızca "etkin mi değil mi" bilgisi taşınır.
+  final bool totpEnabled;
+
   AppUser({
     required this.id,
     required this.name,
@@ -78,6 +84,7 @@ class AppUser {
     this.isActive = true,
     this.supervisorId,
     this.logs = const [],
+    this.totpEnabled = false,
   });
 
   factory AppUser.fromJson(Map<String, dynamic> json) {
@@ -91,6 +98,7 @@ class AppUser {
       photoPath: json['photo_path'] as String?,
       isActive: json['is_active'] as bool? ?? true,
       supervisorId: json['supervisor_id'] as int?,
+      totpEnabled: json['totp_enabled'] as bool? ?? false,
       // `logs` yalnızca GET /api/users/:id yanıtında gömülüdür (bkz.
       // routes/users.js) — liste/me yanıtlarında yoktur, boş kalır.
       logs: json['logs'] != null
@@ -121,6 +129,7 @@ class AppUser {
     String? email,
     String? photoPath,
     bool? isActive,
+    bool? totpEnabled,
   }) {
     return AppUser(
       id: id,
@@ -133,6 +142,7 @@ class AppUser {
       isActive: isActive ?? this.isActive,
       supervisorId: supervisorId,
       logs: logs,
+      totpEnabled: totpEnabled ?? this.totpEnabled,
     );
   }
 }

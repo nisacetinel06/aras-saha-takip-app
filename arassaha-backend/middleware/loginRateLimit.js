@@ -8,7 +8,13 @@
 // bir saldırgan IP değiştirerek (VPN/proxy rotasyonu) aynı hesabı sınırsız
 // deneyememeli. İkisinin kombinasyonu ("bu IP'den bu sicil no'ya yapılan
 // denemeler") bu iki riski birlikte kapatır.
-const db = require('../database');
+//
+// Gerçek kilit mantığı artık middleware/rateLimiting.js'teki GENEL fabrikada
+// (createAttemptRateLimiter) — 2FA doğrulama görevinde (routes/twoFactor.js)
+// AYNI "N dakikada M başarısız deneme -> kilitle" deseni tekrar gerektiği
+// için oraya taşındı/genelleştirildi. Bu dosya artık yalnızca LOGIN'e özgü
+// sabitleri ve kimlik çıkarma mantığını (sicil_no) tanımlar.
+const { createAttemptRateLimiter } = require('./rateLimiting');
 
 const LOCK_THRESHOLD = 5; // ardışık başarısız deneme sayısı
 const LOCK_WINDOW_MINUTES = 15; // bu süre içindeki denemeler sayılır
@@ -19,28 +25,15 @@ const LOCK_DURATION_MINUTES = 15; // kilit süresi
 // kilitlenip olmayanlar kilitlenmeseydi, bir saldırgan "kilitlendi mi
 // kilitlenmedi mi" farkına bakarak hangi sicil no'ların gerçek olduğunu
 // anlayabilirdi (TEST-06'daki user enumeration bulgusuyla aynı kategori).
-function checkLoginRateLimit(req, res, next) {
-  const { sicil_no } = req.body;
-  const ip = req.ip;
-
-  if (!sicil_no) return next(); // sicil_no yoksa zaten normal validasyon 400 dönecek
-
-  const windowStart = new Date(Date.now() - LOCK_WINDOW_MINUTES * 60 * 1000).toISOString();
-
-  const recentFailures = db
-    .prepare(
-      `SELECT COUNT(*) as count FROM login_attempts
-       WHERE sicil_no = ? AND ip_address = ? AND success = 0 AND created_at > ?`
-    )
-    .get(String(sicil_no), ip, windowStart);
-
-  if (recentFailures.count >= LOCK_THRESHOLD) {
-    return res.status(429).json({
-      error: `Çok fazla başarısız deneme. Lütfen ${LOCK_DURATION_MINUTES} dakika sonra tekrar deneyin.`,
-    });
-  }
-
-  next();
-}
+const checkLoginRateLimit = createAttemptRateLimiter({
+  table: 'login_attempts',
+  identifierColumn: 'sicil_no',
+  // sicil_no yoksa zaten normal validasyon 400 dönecek — rate limit'e gerek
+  // yok (getIdentifier null dönünce createAttemptRateLimiter next() çağırır).
+  getIdentifier: (req) => (req.body && req.body.sicil_no ? String(req.body.sicil_no) : null),
+  threshold: LOCK_THRESHOLD,
+  windowMinutes: LOCK_WINDOW_MINUTES,
+  lockDurationMinutes: LOCK_DURATION_MINUTES,
+});
 
 module.exports = { checkLoginRateLimit, LOCK_THRESHOLD, LOCK_WINDOW_MINUTES, LOCK_DURATION_MINUTES };

@@ -10,12 +10,21 @@ name: ML Service Dependency Audit
 # bölümündeki tablo): pip-audit varsayılan olarak BİLİNEN HERHANGİ BİR
 # açıkta başarısız olur (npm audit'teki gibi bir --audit-level eşiği YOK) —
 # bu, backend'e göre daha sıkı bir politika; gerekçe: arassaha-ml'in
-# requirements.txt'i backend'in node_modules ağacından çok daha SIĞ (11
-# doğrudan paket, derin transitive bağımlılık zinciri yok), bu yüzden her
-# bulguyu anında değerlendirmek pratik. Kabul edilebilir, gerçek risk
-# taşımayan bir bulgu çıkarsa `pip-audit --ignore-vuln <VULN_ID>` ile
-# BİLİNÇLİ olarak yok sayılabilir — ama her yok sayma kararı burada bir
-# yorum satırıyla gerekçelendirilmelidir (şu an hiçbiri yok sayılmıyor).
+# doğrudan bağımlılık sayısı (11 paket) backend'in node_modules ağacından
+# çok daha SIĞ, bu yüzden her bulguyu anında değerlendirmek pratik. Kabul
+# edilebilir, gerçek risk taşımayan bir bulgu çıkarsa
+# `pip-audit --ignore-vuln <VULN_ID>` ile BİLİNÇLİ olarak yok sayılabilir —
+# ama her yok sayma kararı burada bir yorum satırıyla gerekçelendirilmelidir
+# (şu an hiçbiri yok sayılmıyor).
+#
+# LOCKFILE (bağımlılık sabitleme görevi): tarama artık requirements.txt
+# (yalnızca 11 DOĞRUDAN paket) yerine requirements.lock.txt'i (pip freeze
+# ile üretilmiş, ~89 paket — doğrudan + TÜM transitif bağımlılıklar) hedef
+# alıyor. Bu, CI'ın her çalıştığında AYNI öngörülebilir bağımlılık setiyle
+# çalışmasını garanti eder VE taramayı doğrudan paketlerin ötesine,
+# transitif bağımlılıklardaki (ör. bir doğrudan paketin kendi kullandığı
+# bir kütüphane) bilinen açıkları da kapsayacak şekilde genişletir — bkz.
+# README.md "requirements.txt mi, requirements.lock.txt mi?" bölümü.
 
 on:
   push:
@@ -40,4 +49,8 @@ jobs:
 
       # Herhangi bir bilinen açık bulunursa (severity ayrımı yapılmaz) bu
       # adım non-zero exit code ile başarısız olur ve workflow kırmızı yanar.
-      - run: pip-audit -r requirements.txt
+      # requirements.lock.txt taranır (bkz. yukarıdaki LOCKFILE notu) —
+      # requirements.txt DEĞİL, ki hem CI her zaman AYNI, tam (transitif
+      # dahil) bağımlılık setini görsün hem de tarama kapsamı yalnızca 11
+      # doğrudan paketle sınırlı kalmasın.
+      - run: pip-audit -r requirements.lock.txt

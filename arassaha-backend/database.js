@@ -455,6 +455,36 @@ db.exec(`
     reason TEXT NOT NULL,
     deleted_at TEXT NOT NULL
   );
+
+  -- İki Faktörlü Doğrulama (2FA) — bkz. routes/twoFactor.js. Her kod TEK
+  -- KULLANIMLIKTIR (used=1 olduktan sonra bir daha ASLA kabul edilmez, bkz.
+  -- POST /2fa/verify). code_hash password_hash ile AYNI ilke (bcrypt) —
+  -- yedek kodlar totp_secret'ten FARKLI olarak yalnızca BİR KEZ, tek yönlü
+  -- karşılaştırılır (kullanıcı tekrar giremez), bu yüzden düz metin değil
+  -- HASH olarak saklanmaları güvenlik açısından hiçbir sakınca doğurmaz.
+  CREATE TABLE IF NOT EXISTS totp_backup_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    code_hash TEXT NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id)
+  );
+
+  -- 2FA doğrulama (POST /2fa/verify) brute-force koruması — login_attempts
+  -- ile AYNI şema/desen (bkz. middleware/rateLimiting.js), ama AYRI bir
+  -- tabloda: burada "kimlik" (identifier) sicil_no değil user_id'dir —
+  -- pending_token zaten doğrulanmış (imzası geçerli) bir JWT'den geldiği
+  -- için kullanıcının GERÇEKTEN var olduğu baştan bilinir; login_attempts'taki
+  -- "var olmayan sicil_no" enumeration kaygısı burada uygulanabilir değildir.
+  CREATE TABLE IF NOT EXISTS two_factor_verify_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    ip_address TEXT NOT NULL,
+    success INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id)
+  );
 `);
 
 // Denetim Logu Toplayıcı (bkz. services/auditLogAggregator.js) — PERFORMANS.
@@ -494,11 +524,23 @@ if (!hasSupervisorId) {
 
 // Migrasyon: Profil ve Kullanıcı Yönetimi (Modül 8) için sonradan eklenen
 // sütunlar — mevcut aras_saha.db dosyasını silmeden geçilebilsin diye.
+//
+// totp_secret/totp_enabled — İki Faktörlü Doğrulama (2FA), bkz. routes/twoFactor.js.
+// GÜVENLİK NOTU: totp_secret şifre (password_hash) gibi TEK YÖNLÜ hash'lenemez
+// — TOTP algoritması her doğrulamada bu secret'ı kullanarak KENDİSİ tekrar
+// bir kod üretip karşılaştırma yapar (bcrypt gibi bir hash'ten orijinal
+// secret geri elde edilemeyeceği için bu işlem hash ile YAPILAMAZ). Bu
+// PROTOTİPTE totp_secret BİLİNÇLİ olarak düz metin saklanıyor; gerçek bir
+// üretim sisteminde bu alanın uygulama seviyesinde (örn. AES-256-GCM ile,
+// veritabanı dosyasından AYRI/harici bir encryption key kullanarak)
+// şifrelenmesi GEREKİR — bkz. README.md "Bilinen Kısıtlar" bölümü.
 const userColumnAdditions = {
   photo_path: 'TEXT',
   phone: 'TEXT',
   email: 'TEXT',
   is_active: 'INTEGER NOT NULL DEFAULT 1',
+  totp_secret: 'TEXT',
+  totp_enabled: 'INTEGER NOT NULL DEFAULT 0',
 };
 for (const [column, type] of Object.entries(userColumnAdditions)) {
   if (!userColumns.some((col) => col.name === column)) {

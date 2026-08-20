@@ -25,6 +25,12 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
+  // İki Faktörlü Doğrulama (2FA) — bkz. routes/twoFactor.js. `login()`
+  // 2FA etkin bir yönetici için TAM token yerine bu kısa ömürlü (5 dk)
+  // ara token'ı döndürdüğünde burada saklanır; giriş `verifyTwoFactor()`
+  // BAŞARILI olana kadar TAMAMLANMAZ (isAuthenticated hâlâ false kalır).
+  String? _pendingTwoFactorToken;
+
   AuthProvider({ApiService? apiService, SecureStorageService? secureStorage})
     : _api = apiService ?? ApiService(),
       _secureStorage = secureStorage ?? SecureStorageService() {
@@ -39,6 +45,10 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _token != null && _currentUser != null;
+
+  /// `login()` 2FA gerektiren bir yanıt döndürdüyse true olur —
+  /// LoginScreen bunu görünce TwoFactorVerifyScreen'e yönlendirir.
+  bool get requiresTwoFactor => _pendingTwoFactorToken != null;
 
   bool get isTeknisyen => _currentUser?.role == 'teknisyen';
   bool get isDispecer => _currentUser?.role == 'dispecer';
@@ -58,13 +68,24 @@ class AuthProvider extends ChangeNotifier {
   String get roleLabel =>
       _currentUser != null ? role_helper.roleLabel(_currentUser!.role) : '';
 
+  /// [false] dönmesi iki farklı anlama gelebilir: GERÇEK bir hata
+  /// ([errorMessage] dolar) YA DA 2FA doğrulaması gerekiyor ([requiresTwoFactor]
+  /// true olur, hata YOKTUR) — çağıran taraf (LoginScreen) HER İKİSİNİ de
+  /// ayrı ayrı kontrol etmelidir.
   Future<bool> login(String sicilNo, String password) async {
     _isLoading = true;
     _errorMessage = null;
+    _pendingTwoFactorToken = null;
     notifyListeners();
 
     try {
       final result = await _api.login(sicilNo: sicilNo, password: password);
+
+      if (result.requiresTwoFactor) {
+        _pendingTwoFactorToken = result.pendingToken;
+        return false;
+      }
+
       _token = result.token;
       _currentUser = result.user;
       ApiService.authToken = _token;
@@ -79,6 +100,44 @@ class AuthProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Login akışının 2. adımı — [code] authenticator'daki TOTP kodu ya da
+  /// bir yedek kod olabilir (bkz. ApiService.verifyTwoFactor). Başarılıysa
+  /// [isAuthenticated] true olur (normal login sonrasıyla AYNI durum).
+  Future<bool> verifyTwoFactor(String code) async {
+    final pendingToken = _pendingTwoFactorToken;
+    if (pendingToken == null) return false;
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final result = await _api.verifyTwoFactor(pendingToken: pendingToken, code: code);
+      _token = result.token;
+      _currentUser = result.user;
+      ApiService.authToken = _token;
+
+      await _secureStorage.saveToken(_token!);
+      _pendingTwoFactorToken = null;
+
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Kullanıcı 2FA doğrulama ekranından geri dönerse (authenticator'a
+  /// erişimi yok, vazgeçti vb.) bekleyen ara token'ı temizler.
+  void cancelTwoFactor() {
+    _pendingTwoFactorToken = null;
+    _errorMessage = null;
+    notifyListeners();
   }
 
   Future<void> logout() async {

@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const { verifyToken, JWT_SECRET } = require('../middleware/auth');
 const { checkLoginRateLimit } = require('../middleware/loginRateLimit');
+const { generateFullAuthToken } = require('../utils/authToken');
 
 const router = express.Router();
 
@@ -74,7 +75,19 @@ router.post('/login', loginIpLimiter, checkLoginRateLimit, (req, res) => {
 
     recordLoginAttempt(sicil_no, req.ip, true);
 
-    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    // İki Faktörlü Doğrulama (2FA) — bkz. routes/twoFactor.js. Yalnızca
+    // yönetici rolü VE 2FA GERÇEKTEN etkinleştirilmişse (totp_enabled=1)
+    // devreye girer; teknisyen/dispeçer VEYA 2FA'sı kapalı bir yönetici için
+    // davranış aşağıdaki mevcut tam-token akışıyla TAMAMEN AYNI kalır. Şifre
+    // doğru olsa bile TAM yetkili bir JWT HENÜZ verilmez — yalnızca 5 dakika
+    // geçerli, SADECE POST /2fa/verify'a gönderilebilecek (pending2fa: true
+    // claim'li) kısa ömürlü bir "ara" token döner.
+    if (user.role === 'yonetici' && user.totp_enabled) {
+      const pendingToken = jwt.sign({ id: user.id, pending2fa: true }, JWT_SECRET, { expiresIn: '5m' });
+      return res.json({ requires_2fa: true, pending_token: pendingToken });
+    }
+
+    const token = generateFullAuthToken(user);
 
     res.json({
       token,

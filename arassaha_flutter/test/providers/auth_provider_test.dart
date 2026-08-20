@@ -46,7 +46,7 @@ void main() {
   group('AuthProvider - login (success)', () {
     test('başarılı login sonrası token/kullanıcı set edilmeli, hata olmamalı', () async {
       when(() => mockApiService.login(sicilNo: '1001', password: 'sifre123'))
-          .thenAnswer((_) async => (token: 'sahte-token', user: testUser));
+          .thenAnswer((_) async => (token: 'sahte-token', user: testUser, requiresTwoFactor: false, pendingToken: null));
 
       final result = await authProvider.login('1001', 'sifre123');
 
@@ -63,7 +63,7 @@ void main() {
 
     test('login isteği sırasında (await edilmeden önce) isLoading true olmalı', () {
       when(() => mockApiService.login(sicilNo: '1001', password: 'sifre123'))
-          .thenAnswer((_) async => (token: 'sahte-token', user: testUser));
+          .thenAnswer((_) async => (token: 'sahte-token', user: testUser, requiresTwoFactor: false, pendingToken: null));
 
       final future = authProvider.login('1001', 'sifre123');
       expect(authProvider.isLoading, true);
@@ -90,7 +90,7 @@ void main() {
   group('AuthProvider - notifyListeners', () {
     test('başarılı login sırasında en az 2 kez tetiklenmeli (loading=true, işlem bitince)', () async {
       when(() => mockApiService.login(sicilNo: any(named: 'sicilNo'), password: any(named: 'password')))
-          .thenAnswer((_) async => (token: 'x', user: testUser));
+          .thenAnswer((_) async => (token: 'x', user: testUser, requiresTwoFactor: false, pendingToken: null));
 
       var notifyCount = 0;
       authProvider.addListener(() => notifyCount++);
@@ -98,6 +98,67 @@ void main() {
       await authProvider.login('1001', 'sifre123');
 
       expect(notifyCount, greaterThanOrEqualTo(2));
+    });
+  });
+
+  group('AuthProvider - login (2FA gerekli)', () {
+    test('requiresTwoFactor:true dönerse: login() false döner ama errorMessage BOŞ kalır, requiresTwoFactor true olur', () async {
+      when(() => mockApiService.login(sicilNo: '3001', password: 'sifre123')).thenAnswer(
+        (_) async => (token: null, user: null, requiresTwoFactor: true, pendingToken: 'ara-token'),
+      );
+
+      final result = await authProvider.login('3001', 'sifre123');
+
+      expect(result, false);
+      expect(authProvider.requiresTwoFactor, true);
+      expect(authProvider.errorMessage, isNull, reason: '2FA gerekmesi bir HATA değildir');
+      expect(authProvider.isAuthenticated, false, reason: 'giriş HENÜZ tamamlanmadı');
+    });
+
+    test('verifyTwoFactor: doğru kod sonrası tam token/kullanıcı set edilir, isAuthenticated true olur', () async {
+      when(() => mockApiService.login(sicilNo: '3001', password: 'sifre123')).thenAnswer(
+        (_) async => (token: null, user: null, requiresTwoFactor: true, pendingToken: 'ara-token'),
+      );
+      await authProvider.login('3001', 'sifre123');
+
+      when(() => mockApiService.verifyTwoFactor(pendingToken: 'ara-token', code: '123456'))
+          .thenAnswer((_) async => (token: 'tam-token', user: testUser));
+
+      final result = await authProvider.verifyTwoFactor('123456');
+
+      expect(result, true);
+      expect(authProvider.isAuthenticated, true);
+      expect(authProvider.token, 'tam-token');
+      expect(authProvider.requiresTwoFactor, false, reason: 'başarılı doğrulama sonrası bekleyen token temizlenmeli');
+      verify(() => mockSecureStorage.saveToken('tam-token')).called(1);
+    });
+
+    test('verifyTwoFactor: yanlış kod sonrası hata mesajı set edilir, isAuthenticated false kalır', () async {
+      when(() => mockApiService.login(sicilNo: '3001', password: 'sifre123')).thenAnswer(
+        (_) async => (token: null, user: null, requiresTwoFactor: true, pendingToken: 'ara-token'),
+      );
+      await authProvider.login('3001', 'sifre123');
+
+      when(() => mockApiService.verifyTwoFactor(pendingToken: 'ara-token', code: '000000'))
+          .thenThrow(ApiException('Geçersiz kod.'));
+
+      final result = await authProvider.verifyTwoFactor('000000');
+
+      expect(result, false);
+      expect(authProvider.isAuthenticated, false);
+      expect(authProvider.errorMessage, 'Geçersiz kod.');
+    });
+
+    test('cancelTwoFactor: bekleyen token temizlenir, requiresTwoFactor false olur', () async {
+      when(() => mockApiService.login(sicilNo: '3001', password: 'sifre123')).thenAnswer(
+        (_) async => (token: null, user: null, requiresTwoFactor: true, pendingToken: 'ara-token'),
+      );
+      await authProvider.login('3001', 'sifre123');
+      expect(authProvider.requiresTwoFactor, true);
+
+      authProvider.cancelTwoFactor();
+
+      expect(authProvider.requiresTwoFactor, false);
     });
   });
 
@@ -151,7 +212,7 @@ void main() {
   group('AuthProvider - logout', () {
     test('logout() güvenli depolamayı gerçekten temizlemeli (clearAll)', () async {
       when(() => mockApiService.login(sicilNo: any(named: 'sicilNo'), password: any(named: 'password')))
-          .thenAnswer((_) async => (token: 'x', user: testUser));
+          .thenAnswer((_) async => (token: 'x', user: testUser, requiresTwoFactor: false, pendingToken: null));
       await authProvider.login('1001', 'sifre123');
       expect(authProvider.isAuthenticated, true);
 

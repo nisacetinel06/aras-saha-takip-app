@@ -6,6 +6,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_logo.dart';
+import 'two_factor_verify_screen.dart';
 
 /// Giriş ekranı (Modül 7 — Auth + RBAC). Sicil no + şifre ile giriş yapılır;
 /// başarılı girişten sonra AuthGate (main.dart) kullanıcıyı otomatik olarak
@@ -41,7 +42,19 @@ class _LoginScreenState extends State<LoginScreen> {
     if (sicilNo.isEmpty || password.isEmpty) return;
 
     FocusScope.of(context).unfocus();
-    await context.read<AuthProvider>().login(sicilNo, password);
+    final auth = context.read<AuthProvider>();
+    await auth.login(sicilNo, password);
+
+    // İki Faktörlü Doğrulama (2FA) — şifre doğruydu ama 2FA etkin bir
+    // yönetici için giriş HENÜZ tamamlanmadı (bkz. AuthProvider.login).
+    // errorMessage BOŞTUR bu durumda — bu bir hata değil, akışın normal
+    // 2. adımıdır.
+    if (!mounted) return;
+    if (auth.requiresTwoFactor) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const TwoFactorVerifyScreen()),
+      );
+    }
   }
 
   @override

@@ -137,6 +137,31 @@ gibi gevşetmek (`--audit-level=high` benzeri bir eşiğe geçmek) meşru bir
 karar olur — bu bir "ileride tekrar gözden geçirilecek" notu olarak burada
 bırakılıyor.
 
+## Bilinen Kısıtlar / Gelecek İyileştirmeler
+
+### İki Faktörlü Doğrulama (2FA) — `totp_secret` düz metin saklanıyor
+
+`users.totp_secret` (bkz. `routes/twoFactor.js`, `database.js`) **şifrelenmemiş
+düz metin** olarak saklanır — bu bilinçli bir prototip kısıtıdır, ihmal değil.
+
+Sebep: `password_hash`'ten farklı olarak `totp_secret` **tek yönlü hash'lenemez**.
+Şifre doğrulaması "kullanıcının girdiği değer ile saklanan hash eşleşiyor mu?"
+sorusuna bakar (bcrypt tek yönlü, geri döndürülemez); TOTP doğrulaması ise
+her seferinde **sunucunun kendisinin** o anki geçerli 6 haneli kodu secret'tan
+**yeniden üretip** kullanıcının girdiğiyle karşılaştırmasını gerektirir — bu,
+secret'ın geri döndürülebilir (reversible) bir biçimde saklanmasını zorunlu
+kılar. (Yedek kodlar bu kısıtın dışındadır — bkz. `totp_backup_codes.code_hash`,
+onlar TEK kullanımlık olduğu için bcrypt ile hash'lenerek saklanır.)
+
+**TODO (production öncesi yapılması gereken):** `totp_secret` uygulama
+seviyesinde şifrelenmelidir — örn. AES-256-GCM ile, veritabanı dosyasından
+**ayrı** bir yerde (ortam değişkeni / secrets manager) tutulan bir
+encryption key kullanılarak. Bu, veritabanı dosyasının (`aras_saha.db`)
+tek başına sızması durumunda secret'ların da doğrudan kullanılabilir
+olmasını engeller — şu anki haliyle `aras_saha.db` dosyasına erişen biri,
+2FA etkin bir yöneticinin hesabı için sınırsız sayıda geçerli TOTP kodu
+üretebilir (2FA'yı fiilen anlamsız kılar).
+
 **Önemli — NODE_ENV izolasyonu korunur:** `npm test` kendi içinde
 `cross-env NODE_ENV=test` kullanır (bkz. yukarıdaki "Testler" bölümü) —
 bu, yalnızca `node --test` alt sürecine özgüdür, `npm start`'a miras

@@ -120,7 +120,14 @@ class ApiService {
   /// anlamına gelmediği (henüz bir oturum bile yok) için `onUnauthorized`
   /// callback'i BİLEREK tetiklenmez; hata doğrudan LoginScreen'e mesaj
   /// olarak döner.
-  Future<({String token, AssignedUser user})> login({
+  /// İki Faktörlü Doğrulama (2FA) — bkz. routes/twoFactor.js. Şifre
+  /// DOĞRUYSA bile, 2FA etkin bir yönetici için backend TAM token yerine
+  /// `requires_2fa: true` + kısa ömürlü bir `pending_token` döner (bkz.
+  /// routes/auth.js login akışı). Bu yüzden bu metodun dönüş tipi HER İKİ
+  /// sonucu da (tam giriş VEYA 2FA'nın gerektiği) tek bir kayıt (record)
+  /// içinde temsil eder — `token`/`user` yalnızca 2FA gerekmiyorsa dolu,
+  /// `pendingToken` yalnızca 2FA gerekiyorsa doludur.
+  Future<({String? token, AssignedUser? user, bool requiresTwoFactor, String? pendingToken})> login({
     required String sicilNo,
     required String password,
   }) async {
@@ -139,10 +146,115 @@ class ApiService {
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['requires_2fa'] == true) {
+        return (
+          token: null,
+          user: null,
+          requiresTwoFactor: true,
+          pendingToken: data['pending_token'] as String,
+        );
+      }
+
+      return (
+        token: data['token'] as String,
+        user: AssignedUser.fromJson(data['user'] as Map<String, dynamic>),
+        requiresTwoFactor: false,
+        pendingToken: null,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// POST /api/auth/2fa/verify — login akışının 2. adımı. [pendingToken],
+  /// `login()`'ın `requiresTwoFactor: true` döndüğü çağrıdan gelir. [code]
+  /// authenticator uygulamasındaki 6 haneli TOTP kodu YA DA (authenticator'a
+  /// erişim yoksa) kurulumda alınan 8 haneli yedek kodlardan biri olabilir —
+  /// backend AYNI alanda ikisini de kabul eder.
+  Future<({String token, AssignedUser user})> verifyTwoFactor({
+    required String pendingToken,
+    required String code,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/auth/2fa/verify');
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'pending_token': pendingToken, 'code': code}),
+      );
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Kod doğrulanamadı.'));
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
       return (
         token: data['token'] as String,
         user: AssignedUser.fromJson(data['user'] as Map<String, dynamic>),
       );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// POST /api/auth/2fa/setup — yalnızca yönetici, giriş yapmış (tam) oturum
+  /// gerektirir. Yeni bir TOTP secret + 8 yedek kod üretir; backend BUNU
+  /// HENÜZ ETKİNLEŞTİRMEZ (bkz. routes/twoFactor.js) — POST /confirm ile
+  /// doğrulanması gerekir. [backupCodes] SADECE bu çağrıda düz metin olarak
+  /// gelir, bir daha asla geri dönmez.
+  Future<({String otpauthUri, List<String> backupCodes})> setupTwoFactor() async {
+    try {
+      final uri = Uri.parse('$baseUrl/auth/2fa/setup');
+      final response = await _post(uri, body: jsonEncode({}));
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, '2FA kurulumu başlatılamadı.'));
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return (
+        otpauthUri: data['otpauth_uri'] as String,
+        backupCodes: (data['backup_codes'] as List).cast<String>(),
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// POST /api/auth/2fa/confirm — authenticator'dan okunan İLK kodu
+  /// doğrular; başarılıysa 2FA gerçekten etkinleşir.
+  Future<void> confirmTwoFactor(String code) async {
+    try {
+      final uri = Uri.parse('$baseUrl/auth/2fa/confirm');
+      final response = await _post(uri, body: jsonEncode({'code': code}));
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, 'Kod doğrulanamadı.'));
+      }
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Sunucuya bağlanılamadı: $e');
+    }
+  }
+
+  /// POST /api/auth/2fa/disable — GÜVENLİK: backend mevcut şifrenin tekrar
+  /// gönderilmesini zorunlu kılar (bkz. routes/twoFactor.js) — yalnızca
+  /// geçerli bir JWT ile 2FA kapatılamaz.
+  Future<void> disableTwoFactor(String password) async {
+    try {
+      final uri = Uri.parse('$baseUrl/auth/2fa/disable');
+      final response = await _post(uri, body: jsonEncode({'password': password}));
+
+      if (response.statusCode != 200) {
+        throw ApiException(_extractError(response, '2FA devre dışı bırakılamadı.'));
+      }
     } on ApiException {
       rethrow;
     } catch (e) {

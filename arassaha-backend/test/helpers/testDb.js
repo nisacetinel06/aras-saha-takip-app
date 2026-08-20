@@ -13,6 +13,8 @@ const TABLES_CHILD_TO_PARENT = [
   'login_attempts',
   'data_deletion_requests',
   'file_purge_log',
+  'totp_backup_codes',
+  'two_factor_verify_attempts',
   'device_action_logs',
   'work_order_photos',
   'material_stock_movements',

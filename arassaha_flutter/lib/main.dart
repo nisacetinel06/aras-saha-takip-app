@@ -21,6 +21,7 @@ import 'providers/reports_provider.dart';
 import 'providers/risk_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/two_factor_provider.dart';
 import 'providers/user_provider.dart';
 import 'providers/work_order_list_provider.dart';
 import 'screens/auth/login_screen.dart';
@@ -108,6 +109,7 @@ class _ArasSahaAppState extends State<ArasSahaApp> {
         ChangeNotifierProvider(create: (_) => ReportsProvider()),
         ChangeNotifierProvider(create: (_) => AssistantProvider()),
         ChangeNotifierProvider(create: (_) => KvkkProvider()),
+        ChangeNotifierProvider(create: (_) => TwoFactorProvider()),
         ChangeNotifierProvider(create: (_) => AuditLogProvider()),
         ChangeNotifierProvider.value(value: widget.themeProvider),
         ChangeNotifierProvider.value(value: widget.settingsProvider),

@@ -46,12 +46,15 @@ const PICKER_FIELDS = 'id, name, role, sicil_no';
 
 // Kullanıcı Yönetimi paneli / Profil ekranı için tam alan seti. password_hash
 // KESİNLİKLE dönülmez.
-const FULL_FIELDS = 'id, name, role, sicil_no, phone, email, photo_path, is_active, supervisor_id';
+// totp_enabled DAHİL (Ayarlar ekranının "2FA etkin mi?" durumunu bilmesi
+// için — bkz. routes/twoFactor.js) ama totp_secret ASLA DAHİL DEĞİL — bu
+// alan hiçbir response'ta (bu dahil) dışarı sızmaz.
+const FULL_FIELDS = 'id, name, role, sicil_no, phone, email, photo_path, is_active, supervisor_id, totp_enabled';
 
 function mapFullUser(row) {
   if (!row) return row;
-  const { is_active, ...rest } = row;
-  return { ...rest, is_active: Boolean(is_active) };
+  const { is_active, totp_enabled, ...rest } = row;
+  return { ...rest, is_active: Boolean(is_active), totp_enabled: Boolean(totp_enabled) };
 }
 
 // Kullanıcı Yönetimi işlem geçmişi (hesap verebilirlik) — device_action_logs

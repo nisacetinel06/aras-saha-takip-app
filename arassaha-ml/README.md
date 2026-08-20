@@ -34,6 +34,33 @@ venv\Scripts\activate        # Windows
 pip install -r requirements.txt
 ```
 
+### `requirements.txt` mi, `requirements.lock.txt` mi?
+
+`requirements.txt`'teki 11 paket (fastapi, uvicorn, scikit-learn, pandas,
+numpy, joblib, tensorflow, pillow, matplotlib, kaggle, python-multipart) bu
+servisin **doğrudan** bağımlılıklarıdır ve hepsi kesin sürümlere (`==`)
+sabitlenmiştir — ama her biri kendi içinde başka paketlere (transitif
+bağımlılıklar: numpy, scipy, protobuf, grpcio, pydantic, ~80 paket daha)
+ihtiyaç duyar; bunlar `requirements.txt`'te sabitlenmediği için "aynı
+requirements.txt, farklı zamanlarda farklı transitif sürümler" riski
+sürer. `requirements.lock.txt`, `pip freeze` ile üretilmiş, o an kurulu
+OLAN her şeyi (doğrudan + transitif, hepsi kesin sürümle, ~89 paket) içeren
+tam bir lockfile'dır.
+
+**Geliştirme sırasında `pip install -r requirements.txt` kullanılabilir,
+ama üretim/CI ortamlarında tam yeniden üretilebilirlik için
+`pip install -r requirements.lock.txt` tercih edilmelidir.**
+
+`requirements.lock.txt`'i yeniden üretmek (ör. `requirements.txt`'e yeni
+bir doğrudan bağımlılık eklendiğinde) için:
+
+```bash
+python -m venv fresh_env
+fresh_env\Scripts\activate       # Windows
+pip install -r requirements.txt
+pip freeze > requirements.lock.txt
+```
+
 ## Modeli eğitme
 
 ```bash

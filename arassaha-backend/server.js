@@ -46,6 +46,7 @@ const kvkkRouter = require('./routes/kvkk');
 const adminRouter = require('./routes/admin');
 const auditLogRouter = require('./routes/auditLog');
 const authRouter = require('./routes/auth');
+const twoFactorRouter = require('./routes/twoFactor');
 const uploadsRouter = require('./routes/uploads');
 const { verifyToken } = require('./middleware/auth');
 const errorHandler = require('./middleware/errorHandler');
@@ -113,6 +114,12 @@ if (process.env.NODE_ENV === 'test') {
 // (bkz. ARCHITECTURE.md Modül 7 — Auth + RBAC). Rol bazlı ek kısıtlamalar
 // (requireRole) ilgili router'ların içinde uygulanır.
 app.use('/api/auth', authRouter);
+// İki Faktörlü Doğrulama (2FA) — bkz. routes/twoFactor.js. Diğer router'ların
+// aksine BURADA blanket bir verifyToken YOK: POST /2fa/verify login akışının
+// 2. adımıdır ve henüz tam bir oturum/JWT yokken (yalnızca kısa ömürlü
+// pending_token ile) çağrılır — bu yüzden verifyToken/requireRole her route
+// içinde AYRI AYRI uygulanır (bkz. o dosyadaki her endpoint).
+app.use('/api/auth/2fa', twoFactorRouter);
 app.use('/api/workorders', verifyToken, workOrdersRouter);
 app.use('/api/users', verifyToken, usersRouter);
 app.use('/api/dashboard', verifyToken, dashboardRouter);
