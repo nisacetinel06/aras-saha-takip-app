@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/audit_log_entry.dart';
 import '../services/api_service.dart';
+import '../utils/error_mapper.dart';
 
 /// Denetim Logu Paneli (bkz. screens/admin/audit_log_screen.dart) state'i:
 /// filtreler (kategori/tarih aralığı) + sayfalanmış kayıt listesi.
@@ -12,7 +13,7 @@ class AuditLogProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   AuditLogProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   List<AuditLogEntry> _entries = [];
   bool _isLoading = false;
@@ -42,7 +43,9 @@ class AuditLogProvider extends ChangeNotifier {
   DateTime? get fromDateFilter => _fromDateFilter;
   DateTime? get toDateFilter => _toDateFilter;
   bool get hasActiveFilters =>
-      _categoryFilter != null || _fromDateFilter != null || _toDateFilter != null;
+      _categoryFilter != null ||
+      _fromDateFilter != null ||
+      _toDateFilter != null;
 
   Future<void> fetchInitial() async {
     _isLoading = true;
@@ -57,7 +60,7 @@ class AuditLogProvider extends ChangeNotifier {
       _hasMore = result.hasMore;
       _currentPage = result.page;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -81,7 +84,7 @@ class AuditLogProvider extends ChangeNotifier {
       _hasMore = result.hasMore;
       _currentPage = result.page;
     } catch (e) {
-      _loadMoreErrorMessage = e.toString();
+      _loadMoreErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingMore = false;
       notifyListeners();

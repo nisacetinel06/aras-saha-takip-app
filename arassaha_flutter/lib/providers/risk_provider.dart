@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/equipment_risk.dart';
 import '../services/api_service.dart';
+import '../utils/error_mapper.dart';
 
 /// Arıza Risk Tahmini (Modül 9) ekranlarının state'ini yönetir: Dashboard'un
 /// "Riskli Ekipmanlar" listesi ve Ekipman Detayı'ndaki tekil risk skoru.
@@ -12,7 +13,7 @@ class RiskProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   RiskProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   List<RiskyEquipmentSummary> _riskyEquipment = [];
   bool _isRiskyListLoading = false;
@@ -40,7 +41,7 @@ class RiskProvider extends ChangeNotifier {
     try {
       _riskyEquipment = await _apiService.getRiskyEquipment(limit: limit);
     } catch (e) {
-      _riskyListErrorMessage = e.toString();
+      _riskyListErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isRiskyListLoading = false;
       notifyListeners();
@@ -57,7 +58,7 @@ class RiskProvider extends ChangeNotifier {
         equipmentId,
       );
     } catch (e) {
-      _riskErrorMessage = e.toString();
+      _riskErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _loadingEquipmentIds.remove(equipmentId);
       notifyListeners();

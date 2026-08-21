@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/work_order.dart';
 import '../services/api_service.dart';
+import '../utils/error_mapper.dart';
 
 /// "Tamamlanan İş Emirlerim" bölümü (Ana Sayfa, teknisyen rolü) — bkz.
 /// home/completed_work_orders_section.dart ve
@@ -20,7 +21,7 @@ class CompletedWorkOrdersProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   CompletedWorkOrdersProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   static const int pageSize = 15;
   static const int previewLimit = 10;
@@ -62,7 +63,7 @@ class CompletedWorkOrdersProvider extends ChangeNotifier {
       _offset = results.length;
       _hasMore = results.length == pageSize;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -88,7 +89,7 @@ class CompletedWorkOrdersProvider extends ChangeNotifier {
       // Sayfalama hatası mevcut listeyi BOZMAZ — yalnızca bir sonraki
       // kaydırmada tekrar denenir (bkz. completed_work_orders_screen.dart
       // alt bilgi satırındaki "Tekrar Dene").
-      _loadMoreErrorMessage = e.toString();
+      _loadMoreErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingMore = false;
       notifyListeners();

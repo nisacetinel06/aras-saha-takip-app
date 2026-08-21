@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../models/app_user.dart';
 import '../services/api_service.dart';
+import '../utils/error_mapper.dart';
 
 /// Profil ve Kullanıcı Yönetimi (Modül 8) ekranlarının state'ini yönetir:
 /// kendi profilim, (yönetici için) kullanıcı listesi/detayı, kullanıcı
@@ -10,7 +11,7 @@ class UserProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   UserProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   AppUser? _myProfile;
   bool _isLoadingProfile = false;
@@ -50,7 +51,7 @@ class UserProvider extends ChangeNotifier {
     try {
       _myProfile = await _apiService.getMyProfile();
     } catch (e) {
-      _profileErrorMessage = e.toString();
+      _profileErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingProfile = false;
       notifyListeners();
@@ -65,7 +66,7 @@ class UserProvider extends ChangeNotifier {
     try {
       _users = await _apiService.getAllUsersFull(roleFilter: roleFilter);
     } catch (e) {
-      _usersErrorMessage = e.toString();
+      _usersErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingUsers = false;
       notifyListeners();
@@ -81,7 +82,7 @@ class UserProvider extends ChangeNotifier {
     try {
       _selectedUser = await _apiService.getUserDetail(id);
     } catch (e) {
-      _detailErrorMessage = e.toString();
+      _detailErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingDetail = false;
       notifyListeners();
@@ -116,7 +117,7 @@ class UserProvider extends ChangeNotifier {
       );
       return true;
     } catch (e) {
-      _saveErrorMessage = e.toString();
+      _saveErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isSaving = false;
@@ -152,7 +153,7 @@ class UserProvider extends ChangeNotifier {
       );
       return true;
     } catch (e) {
-      _saveErrorMessage = e.toString();
+      _saveErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isSaving = false;
@@ -169,7 +170,7 @@ class UserProvider extends ChangeNotifier {
       _selectedUser = await _apiService.uploadUserPhoto(id, imageFile);
       return true;
     } catch (e) {
-      _saveErrorMessage = e.toString();
+      _saveErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isSaving = false;
@@ -187,7 +188,7 @@ class UserProvider extends ChangeNotifier {
       _replaceInList(updated);
       return true;
     } catch (e) {
-      _saveErrorMessage = e.toString();
+      _saveErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isSaving = false;
@@ -205,7 +206,7 @@ class UserProvider extends ChangeNotifier {
       _replaceInList(updated);
       return true;
     } catch (e) {
-      _saveErrorMessage = e.toString();
+      _saveErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isSaving = false;
@@ -225,7 +226,7 @@ class UserProvider extends ChangeNotifier {
       await _apiService.resetUserPassword(id, newPassword);
       return true;
     } catch (e) {
-      _saveErrorMessage = e.toString();
+      _saveErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isSaving = false;

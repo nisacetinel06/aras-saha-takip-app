@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/managed_device.dart';
 import '../services/api_service.dart';
 import '../services/device_telemetry_service.dart';
+import '../utils/error_mapper.dart';
 
 /// Cihaz Yönetimi (MDM simülasyonu) ekranlarının state'ini yönetir: cihaz
 /// listesi/detayı çekme ve simüle aksiyonları (kilitle/kilidi aç/hesap sil/
@@ -11,7 +12,7 @@ class DeviceProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   DeviceProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   List<ManagedDevice> _devices = [];
   bool _isLoading = false;
@@ -39,7 +40,7 @@ class DeviceProvider extends ChangeNotifier {
     try {
       _devices = await _apiService.getDevices();
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -54,7 +55,7 @@ class DeviceProvider extends ChangeNotifier {
     try {
       _selectedDevice = await _apiService.getDeviceDetail(id);
     } catch (e) {
-      _detailErrorMessage = e.toString();
+      _detailErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isDetailLoading = false;
       notifyListeners();
@@ -104,7 +105,7 @@ class DeviceProvider extends ChangeNotifier {
       _detailErrorMessage = null;
       return true;
     } catch (e) {
-      _detailErrorMessage = e.toString();
+      _detailErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isPerformingAction = false;

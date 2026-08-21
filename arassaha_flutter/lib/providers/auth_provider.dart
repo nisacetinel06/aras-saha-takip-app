@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/work_order.dart' show AssignedUser;
 import '../services/api_service.dart';
 import '../services/secure_storage_service.dart';
+import '../utils/error_mapper.dart';
 import '../utils/role_helper.dart' as role_helper;
 
 /// Auth (Modül 7 — Kullanıcı Rolleri ve Yetkilendirme) durumunu yönetir:
@@ -105,7 +106,7 @@ class AuthProvider extends ChangeNotifier {
 
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isLoading = false;
@@ -125,7 +126,10 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await _api.verifyTwoFactor(pendingToken: pendingToken, code: code);
+      final result = await _api.verifyTwoFactor(
+        pendingToken: pendingToken,
+        code: code,
+      );
       _token = result.accessToken;
       _currentUser = result.user;
       ApiService.authToken = result.accessToken;
@@ -137,7 +141,7 @@ class AuthProvider extends ChangeNotifier {
 
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isLoading = false;

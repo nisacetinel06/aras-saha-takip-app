@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../services/api_service.dart';
+import '../utils/error_mapper.dart';
 
 /// İki Faktörlü Doğrulama (2FA) KURULUM akışının state'i — bkz.
 /// screens/settings/two_factor_setup_screen.dart. Login akışının 2. adımı
@@ -10,7 +11,7 @@ class TwoFactorProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   TwoFactorProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   bool _isSettingUp = false;
   String? _setupErrorMessage;
@@ -45,7 +46,7 @@ class TwoFactorProvider extends ChangeNotifier {
       _backupCodes = result.backupCodes;
       return true;
     } catch (e) {
-      _setupErrorMessage = e.toString();
+      _setupErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isSettingUp = false;
@@ -62,7 +63,7 @@ class TwoFactorProvider extends ChangeNotifier {
       await _apiService.confirmTwoFactor(code);
       return true;
     } catch (e) {
-      _confirmErrorMessage = e.toString();
+      _confirmErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isConfirming = false;
@@ -79,7 +80,7 @@ class TwoFactorProvider extends ChangeNotifier {
       await _apiService.disableTwoFactor(password);
       return true;
     } catch (e) {
-      _disableErrorMessage = e.toString();
+      _disableErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isDisabling = false;

@@ -6,6 +6,7 @@ import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
+import '../../utils/error_mapper.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
@@ -47,7 +48,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       setState(() => _summary = summary);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _errorMessage = e.toString());
+      setState(() => _errorMessage = mapExceptionToUserMessage(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

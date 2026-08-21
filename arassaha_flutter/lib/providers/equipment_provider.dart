@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/equipment.dart';
 import '../services/api_service.dart';
 import '../services/cache_service.dart';
+import '../utils/error_mapper.dart';
 
 /// Ekipman / Envanter (QR Kod) modülünün (Modül 4) state'ini yönetir:
 /// ekipman listesi, QR/manuel kod ile sorgulama, id ile detay ve geçmiş arıza
@@ -11,7 +12,7 @@ class EquipmentProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   EquipmentProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   List<Equipment> _equipmentList = [];
   bool _isListLoading = false;
@@ -100,7 +101,7 @@ class EquipmentProvider extends ChangeNotifier {
         _isFromCache = true;
         _cachedAt = cached.cachedAt;
       } else {
-        _listErrorMessage = e.toString();
+        _listErrorMessage = mapExceptionToUserMessage(e);
       }
     } finally {
       _isListLoading = false;
@@ -143,7 +144,7 @@ class EquipmentProvider extends ChangeNotifier {
     try {
       _searchResults = await _apiService.getEquipmentList(search: query);
     } catch (e) {
-      _searchErrorMessage = e.toString();
+      _searchErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isSearching = false;
       notifyListeners();
@@ -171,7 +172,7 @@ class EquipmentProvider extends ChangeNotifier {
       final equipment = await _apiService.getEquipmentByQr(code);
       return equipment;
     } catch (e) {
-      _qrLookupErrorMessage = e.toString();
+      _qrLookupErrorMessage = mapExceptionToUserMessage(e);
       return null;
     } finally {
       _isQrLookupLoading = false;
@@ -192,7 +193,7 @@ class EquipmentProvider extends ChangeNotifier {
     try {
       _selectedEquipment = await _apiService.getEquipmentDetail(id);
     } catch (e) {
-      _detailErrorMessage = e.toString();
+      _detailErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isDetailLoading = false;
       notifyListeners();
@@ -207,7 +208,7 @@ class EquipmentProvider extends ChangeNotifier {
     try {
       _history = await _apiService.getEquipmentHistory(id);
     } catch (e) {
-      _historyErrorMessage = e.toString();
+      _historyErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isHistoryLoading = false;
       notifyListeners();

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/maintenance_recommendation.dart';
 import '../models/work_order.dart';
 import '../services/api_service.dart';
+import '../utils/error_mapper.dart';
 
 /// Kestirimci Bakım Planlama (Modül 12) ekranlarının state'ini yönetir.
 ///
@@ -13,7 +14,7 @@ class MaintenanceProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   MaintenanceProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   List<MaintenanceRecommendation> _recommendations = [];
   bool _isLoading = false;
@@ -72,7 +73,7 @@ class MaintenanceProvider extends ChangeNotifier {
         urgencyFilter: urgencyFilter,
       );
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -99,7 +100,7 @@ class MaintenanceProvider extends ChangeNotifier {
       );
       return result;
     } catch (e) {
-      _refreshRulesError = e.toString();
+      _refreshRulesError = mapExceptionToUserMessage(e);
       return null;
     } finally {
       _isRefreshingRules = false;
@@ -131,7 +132,7 @@ class MaintenanceProvider extends ChangeNotifier {
       );
       return workOrder;
     } catch (e) {
-      _mutationErrorMessage = e.toString();
+      _mutationErrorMessage = mapExceptionToUserMessage(e);
       return null;
     } finally {
       _mutatingRecommendationIds.remove(recommendationId);
@@ -156,7 +157,7 @@ class MaintenanceProvider extends ChangeNotifier {
       );
       return true;
     } catch (e) {
-      _mutationErrorMessage = e.toString();
+      _mutationErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _mutatingRecommendationIds.remove(recommendationId);

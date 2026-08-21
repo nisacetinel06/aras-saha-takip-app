@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../models/isg_report.dart';
 import '../services/api_service.dart';
+import '../utils/error_mapper.dart';
 
 /// İSG (İş Sağlığı ve Güvenliği) Bildirimi (Modül 5) ekranlarının state'ini
 /// yönetir: bildirim listesi/detayı çekme, yeni bildirim gönderme (gerçek
@@ -10,7 +11,7 @@ class IsgProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   IsgProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   List<IsgReport> _reports = [];
   bool _isListLoading = false;
@@ -50,7 +51,7 @@ class IsgProvider extends ChangeNotifier {
         statusFilter: _filterStatus?.toJson(),
       );
     } catch (e) {
-      _listErrorMessage = e.toString();
+      _listErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isListLoading = false;
       notifyListeners();
@@ -70,7 +71,7 @@ class IsgProvider extends ChangeNotifier {
     try {
       _selectedReport = await _apiService.getIsgReportDetail(id);
     } catch (e) {
-      _detailErrorMessage = e.toString();
+      _detailErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isDetailLoading = false;
       notifyListeners();
@@ -103,7 +104,7 @@ class IsgProvider extends ChangeNotifier {
       );
       return true;
     } catch (e) {
-      _submitErrorMessage = e.toString();
+      _submitErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isSubmitting = false;
@@ -130,7 +131,7 @@ class IsgProvider extends ChangeNotifier {
       if (index != -1) _reports[index] = _selectedReport!;
       return true;
     } catch (e) {
-      _detailErrorMessage = e.toString();
+      _detailErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isUpdatingStatus = false;

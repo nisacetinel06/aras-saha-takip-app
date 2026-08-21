@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/chat_message.dart';
 import '../services/api_service.dart';
+import '../utils/error_mapper.dart';
 
 /// AI Asistan / Sohbet Arayüzü (Modül 16) ekranının state'i.
 ///
@@ -17,7 +18,7 @@ class AssistantProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   AssistantProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   final List<ChatMessage> _messages = [];
   bool _isLoadingHistory = false;
@@ -42,7 +43,7 @@ class AssistantProvider extends ChangeNotifier {
         ..clear()
         ..addAll(history);
     } catch (e) {
-      _historyErrorMessage = e.toString();
+      _historyErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingHistory = false;
       notifyListeners();
@@ -81,7 +82,7 @@ class AssistantProvider extends ChangeNotifier {
       }
       return null;
     } catch (e) {
-      _sendErrorMessage = e.toString();
+      _sendErrorMessage = mapExceptionToUserMessage(e);
       return null;
     } finally {
       _isTyping = false;

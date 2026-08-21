@@ -4,6 +4,7 @@ import '../models/app_notification.dart';
 import '../services/api_service.dart';
 import '../services/cache_service.dart';
 import '../services/local_notification_service.dart';
+import '../utils/error_mapper.dart';
 
 /// Bildirim Sistemi (Modül 6) — bildirim listesi/sayısı state'i VE cihaz içi
 /// polling mekanizması.
@@ -24,7 +25,7 @@ class NotificationProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   NotificationProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   static const _pollInterval = Duration(seconds: 30);
 
@@ -77,7 +78,7 @@ class NotificationProvider extends ChangeNotifier {
         _isFromCache = true;
         _cachedAt = cached.cachedAt;
       } else {
-        _errorMessage = e.toString();
+        _errorMessage = mapExceptionToUserMessage(e);
       }
     } finally {
       _isLoading = false;
@@ -104,7 +105,7 @@ class NotificationProvider extends ChangeNotifier {
       _unreadCount = _notifications.where((n) => !n.isRead).length;
       notifyListeners();
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = mapExceptionToUserMessage(e);
       notifyListeners();
     }
   }
@@ -118,7 +119,7 @@ class NotificationProvider extends ChangeNotifier {
       _unreadCount = 0;
       notifyListeners();
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = mapExceptionToUserMessage(e);
       notifyListeners();
     }
   }

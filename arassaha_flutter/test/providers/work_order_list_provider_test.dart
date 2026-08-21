@@ -58,10 +58,10 @@ void main() {
       expect(provider.workOrders.length, 1);
 
       when(() => mockApiService.getWorkOrders(statusFilter: any(named: 'statusFilter')))
-          .thenThrow(ApiException('Bağlantı hatası'));
+          .thenThrow(ApiException(500, 'Bağlantı hatası'));
       await provider.loadWorkOrders();
 
-      expect(provider.errorMessage, 'Bağlantı hatası');
+      expect(provider.errorMessage, 'Sunucuda bir hata oluştu, lütfen daha sonra tekrar deneyin');
       expect(provider.isLoading, false);
       expect(
         provider.workOrders.length,

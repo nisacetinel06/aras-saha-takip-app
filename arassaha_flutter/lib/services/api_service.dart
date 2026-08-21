@@ -23,9 +23,20 @@ import '../models/work_order.dart';
 import '../models/work_order_map_pin.dart';
 
 /// Backend ile ilgili tüm hataları sarmalayan özel exception sınıfı.
+///
+/// `statusCode`, çağıran katmanın (bkz. utils/error_mapper.dart
+/// mapExceptionToUserMessage) HTTP durum koduna göre kullanıcı dostu bir
+/// mesaj seçebilmesi için taşınır — örn. 401 için "Oturumunuz sona ermiş",
+/// 404 için "Aranan kayıt bulunamadı". Sunucudan hiç yanıt alınamayan
+/// (bağlantı/DNS/zaman aşımı) durumlarda bu sınıf KULLANILMAZ — ham
+/// SocketException/TimeoutException, tipini KORUYARAK doğrudan çağırana
+/// yansır (bkz. bu dosyadaki her metodun artık bir "catch-all" bloğu
+/// OLMAMASI notu), çünkü mapper bu iki durumu (sunucu hata verdi / sunucuya
+/// hiç ulaşılamadı) FARKLI mesajlarla ayırt eder.
 class ApiException implements Exception {
+  final int statusCode;
   final String message;
-  ApiException(this.message);
+  ApiException(this.statusCode, this.message);
 
   @override
   String toString() => message;
@@ -197,11 +208,19 @@ class ApiService {
       _authenticated(() => http.get(uri, headers: _headers()));
 
   Future<http.Response> _post(Uri uri, {Object? body}) => _authenticated(
-    () => http.post(uri, headers: _headers(json: body != null), body: body),
+    () => http.post(
+      uri,
+      headers: _headers(json: body != null),
+      body: body,
+    ),
   );
 
   Future<http.Response> _patch(Uri uri, {Object? body}) => _authenticated(
-    () => http.patch(uri, headers: _headers(json: body != null), body: body),
+    () => http.patch(
+      uri,
+      headers: _headers(json: body != null),
+      body: body,
+    ),
   );
 
   Future<http.Response> _delete(Uri uri) =>
@@ -260,6 +279,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Sicil no veya şifre hatalı.'),
         );
       }
@@ -288,12 +308,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -313,7 +331,10 @@ class ApiService {
       );
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Kod doğrulanamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Kod doğrulanamadı.'),
+        );
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -328,12 +349,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -342,13 +361,17 @@ class ApiService {
   /// HENÜZ ETKİNLEŞTİRMEZ (bkz. routes/twoFactor.js) — POST /confirm ile
   /// doğrulanması gerekir. [backupCodes] SADECE bu çağrıda düz metin olarak
   /// gelir, bir daha asla geri dönmez.
-  Future<({String otpauthUri, List<String> backupCodes})> setupTwoFactor() async {
+  Future<({String otpauthUri, List<String> backupCodes})>
+  setupTwoFactor() async {
     try {
       final uri = Uri.parse('$baseUrl/auth/2fa/setup');
       final response = await _post(uri, body: jsonEncode({}));
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, '2FA kurulumu başlatılamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, '2FA kurulumu başlatılamadı.'),
+        );
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -362,12 +385,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -379,7 +400,10 @@ class ApiService {
       final response = await _post(uri, body: jsonEncode({'code': code}));
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Kod doğrulanamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Kod doğrulanamadı.'),
+        );
       }
     } on ApiException {
       rethrow;
@@ -387,12 +411,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -402,10 +424,16 @@ class ApiService {
   Future<void> disableTwoFactor(String password) async {
     try {
       final uri = Uri.parse('$baseUrl/auth/2fa/disable');
-      final response = await _post(uri, body: jsonEncode({'password': password}));
+      final response = await _post(
+        uri,
+        body: jsonEncode({'password': password}),
+      );
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, '2FA devre dışı bırakılamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, '2FA devre dışı bırakılamadı.'),
+        );
       }
     } on ApiException {
       rethrow;
@@ -413,12 +441,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -436,7 +462,10 @@ class ApiService {
       );
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Oturum geçersiz.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Oturum geçersiz.'),
+        );
       }
 
       return AssignedUser.fromJson(jsonDecode(response.body));
@@ -446,12 +475,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -475,7 +502,10 @@ class ApiService {
       );
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Oturum yenilenemedi.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Oturum yenilenemedi.'),
+        );
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -485,8 +515,6 @@ class ApiService {
       );
     } on ApiException {
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -533,13 +561,16 @@ class ApiService {
         if (limit != null) 'limit': '$limit',
         if (offset != null) 'offset': '$offset',
       };
-      final uri = Uri.parse(
-        '$baseUrl/workorders',
-      ).replace(queryParameters: queryParameters.isEmpty ? null : queryParameters);
+      final uri = Uri.parse('$baseUrl/workorders').replace(
+        queryParameters: queryParameters.isEmpty ? null : queryParameters,
+      );
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'İş emirleri alınamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'İş emirleri alınamadı.'),
+        );
       }
 
       final List<dynamic> data = jsonDecode(response.body);
@@ -550,12 +581,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -569,6 +598,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Harita verileri alınamadı.'),
         );
       }
@@ -581,12 +611,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -597,6 +625,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'İş emri detayı alınamadı.'),
         );
       }
@@ -608,12 +637,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -638,7 +665,10 @@ class ApiService {
       );
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Durum güncellenemedi.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Durum güncellenemedi.'),
+        );
       }
 
       return WorkOrder.fromJson(jsonDecode(response.body));
@@ -648,12 +678,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -670,6 +698,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'İş emri ataması değiştirilemedi.'),
         );
       }
@@ -681,12 +710,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -719,7 +746,10 @@ class ApiService {
       );
 
       if (response.statusCode != 201) {
-        throw ApiException(_extractError(response, 'İş emri oluşturulamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'İş emri oluşturulamadı.'),
+        );
       }
 
       return WorkOrder.fromJson(jsonDecode(response.body));
@@ -729,12 +759,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -766,7 +794,10 @@ class ApiService {
       });
 
       if (response.statusCode != 201) {
-        throw ApiException(_extractError(response, 'Fotoğraf eklenemedi.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Fotoğraf eklenemedi.'),
+        );
       }
 
       return WorkOrderPhoto.fromJson(jsonDecode(response.body));
@@ -776,12 +807,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -804,7 +833,10 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Kişiler alınamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Kişiler alınamadı.'),
+        );
       }
 
       final List<dynamic> data = jsonDecode(response.body);
@@ -815,12 +847,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -839,6 +869,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Profil bilgisi alınamadı.'),
         );
       }
@@ -850,12 +881,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -869,7 +898,10 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Kullanıcılar alınamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Kullanıcılar alınamadı.'),
+        );
       }
 
       final List<dynamic> data = jsonDecode(response.body);
@@ -880,12 +912,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -897,6 +927,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Kullanıcı detayı alınamadı.'),
         );
       }
@@ -908,12 +939,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -947,6 +976,7 @@ class ApiService {
 
       if (response.statusCode != 201) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Kullanıcı oluşturulamadı.'),
         );
       }
@@ -958,12 +988,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1002,6 +1030,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Kullanıcı güncellenemedi.'),
         );
       }
@@ -1013,12 +1042,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1051,6 +1078,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Profil fotoğrafı yüklenemedi.'),
         );
       }
@@ -1062,12 +1090,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1081,6 +1107,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Kullanıcı pasif hale getirilemedi.'),
         );
       }
@@ -1092,12 +1119,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1109,6 +1134,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Kullanıcı aktif hale getirilemedi.'),
         );
       }
@@ -1120,12 +1146,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1142,7 +1166,10 @@ class ApiService {
       );
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Şifre sıfırlanamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Şifre sıfırlanamadı.'),
+        );
       }
     } on ApiException {
       rethrow;
@@ -1150,12 +1177,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1172,6 +1197,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Dashboard özeti alınamadı.'),
         );
       }
@@ -1183,12 +1209,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1205,7 +1229,10 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Cihazlar alınamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Cihazlar alınamadı.'),
+        );
       }
 
       final List<dynamic> data = jsonDecode(response.body);
@@ -1216,12 +1243,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1231,7 +1256,10 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Cihaz detayı alınamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Cihaz detayı alınamadı.'),
+        );
       }
 
       return ManagedDevice.fromJson(jsonDecode(response.body));
@@ -1241,12 +1269,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1256,7 +1282,10 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'İşlem geçmişi alınamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'İşlem geçmişi alınamadı.'),
+        );
       }
 
       final List<dynamic> data = jsonDecode(response.body);
@@ -1267,12 +1296,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1290,7 +1317,10 @@ class ApiService {
       );
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, fallbackError));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, fallbackError),
+        );
       }
 
       return ManagedDevice.fromJson(jsonDecode(response.body));
@@ -1300,12 +1330,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1371,7 +1399,10 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Ekipmanlar alınamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Ekipmanlar alınamadı.'),
+        );
       }
 
       final List<dynamic> data = jsonDecode(response.body);
@@ -1382,12 +1413,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1403,6 +1432,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Bu QR koda ait ekipman bulunamadı.'),
         );
       }
@@ -1414,12 +1444,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1431,6 +1459,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Ekipman detayı alınamadı.'),
         );
       }
@@ -1442,12 +1471,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1459,6 +1486,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Ekipman geçmişi alınamadı.'),
         );
       }
@@ -1471,12 +1499,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1493,7 +1519,10 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Risk skoru alınamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Risk skoru alınamadı.'),
+        );
       }
 
       return EquipmentRisk.fromJson(jsonDecode(response.body));
@@ -1503,12 +1532,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1523,6 +1550,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Riskli ekipman listesi alınamadı.'),
         );
       }
@@ -1535,12 +1563,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1558,6 +1584,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Şüpheli sayaç listesi alınamadı.'),
         );
       }
@@ -1570,12 +1597,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1587,7 +1612,10 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Anomali skoru alınamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Anomali skoru alınamadı.'),
+        );
       }
 
       return MeterAnomaly.fromJson(jsonDecode(response.body));
@@ -1597,12 +1625,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1617,6 +1643,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Tüketim geçmişi alınamadı.'),
         );
       }
@@ -1629,12 +1656,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1652,6 +1677,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'İSG bildirimleri alınamadı.'),
         );
       }
@@ -1664,12 +1690,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1680,6 +1704,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'İSG bildirimi detayı alınamadı.'),
         );
       }
@@ -1691,12 +1716,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1753,6 +1776,7 @@ class ApiService {
 
       if (response.statusCode != 201) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'İSG bildirimi gönderilemedi.'),
         );
       }
@@ -1764,12 +1788,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1791,6 +1813,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'İSG bildirimi durumu güncellenemedi.'),
         );
       }
@@ -1802,12 +1825,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1826,7 +1847,10 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Bildirimler alınamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Bildirimler alınamadı.'),
+        );
       }
 
       final List<dynamic> data = jsonDecode(response.body);
@@ -1837,12 +1861,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1854,6 +1876,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Okunmamış bildirim sayısı alınamadı.'),
         );
       }
@@ -1866,12 +1889,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1882,6 +1903,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Bildirim okundu olarak işaretlenemedi.'),
         );
       }
@@ -1893,12 +1915,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1909,6 +1929,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Bildirimler okundu olarak işaretlenemedi.'),
         );
       }
@@ -1918,12 +1939,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1948,6 +1967,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Açıklama sınıflandırılamadı.'),
         );
       }
@@ -1959,12 +1979,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -1986,6 +2004,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Bakım önerileri yeniden hesaplanamadı.'),
         );
       }
@@ -2002,12 +2021,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2027,6 +2044,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Bakım önerileri alınamadı.'),
         );
       }
@@ -2041,12 +2059,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2072,6 +2088,7 @@ class ApiService {
 
       if (response.statusCode != 201) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Önleyici iş emri oluşturulamadı.'),
         );
       }
@@ -2084,12 +2101,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2105,6 +2120,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Bakım önerisi reddedilemedi.'),
         );
       }
@@ -2116,12 +2132,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2149,7 +2163,10 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Malzemeler alınamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Malzemeler alınamadı.'),
+        );
       }
 
       final List<dynamic> data = jsonDecode(response.body);
@@ -2160,12 +2177,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2177,6 +2192,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Malzeme detayı alınamadı.'),
         );
       }
@@ -2188,12 +2204,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2225,7 +2239,10 @@ class ApiService {
       );
 
       if (response.statusCode != 201) {
-        throw ApiException(_extractError(response, 'Malzeme oluşturulamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Malzeme oluşturulamadı.'),
+        );
       }
 
       return MaterialItem.fromJson(jsonDecode(response.body));
@@ -2235,12 +2252,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2254,7 +2269,10 @@ class ApiService {
       );
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Stok ikmali yapılamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Stok ikmali yapılamadı.'),
+        );
       }
 
       return MaterialItem.fromJson(jsonDecode(response.body));
@@ -2264,12 +2282,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2283,6 +2299,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Kullanılan malzemeler alınamadı.'),
         );
       }
@@ -2295,12 +2312,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2329,6 +2344,7 @@ class ApiService {
 
       if (response.statusCode != 201) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Malzeme kullanımı kaydedilemedi.'),
         );
       }
@@ -2344,12 +2360,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2364,6 +2378,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Malzeme kullanım kaydı silinemedi.'),
         );
       }
@@ -2373,12 +2388,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2393,6 +2406,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Kritik stoktaki malzemeler alınamadı.'),
         );
       }
@@ -2405,12 +2419,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2445,6 +2457,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Kullanım analitiği alınamadı.'),
         );
       }
@@ -2456,12 +2469,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2478,6 +2489,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Bölgesel risk özeti alınamadı.'),
         );
       }
@@ -2490,12 +2502,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2507,6 +2517,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Bölgeye göre arıza dağılımı alınamadı.'),
         );
       }
@@ -2519,12 +2530,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2536,6 +2545,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(
             response,
             'Ekipman tipine göre arıza dağılımı alınamadı.',
@@ -2553,12 +2563,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2572,6 +2580,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Aylık arıza trendi alınamadı.'),
         );
       }
@@ -2584,12 +2593,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2601,6 +2608,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Bölgeye göre anomali dağılımı alınamadı.'),
         );
       }
@@ -2613,12 +2621,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2632,6 +2638,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'En çok kullanılan malzemeler alınamadı.'),
         );
       }
@@ -2644,12 +2651,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2663,6 +2668,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Sohbet geçmişi alınamadı.'),
         );
       }
@@ -2675,12 +2681,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2699,6 +2703,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Asistan yanıtı alınamadı.'),
         );
       }
@@ -2711,12 +2716,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2736,6 +2739,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Aydınlatma metni alınamadı.'),
         );
       }
@@ -2753,12 +2757,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2771,6 +2773,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Kişisel veri özeti alınamadı.'),
         );
       }
@@ -2782,12 +2785,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2810,6 +2811,7 @@ class ApiService {
 
       if (response.statusCode != 201) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Silme talebi oluşturulamadı.'),
         );
       }
@@ -2819,12 +2821,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2836,6 +2836,7 @@ class ApiService {
 
       if (response.statusCode != 200) {
         throw ApiException(
+          response.statusCode,
           _extractError(response, 'Silme talepleri alınamadı.'),
         );
       }
@@ -2848,12 +2849,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2866,7 +2865,10 @@ class ApiService {
       final response = await _patch(uri, body: jsonEncode({}));
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Talep onaylanamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Talep onaylanamadı.'),
+        );
       }
     } on ApiException {
       rethrow;
@@ -2874,12 +2876,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2894,7 +2894,10 @@ class ApiService {
       );
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Talep reddedilemedi.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Talep reddedilemedi.'),
+        );
       }
     } on ApiException {
       rethrow;
@@ -2902,12 +2905,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 
@@ -2937,7 +2938,10 @@ class ApiService {
       final response = await _get(uri);
 
       if (response.statusCode != 200) {
-        throw ApiException(_extractError(response, 'Denetim logu alınamadı.'));
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Denetim logu alınamadı.'),
+        );
       }
 
       return AuditLogPage.fromJson(jsonDecode(response.body));
@@ -2947,12 +2951,10 @@ class ApiService {
       // Sessiz yenileme (bkz. _authenticated/_refreshAccessToken) BİLE
       // başarısız oldu — oturum GERÇEKTEN bitti. onUnauthorized callback'i
       // (AuthProvider.handleSessionExpired) bu noktaya gelinmeden ÖNCE zaten
-      // tetiklenmiş olur; burada yalnızca bu özel tipi, aşağıdaki genel
-      // catch'in onu belirsiz bir "Sunucuya bağlanılamadı" ApiException'ına
-      // SARMALAMASINI önlemek için olduğu gibi yukarı taşıyoruz.
+      // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
+      // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
+      // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
       rethrow;
-    } catch (e) {
-      throw ApiException('Sunucuya bağlanılamadı: $e');
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/work_order.dart';
 import '../services/api_service.dart';
 import '../services/cache_service.dart';
+import '../utils/error_mapper.dart';
 
 /// İş emri listesi ekranının state'ini yönetir: veri çekme, statü filtresi
 /// (backend'e sorgu olarak gider), serbest metin araması (çekilmiş liste
@@ -10,7 +11,7 @@ class WorkOrderListProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   WorkOrderListProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   List<WorkOrder> _workOrders = [];
   bool _isLoading = false;
@@ -84,7 +85,7 @@ class WorkOrderListProvider extends ChangeNotifier {
         _isFromCache = true;
         _cachedAt = cached.cachedAt;
       } else {
-        _errorMessage = e.toString();
+        _errorMessage = mapExceptionToUserMessage(e);
       }
     } finally {
       _isLoading = false;

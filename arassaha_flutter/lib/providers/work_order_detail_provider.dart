@@ -5,6 +5,7 @@ import '../providers/connectivity_provider.dart';
 import '../services/api_service.dart';
 import '../services/cache_service.dart';
 import '../services/offline_queue_service.dart';
+import '../utils/error_mapper.dart';
 
 /// İş emri detay ekranının state'ini yönetir: detay çekme, durum güncelleme,
 /// fotoğraf ekleme ve bu işlemler sırasındaki yükleniyor/hata durumları.
@@ -13,7 +14,7 @@ class WorkOrderDetailProvider extends ChangeNotifier {
   final int workOrderId;
 
   WorkOrderDetailProvider(this.workOrderId, {ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   WorkOrder? _workOrder;
   bool _isLoading = false;
@@ -61,7 +62,7 @@ class WorkOrderDetailProvider extends ChangeNotifier {
         _isFromCache = true;
         _cachedAt = cached.cachedAt;
       } else {
-        _errorMessage = e.toString();
+        _errorMessage = mapExceptionToUserMessage(e);
       }
     } finally {
       _isLoading = false;
@@ -106,7 +107,7 @@ class WorkOrderDetailProvider extends ChangeNotifier {
       );
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isUpdating = false;
@@ -128,7 +129,7 @@ class WorkOrderDetailProvider extends ChangeNotifier {
       );
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isUpdating = false;
@@ -150,7 +151,7 @@ class WorkOrderDetailProvider extends ChangeNotifier {
       }
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isUpdating = false;

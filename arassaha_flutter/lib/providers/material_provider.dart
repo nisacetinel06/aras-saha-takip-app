@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/equipment.dart' show EquipmentType;
 import '../models/material.dart';
 import '../services/api_service.dart';
+import '../utils/error_mapper.dart';
 
 /// Malzeme / Yedek Parça Stok Takibi (Modül 13) ekranlarının state'ini yönetir:
 /// arama (typeahead), malzeme detayı, kritik stok listesi, bir iş emrindeki
@@ -11,7 +12,7 @@ class MaterialProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   MaterialProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   // --- Arama (MaterialPickerField — Equipment/EquipmentProvider ile AYNI
   // desen: debounce mantığı widget'ta, burada yalnızca API çağrısı) ---
@@ -110,7 +111,7 @@ class MaterialProvider extends ChangeNotifier {
       final results = await _apiService.getMaterials(search: query);
       _searchResults = _sortByEquipmentTypeHint(results, equipmentTypeHint);
     } catch (e) {
-      _searchErrorMessage = e.toString();
+      _searchErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isSearching = false;
       notifyListeners();
@@ -137,7 +138,7 @@ class MaterialProvider extends ChangeNotifier {
         lowStockOnly: lowStockOnly,
       );
     } catch (e) {
-      _listErrorMessage = e.toString();
+      _listErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingList = false;
       notifyListeners();
@@ -152,7 +153,7 @@ class MaterialProvider extends ChangeNotifier {
     try {
       _selectedMaterialDetail = await _apiService.getMaterialDetail(id);
     } catch (e) {
-      _detailErrorMessage = e.toString();
+      _detailErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingDetail = false;
       notifyListeners();
@@ -167,7 +168,7 @@ class MaterialProvider extends ChangeNotifier {
     try {
       _lowStockMaterials = await _apiService.getLowStockMaterials(limit: limit);
     } catch (e) {
-      _lowStockErrorMessage = e.toString();
+      _lowStockErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingLowStock = false;
       notifyListeners();
@@ -184,7 +185,7 @@ class MaterialProvider extends ChangeNotifier {
         workOrderId,
       );
     } catch (e) {
-      _workOrderMaterialsErrorMessage = e.toString();
+      _workOrderMaterialsErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingWorkOrderMaterials = false;
       notifyListeners();
@@ -214,7 +215,7 @@ class MaterialProvider extends ChangeNotifier {
       await fetchWorkOrderMaterials(workOrderId);
       return true;
     } catch (e) {
-      _submitErrorMessage = e.toString();
+      _submitErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isSubmitting = false;
@@ -233,7 +234,7 @@ class MaterialProvider extends ChangeNotifier {
       await fetchWorkOrderMaterials(workOrderId);
       return true;
     } catch (e) {
-      _submitErrorMessage = e.toString();
+      _submitErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isSubmitting = false;
@@ -253,7 +254,7 @@ class MaterialProvider extends ChangeNotifier {
       await fetchMaterialDetail(id);
       return true;
     } catch (e) {
-      _submitErrorMessage = e.toString();
+      _submitErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isSubmitting = false;
@@ -287,7 +288,7 @@ class MaterialProvider extends ChangeNotifier {
       );
       return true;
     } catch (e) {
-      _submitErrorMessage = e.toString();
+      _submitErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isSubmitting = false;

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/kvkk_models.dart';
 import '../services/api_service.dart';
+import '../utils/error_mapper.dart';
 
 /// KVKK Uyum Modülü ekranlarının state'ini yönetir: aydınlatma metni, kendi
 /// veri özetim, silme talebi oluşturma ve (yalnızca yönetici) talep listesi
@@ -9,7 +10,7 @@ class KvkkProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   KvkkProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   String? _aydinlatmaMetni;
   String? _draftWarning;
@@ -59,7 +60,7 @@ class KvkkProvider extends ChangeNotifier {
       _aydinlatmaMetni = result.content;
       _draftWarning = result.draftWarning;
     } catch (e) {
-      _aydinlatmaMetniErrorMessage = e.toString();
+      _aydinlatmaMetniErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingAydinlatmaMetni = false;
       notifyListeners();
@@ -74,7 +75,7 @@ class KvkkProvider extends ChangeNotifier {
     try {
       _dataSummary = await _apiService.getMyDataSummary();
     } catch (e) {
-      _summaryErrorMessage = e.toString();
+      _summaryErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingSummary = false;
       notifyListeners();
@@ -96,7 +97,7 @@ class KvkkProvider extends ChangeNotifier {
       );
       return true;
     } catch (e) {
-      _submitErrorMessage = e.toString();
+      _submitErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isSubmitting = false;
@@ -112,7 +113,7 @@ class KvkkProvider extends ChangeNotifier {
     try {
       _allRequests = await _apiService.getAllDeletionRequests();
     } catch (e) {
-      _requestsErrorMessage = e.toString();
+      _requestsErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingRequests = false;
       notifyListeners();
@@ -133,7 +134,7 @@ class KvkkProvider extends ChangeNotifier {
       await fetchAllDeletionRequests();
       return true;
     } catch (e) {
-      _processErrorMessage = e.toString();
+      _processErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isProcessingRequest = false;
@@ -151,7 +152,7 @@ class KvkkProvider extends ChangeNotifier {
       await fetchAllDeletionRequests();
       return true;
     } catch (e) {
-      _processErrorMessage = e.toString();
+      _processErrorMessage = mapExceptionToUserMessage(e);
       return false;
     } finally {
       _isProcessingRequest = false;

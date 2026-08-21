@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/meter_anomaly.dart';
 import '../services/api_service.dart';
+import '../utils/error_mapper.dart';
 
 /// Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) ekranlarının state'ini
 /// yönetir: Şüpheli Sayaçlar listesi, Ekipman Detayı'ndaki tekil anomali
@@ -12,7 +13,7 @@ class AnomalyProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   AnomalyProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   List<SuspiciousMeterSummary> _suspiciousMeters = [];
   bool _isSuspiciousListLoading = false;
@@ -51,7 +52,7 @@ class AnomalyProvider extends ChangeNotifier {
     try {
       _suspiciousMeters = await _apiService.getSuspiciousMeters();
     } catch (e) {
-      _suspiciousListErrorMessage = e.toString();
+      _suspiciousListErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isSuspiciousListLoading = false;
       notifyListeners();
@@ -67,7 +68,7 @@ class AnomalyProvider extends ChangeNotifier {
       _anomalyByEquipmentId[equipmentId] = await _apiService
           .getEquipmentAnomaly(equipmentId);
     } catch (e) {
-      _anomalyErrorMessage = e.toString();
+      _anomalyErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _loadingAnomalyEquipmentIds.remove(equipmentId);
       notifyListeners();
@@ -83,7 +84,7 @@ class AnomalyProvider extends ChangeNotifier {
       _consumptionByEquipmentId[equipmentId] = await _apiService
           .getEquipmentConsumption(equipmentId);
     } catch (e) {
-      _consumptionErrorMessage = e.toString();
+      _consumptionErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _loadingConsumptionEquipmentIds.remove(equipmentId);
       notifyListeners();

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/work_order.dart';
 import '../models/work_order_map_pin.dart';
 import '../services/api_service.dart';
+import '../utils/error_mapper.dart';
 
 /// Harita ekranının state'ini yönetir: pin verisini çekme, yükleniyor/hata
 /// durumları ve statü filtresi. Veri seti küçük olduğu (≈15 kayıt) için statü
@@ -12,7 +13,7 @@ class MapProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   MapProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   List<WorkOrderMapPin> _allPins = [];
   bool _isLoading = false;
@@ -39,7 +40,7 @@ class MapProvider extends ChangeNotifier {
     try {
       _allPins = await _apiService.getMapData();
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoading = false;
       notifyListeners();

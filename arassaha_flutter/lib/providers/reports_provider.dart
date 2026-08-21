@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/report.dart';
 import '../services/api_service.dart';
+import '../utils/error_mapper.dart';
 
 /// Raporlar / Analitik Sayfası (Modül 14) state'i: bölgesel risk özeti,
 /// bölgeye/ekipman tipine göre arıza dağılımı, aylık arıza trendi, bölgeye
@@ -18,7 +19,7 @@ class ReportsProvider extends ChangeNotifier {
   final ApiService _apiService;
 
   ReportsProvider({ApiService? apiService})
-      : _apiService = apiService ?? ApiService();
+    : _apiService = apiService ?? ApiService();
 
   // --- Sekme 1a: Risk Yoğunluk Haritası ---
   List<RegionalRiskSummary> _regionalRiskSummary = [];
@@ -92,7 +93,7 @@ class ReportsProvider extends ChangeNotifier {
       _regionalRiskSummary = await _apiService.getRegionalRiskSummary();
       _regionalRiskLoaded = true;
     } catch (e) {
-      _regionalRiskErrorMessage = e.toString();
+      _regionalRiskErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingRegionalRisk = false;
       notifyListeners();
@@ -109,7 +110,7 @@ class ReportsProvider extends ChangeNotifier {
       _faultByRegion = await _apiService.getFaultByRegion();
       _faultByRegionLoaded = true;
     } catch (e) {
-      _faultByRegionErrorMessage = e.toString();
+      _faultByRegionErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingFaultByRegion = false;
       notifyListeners();
@@ -126,7 +127,7 @@ class ReportsProvider extends ChangeNotifier {
       _faultTrend = await _apiService.getFaultTrend();
       _faultTrendLoaded = true;
     } catch (e) {
-      _faultTrendErrorMessage = e.toString();
+      _faultTrendErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingFaultTrend = false;
       notifyListeners();
@@ -143,7 +144,7 @@ class ReportsProvider extends ChangeNotifier {
       _faultByEquipmentType = await _apiService.getFaultByEquipmentType();
       _faultByEquipmentTypeLoaded = true;
     } catch (e) {
-      _faultByEquipmentTypeErrorMessage = e.toString();
+      _faultByEquipmentTypeErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingFaultByEquipmentType = false;
       notifyListeners();
@@ -160,7 +161,7 @@ class ReportsProvider extends ChangeNotifier {
       _anomalyByRegion = await _apiService.getAnomalyByRegion();
       _anomalyByRegionLoaded = true;
     } catch (e) {
-      _anomalyByRegionErrorMessage = e.toString();
+      _anomalyByRegionErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingAnomalyByRegion = false;
       notifyListeners();
@@ -177,7 +178,7 @@ class ReportsProvider extends ChangeNotifier {
       _topMaterialUsage = await _apiService.getTopMaterialUsage();
       _topMaterialUsageLoaded = true;
     } catch (e) {
-      _topMaterialUsageErrorMessage = e.toString();
+      _topMaterialUsageErrorMessage = mapExceptionToUserMessage(e);
     } finally {
       _isLoadingTopMaterialUsage = false;
       notifyListeners();

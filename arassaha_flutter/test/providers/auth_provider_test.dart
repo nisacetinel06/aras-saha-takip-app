@@ -104,7 +104,7 @@ void main() {
   group('AuthProvider - login (error)', () {
     test('başarısız login sonrası errorMessage set edilmeli, kullanıcı boş kalmalı', () async {
       when(() => mockApiService.login(sicilNo: '1001', password: 'yanlisSifre'))
-          .thenThrow(ApiException('Sicil no veya şifre hatalı'));
+          .thenThrow(ApiException(401, 'Sicil no veya şifre hatalı'));
 
       final result = await authProvider.login('1001', 'yanlisSifre');
 
@@ -112,7 +112,9 @@ void main() {
       expect(authProvider.isLoading, false);
       expect(authProvider.currentUser, isNull);
       expect(authProvider.isAuthenticated, false);
-      expect(authProvider.errorMessage, 'Sicil no veya şifre hatalı');
+      // bkz. utils/error_mapper.dart: ApiException artık ham mesajı DEĞİL,
+      // HTTP durum koduna göre eşlenmiş kullanıcı dostu bir mesaj üretir.
+      expect(authProvider.errorMessage, 'Oturumunuz sona ermiş, lütfen tekrar giriş yapın');
     });
   });
 
@@ -197,13 +199,13 @@ void main() {
       await authProvider.login('3001', 'sifre123');
 
       when(() => mockApiService.verifyTwoFactor(pendingToken: 'ara-token', code: '000000'))
-          .thenThrow(ApiException('Geçersiz kod.'));
+          .thenThrow(ApiException(401, 'Geçersiz kod.'));
 
       final result = await authProvider.verifyTwoFactor('000000');
 
       expect(result, false);
       expect(authProvider.isAuthenticated, false);
-      expect(authProvider.errorMessage, 'Geçersiz kod.');
+      expect(authProvider.errorMessage, 'Oturumunuz sona ermiş, lütfen tekrar giriş yapın');
     });
 
     test('cancelTwoFactor: bekleyen token temizlenir, requiresTwoFactor false olur', () async {
@@ -280,7 +282,7 @@ void main() {
         when(() => mockSecureStorage.getToken()).thenAnswer((_) async => 'suresi-dolmus-token');
         when(() => mockSecureStorage.getRefreshToken()).thenAnswer((_) async => 'gecerli-refresh-token');
         when(() => mockApiService.getMe('suresi-dolmus-token'))
-            .thenThrow(ApiException('Oturum geçersiz.'));
+            .thenThrow(ApiException(401, 'Oturum geçersiz.'));
         when(() => mockApiService.refresh('gecerli-refresh-token')).thenAnswer(
           (_) async => (accessToken: 'yeni-access-token', refreshToken: 'yeni-refresh-token'),
         );
@@ -307,9 +309,9 @@ void main() {
         when(() => mockSecureStorage.getToken()).thenAnswer((_) async => 'suresi-dolmus-token');
         when(() => mockSecureStorage.getRefreshToken()).thenAnswer((_) async => 'gecersiz-refresh-token');
         when(() => mockApiService.getMe('suresi-dolmus-token'))
-            .thenThrow(ApiException('Oturum geçersiz.'));
+            .thenThrow(ApiException(401, 'Oturum geçersiz.'));
         when(() => mockApiService.refresh('gecersiz-refresh-token'))
-            .thenThrow(ApiException('Güvenlik ihlali tespit edildi, lütfen tekrar giriş yapın.'));
+            .thenThrow(ApiException(401, 'Güvenlik ihlali tespit edildi, lütfen tekrar giriş yapın.'));
 
         await authProvider.tryAutoLogin();
 
