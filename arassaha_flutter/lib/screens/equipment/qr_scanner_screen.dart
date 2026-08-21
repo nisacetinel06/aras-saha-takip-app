@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../../providers/equipment_provider.dart';
 import '../../services/analytics_service.dart';
+import '../../services/onboarding_prefs_service.dart';
 import '../../theme/app_spacing.dart';
 import 'equipment_detail_screen.dart';
 
@@ -25,14 +28,40 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   bool _isProcessing = false;
   String? _transientMessage;
 
+  // Bağlamsal İlk-Karşılaşma İpucu (bkz. sınıf dokümantasyonu "Ana Sayfa
+  // Turu + Bağlamsal İpuçları" tasarım kararı) — burada BİLİNÇLİ olarak
+  // showcaseview KULLANILMAZ: risk rozetinin aksine (equipment_detail_screen.dart)
+  // vurgulanacak KÜÇÜK bir hedef widget yok, kamera görüntüsünün TAMAMI
+  // "hedef" — bu yüzden ekranın zaten sahip olduğu banner deseniyle
+  // (_LoadingBanner/_WarningBanner) birebir aynı, basit bir tam-genişlik
+  // bilgi banner'ı yeterli ve daha tutarlı.
+  bool _showFirstUseHint = false;
+  Timer? _hintTimer;
+
   @override
   void initState() {
     super.initState();
     AnalyticsService.logScreenView('QrScannerScreen');
+    _maybeShowFirstUseHint();
+  }
+
+  Future<void> _maybeShowFirstUseHint() async {
+    final hasSeen = await OnboardingPrefsService.hasSeenQrScannerHint();
+    if (hasSeen || !mounted) return;
+    setState(() => _showFirstUseHint = true);
+    _hintTimer = Timer(const Duration(seconds: 4), _dismissFirstUseHint);
+  }
+
+  void _dismissFirstUseHint() {
+    _hintTimer?.cancel();
+    OnboardingPrefsService.setHasSeenQrScannerHint();
+    if (!mounted || !_showFirstUseHint) return;
+    setState(() => _showFirstUseHint = false);
   }
 
   @override
   void dispose() {
+    _hintTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -54,6 +83,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     if (!mounted) return;
 
     if (equipment != null) {
+      // Kullanıcı başarıyla bir tarama yaptı — artık QR akışını bildiğini
+      // göstermiştir, ipucu bir daha karşısına çıkmasın (4 saniyelik
+      // zamanlayıcıyı beklemeden bayrağı hemen işaretle).
+      OnboardingPrefsService.setHasSeenQrScannerHint();
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => EquipmentDetailScreen(equipmentId: equipment.id),
@@ -102,6 +135,20 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                 _PermissionDeniedView(error: error),
           ),
           const _ScanFrameOverlay(),
+          if (_showFirstUseHint && !_isProcessing && _transientMessage == null)
+            Positioned(
+              top: AppSpacing.lg,
+              left: AppSpacing.lg,
+              right: AppSpacing.lg,
+              child: GestureDetector(
+                onTap: _dismissFirstUseHint,
+                child: const _InfoBanner(
+                  message:
+                      'Bir ekipmanın QR kodunu kameraya gösterin, otomatik '
+                      'olarak tanınacaktır.',
+                ),
+              ),
+            ),
           if (_isProcessing)
             const Positioned(
               top: AppSpacing.lg,
@@ -174,6 +221,44 @@ class _LoadingBanner extends StatelessWidget {
           Text(
             'Ekipman aranıyor...',
             style: TextStyle(color: Colors.white, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bağlamsal ilk-karşılaşma ipucu banner'ı — [_WarningBanner] ile AYNI
+/// görsel dil (siyah zemin, yuvarlak köşe), yalnızca ikon/anlam farklı
+/// (bilgi mavisi vs. uyarı sarısı) ki kullanıcı ikisini birbirinden ayırt
+/// edebilsin. Dokununca (bkz. çağıran taraftaki GestureDetector) hemen
+/// kapanır; aksi halde birkaç saniye sonra kendiliğinden kaybolur.
+class _InfoBanner extends StatelessWidget {
+  final String message;
+  const _InfoBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black87,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.info_outline,
+            color: Colors.lightBlueAccent,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
           ),
         ],
       ),

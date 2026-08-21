@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:showcaseview/showcaseview.dart';
 import '../../models/dashboard_summary.dart';
 import '../../models/maintenance_recommendation.dart';
 import '../../models/work_order.dart';
@@ -14,6 +15,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_logo.dart';
+import '../../widgets/onboarding/coach_mark_style.dart';
 import '../../widgets/role_badge.dart';
 import '../../widgets/user_avatar.dart';
 import '../admin/user_edit_screen.dart';
@@ -80,7 +82,22 @@ class HomeScreen extends StatefulWidget {
   /// ekrandan doğrudan push edilir.
   final void Function(int tabIndex, {WorkOrderStatus? statusFilter}) onNavigate;
 
-  const HomeScreen({super.key, required this.onNavigate});
+  // Ana Sayfa Turu (bkz. main_shell.dart _MainShellState dokümantasyonu):
+  // bu anahtarlar MainShell'de TANIMLANIR (turun diğer adımları — hamburger
+  // menü, Profil sekmesi — bu ekranın DIŞINDadır, o yüzden tek sahip orası)
+  // ve buraya geçirilir; HomeScreen yalnızca KENDİ 3 hedefini (karşılama,
+  // Hızlı İşlemler, ArasAI) bu anahtarlarla Showcase'e sarmalar.
+  final GlobalKey onboardingWelcomeKey;
+  final GlobalKey onboardingQuickActionsKey;
+  final GlobalKey onboardingArasAiKey;
+
+  const HomeScreen({
+    super.key,
+    required this.onNavigate,
+    required this.onboardingWelcomeKey,
+    required this.onboardingQuickActionsKey,
+    required this.onboardingArasAiKey,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -289,17 +306,40 @@ class _HomeScreenState extends State<HomeScreen> {
               AppSpacing.xl + 56,
             ),
             children: [
-              _GreetingRow(
-                name: auth.currentUser?.name ?? '',
-                role: auth.currentUser?.role ?? '',
-                roleLabel: auth.roleLabel,
-                photoPath: myProfile?.photoPath,
-                initials:
-                    myProfile?.initials ??
-                    (auth.currentUser?.name.isNotEmpty == true
-                        ? auth.currentUser!.name[0].toUpperCase()
-                        : '?'),
-                onAvatarTap: () => widget.onNavigate(3),
+              Showcase(
+                key: widget.onboardingWelcomeKey,
+                // Yalnızca "İleri"/"Geç"/"Geri" butonları ilerletsin — hedefe
+                // veya zemine (barrier) dokunmanın varsayılan olarak turu
+                // sessizce ilerletmesi (showcaseview'ın kütüphane
+                // davranışı) SAHADA, eldivenli/kazara bir dokunuşla turun
+                // fark edilmeden atlanmasına yol açardı.
+                disableDefaultTargetGestures: true,
+                title: 'Merhaba!',
+                description:
+                    'Burada rolünüzü ve günlük özet bilgilerinizi görürsünüz.',
+                tooltipBackgroundColor: CoachMarkStyle.background(context),
+                textColor: CoachMarkStyle.foreground(context),
+                tooltipBorderRadius: CoachMarkStyle.borderRadius,
+                titleTextStyle: CoachMarkStyle.title(context),
+                descTextStyle: CoachMarkStyle.description(context),
+                tooltipActionConfig: CoachMarkStyle.actionConfig,
+                tooltipActions: CoachMarkStyle.homeTourActions(
+                  context,
+                  isFirstStep: true,
+                ),
+                targetPadding: const EdgeInsets.all(AppSpacing.sm),
+                child: _GreetingRow(
+                  name: auth.currentUser?.name ?? '',
+                  role: auth.currentUser?.role ?? '',
+                  roleLabel: auth.roleLabel,
+                  photoPath: myProfile?.photoPath,
+                  initials:
+                      myProfile?.initials ??
+                      (auth.currentUser?.name.isNotEmpty == true
+                          ? auth.currentUser!.name[0].toUpperCase()
+                          : '?'),
+                  onAvatarTap: () => widget.onNavigate(3),
+                ),
               ),
               const SizedBox(height: AppSpacing.lg),
               _StatsRow(
@@ -315,15 +355,34 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: AppTextStyles.headingMedium(color: scheme.onSurface),
               ),
               const SizedBox(height: AppSpacing.sm),
-              SizedBox(
-                height: 108,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: quickActions.length,
-                  separatorBuilder: (_, _) =>
-                      const SizedBox(width: AppSpacing.sm),
-                  itemBuilder: (context, i) =>
-                      _QuickActionCard(data: quickActions[i]),
+              Showcase(
+                key: widget.onboardingQuickActionsKey,
+                disableDefaultTargetGestures: true,
+                title: 'Hızlı İşlemler',
+                description:
+                    'Arıza bildirmek veya iş emri oluşturmak gibi sık '
+                    'kullandığınız işlemlere buradan tek dokunuşla '
+                    'ulaşırsınız.',
+                tooltipBackgroundColor: CoachMarkStyle.background(context),
+                textColor: CoachMarkStyle.foreground(context),
+                tooltipBorderRadius: CoachMarkStyle.borderRadius,
+                titleTextStyle: CoachMarkStyle.title(context),
+                descTextStyle: CoachMarkStyle.description(context),
+                tooltipActionConfig: CoachMarkStyle.actionConfig,
+                tooltipActions: CoachMarkStyle.homeTourActions(
+                  context,
+                  isFirstStep: false,
+                ),
+                child: SizedBox(
+                  height: 108,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: quickActions.length,
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(width: AppSpacing.sm),
+                    itemBuilder: (context, i) =>
+                        _QuickActionCard(data: quickActions[i]),
+                  ),
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -343,7 +402,38 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisSpacing: AppSpacing.sm,
                     mainAxisExtent: 68,
                     children: [
-                      for (final a in quickAccess) _QuickAccessTile(data: a),
+                      // ArasAI girişi, her rolün quickAccess listesinde AYNI
+                      // sabit başlıkla ('ArasAI') var olduğu için Turun 3.
+                      // adımını buraya, string eşleşmesiyle sarmalıyoruz —
+                      // ayrı bir özel liste/index tutmaktan daha az kırılgan.
+                      for (final a in quickAccess)
+                        if (a.title == 'ArasAI')
+                          Showcase(
+                            key: widget.onboardingArasAiKey,
+                            disableDefaultTargetGestures: true,
+                            title: 'ArasAI',
+                            description:
+                                "'Erzurum'da kaç açık arıza var?' gibi "
+                                'soruları buraya yazarak anında cevap '
+                                'alabilirsiniz.',
+                            tooltipBackgroundColor: CoachMarkStyle.background(
+                              context,
+                            ),
+                            textColor: CoachMarkStyle.foreground(context),
+                            tooltipBorderRadius: CoachMarkStyle.borderRadius,
+                            titleTextStyle: CoachMarkStyle.title(context),
+                            descTextStyle: CoachMarkStyle.description(
+                              context,
+                            ),
+                            tooltipActionConfig: CoachMarkStyle.actionConfig,
+                            tooltipActions: CoachMarkStyle.homeTourActions(
+                              context,
+                              isFirstStep: false,
+                            ),
+                            child: _QuickAccessTile(data: a),
+                          )
+                        else
+                          _QuickAccessTile(data: a),
                     ],
                   );
                 },

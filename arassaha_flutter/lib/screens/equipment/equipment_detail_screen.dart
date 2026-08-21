@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:showcaseview/showcaseview.dart';
 import '../../models/equipment.dart';
 import '../../models/meter_anomaly.dart';
 import '../../providers/anomaly_provider.dart';
@@ -8,6 +9,7 @@ import '../../providers/equipment_provider.dart';
 import '../../providers/maintenance_provider.dart';
 import '../../providers/risk_provider.dart';
 import '../../services/analytics_service.dart';
+import '../../services/onboarding_prefs_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
@@ -16,9 +18,19 @@ import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/maintenance_recommendation_card.dart';
 import '../../widgets/ml_service_unavailable_notice.dart';
+import '../../widgets/onboarding/coach_mark_style.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 import '../work_order_detail_screen.dart';
+
+/// Risk rozetinin renk kodunu ve hesaplama temelini açıklayan sabit metin —
+/// hem bağlamsal ilk-karşılaşma ipucunun (bkz. _maybeShowRiskBadgeHint) kısa
+/// cümlesi HEM DE (i) ikonunun açtığı genişletilmiş diyalog AYNI kaynaktan
+/// okur, ikisi arasında metin tutarsızlığı oluşmasın diye.
+const _riskBadgeExplanation =
+    'Bu rozet, ekipmanın arıza riskini gösterir — kırmızı yüksek, sarı orta, '
+    'yeşil düşük risk demektir. Skor; ekipmanın yaşı, son bakım tarihi ve '
+    'geçmiş arıza sayısına göre hesaplanır.';
 
 /// Ekipman / Envanter (Modül 4) — ekipman detay ekranı.
 ///
@@ -35,10 +47,31 @@ class EquipmentDetailScreen extends StatefulWidget {
 }
 
 class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
+  // Bağlamsal İlk-Karşılaşma İpucu (risk rozeti, bkz. sınıf başındaki
+  // "Ana Sayfa Turu + Bağlamsal İpuçları" tasarım kararı) — Ana Sayfa
+  // Turu'nun ShowcaseView'ından (bkz. main_shell.dart) BİLİNÇLİ olarak AYRI,
+  // ekipmana özel bir scope: bu ekran her zaman görünmez, kendi
+  // yaşam döngüsünü (initState/dispose) yönetmesi gerekir.
+  late final ShowcaseView _hintShowcaseView;
+  final GlobalKey _riskBadgeHintKey = GlobalKey();
+  bool _riskHintTriggered = false;
+
   @override
   void initState() {
     super.initState();
     AnalyticsService.logScreenView('EquipmentDetailScreen');
+    _hintShowcaseView = ShowcaseView.register(
+      scope: 'equipment_risk_hint_${widget.equipmentId}',
+      disableBarrierInteraction: true,
+      onDismiss: (_) => OnboardingPrefsService.setHasSeenRiskBadgeHint(),
+      // Tek adımlı bir ipucu olduğu için normalde yalnızca dismiss()
+      // (Anladım butonu) beklenir; ama Showcase widget'ında
+      // `disableDefaultTargetGestures: true` OLMASAYDI, hedefe/zemine
+      // dokunma varsayılan olarak `completed()` çağırıp turu "bitirir"di
+      // (onFinish, onDismiss DEĞİL) — bayrağın YİNE de kalıcı hale gelmesini
+      // garanti etmek için burada da işaretleniyor.
+      onFinish: () => OnboardingPrefsService.setHasSeenRiskBadgeHint(),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<EquipmentProvider>();
       provider.fetchEquipmentDetail(widget.equipmentId);
@@ -49,6 +82,38 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
       context.read<MaintenanceProvider>().fetchRecommendations(
         statusFilter: 'onerildi',
       );
+    });
+  }
+
+  @override
+  void dispose() {
+    _hintShowcaseView.unregister();
+    super.dispose();
+  }
+
+  /// [_RiskAnalysisSection] risk verisini ilk kez çizdiğinde çağrılır. Turu
+  /// hemen initState'te BAŞLATMIYORUZ — risk skoru asenkron olarak ML
+  /// servisinden gelir (bkz. RiskProvider), rozet henüz ağaçta mount
+  /// OLMADAN startShowCase çağırmak showcaseview'ı hedefi bulamadığı için
+  /// turu sessizce sonlandırmaya (`_finishShowcase`) iter.
+  void _onRiskBadgeRendered() {
+    if (_riskHintTriggered) return;
+    _riskHintTriggered = true;
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _maybeShowRiskBadgeHint(),
+    );
+  }
+
+  Future<void> _maybeShowRiskBadgeHint() async {
+    final hasSeen = await OnboardingPrefsService.hasSeenRiskBadgeHint();
+    if (hasSeen || !mounted) return;
+    _hintShowcaseView.startShowCase([_riskBadgeHintKey]);
+    // Kullanıcı ne rozete ne de dışına dokunmazsa bile ipucu kalıcı
+    // kalmasın — birkaç saniye sonra otomatik kapanır (bkz. PROMPT madde 6).
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted && _hintShowcaseView.isShowcaseRunning) {
+        _hintShowcaseView.dismiss();
+      }
     });
   }
 
@@ -216,6 +281,8 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                     icon: Icons.insights_outlined,
                     child: _RiskAnalysisSection(
                       equipmentId: widget.equipmentId,
+                      badgeHintKey: _riskBadgeHintKey,
+                      onBadgeRendered: _onRiskBadgeRendered,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -422,7 +489,39 @@ class _HistorySection extends StatelessWidget {
 /// üretilmiş) bir veri setiyle eğitildi (bkz. arassaha-ml/README.md).
 class _RiskAnalysisSection extends StatelessWidget {
   final int equipmentId;
-  const _RiskAnalysisSection({required this.equipmentId});
+
+  /// Bağlamsal ilk-karşılaşma ipucunun hedef anahtarı — bkz.
+  /// _EquipmentDetailScreenState._riskBadgeHintKey. Rozet her zaman bu
+  /// Showcase ile sarmalanır (Showcase kendisi hiçbir şey GÖSTERMEZ, yalnızca
+  /// hedefi kaydeder); ipucunun GERÇEKTEN gösterilip gösterilmeyeceğine
+  /// [onBadgeRendered] üzerinden tetiklenen zamanlama karar verir.
+  final GlobalKey badgeHintKey;
+
+  /// Rozet, risk verisiyle birlikte ağaca mount olduğunda çağrılır — bkz.
+  /// _EquipmentDetailScreenState._onRiskBadgeRendered.
+  final VoidCallback onBadgeRendered;
+
+  const _RiskAnalysisSection({
+    required this.equipmentId,
+    required this.badgeHintKey,
+    required this.onBadgeRendered,
+  });
+
+  void _showExplanationDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Risk Skoru Nedir?'),
+        content: const Text(_riskBadgeExplanation),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Anladım'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -470,20 +569,41 @@ class _RiskAnalysisSection extends StatelessWidget {
 
     final color = riskLevelColor(context, risk.riskLevel);
 
+    // Rozet veriyle birlikte tam da bu build'de ağaca mount oluyor —
+    // ebeveyne haber verip (bir kereliğine) bağlamsal ipucu zamanlamasını
+    // tetikliyoruz (bkz. _onRiskBadgeRendered üstündeki not).
+    WidgetsBinding.instance.addPostFrameCallback((_) => onBadgeRendered());
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 64,
-          height: 64,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          child: Text(
-            '${risk.riskScore}',
-            style: TextStyle(
-              color: accessibleOnColor(color),
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
+        Showcase(
+          key: badgeHintKey,
+          // Yalnızca "Anladım" butonu kapatsın — bkz. main_shell.dart'taki
+          // AYNI gerekçe (barrier/hedef dokunmasının sessizce ilerletmesi
+          // sahada kazara/eldivenli bir dokunuşla ipucunun fark
+          // edilmeden kaybolmasına yol açardı).
+          disableDefaultTargetGestures: true,
+          description: _riskBadgeExplanation,
+          tooltipBackgroundColor: CoachMarkStyle.background(context),
+          textColor: CoachMarkStyle.foreground(context),
+          tooltipBorderRadius: CoachMarkStyle.borderRadius,
+          descTextStyle: CoachMarkStyle.description(context),
+          tooltipActionConfig: CoachMarkStyle.actionConfig,
+          tooltipActions: CoachMarkStyle.singleHintAction(context),
+          targetShapeBorder: const CircleBorder(),
+          child: Container(
+            width: 64,
+            height: 64,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            child: Text(
+              '${risk.riskScore}',
+              style: TextStyle(
+                color: accessibleOnColor(color),
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ),
@@ -492,13 +612,34 @@ class _RiskAnalysisSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                risk.riskLevel.label,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                ),
+              Row(
+                children: [
+                  Text(
+                    risk.riskLevel.label,
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  // Modül 9'daki kısa açıklamayı genişleten (i) ikonu (bkz.
+                  // PROMPT madde 6) — bağlamsal ipucu bir kereliğine
+                  // otomatik kapandıktan SONRA da kullanıcı bu bilgiye her
+                  // zaman geri dönebilsin diye.
+                  InkWell(
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                    onTap: () => _showExplanationDialog(context),
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 6),
               Text(

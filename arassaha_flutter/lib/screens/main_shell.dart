@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:showcaseview/showcaseview.dart';
 import '../models/app_user.dart';
 import '../models/work_order.dart';
 import '../providers/notification_provider.dart';
@@ -7,10 +8,13 @@ import '../providers/settings_provider.dart';
 import '../providers/user_provider.dart';
 import '../providers/work_order_list_provider.dart';
 import '../services/local_notification_service.dart';
+import '../services/onboarding_prefs_service.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/app_navigation_drawer.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/offline_banner.dart';
+import '../widgets/onboarding/coach_mark_style.dart';
+import '../widgets/onboarding/home_tour_controller.dart';
 import '../widgets/user_avatar.dart';
 import 'assistant/assistant_chat_screen.dart';
 import 'home/home_screen.dart';
@@ -77,6 +81,20 @@ class _MainShellState extends State<MainShell> {
   // (didChangeDependencies) önceden yakalanır.
   NotificationProvider? _notificationProvider;
 
+  // Ana Sayfa Turu (bkz. sınıf dokümantasyonu — "Ana Sayfa Turu + Bağlamsal
+  // İpuçları" tasarım kararı): 5 adımın hedef widget'ları HEM HomeScreen'in
+  // gövdesinde (karşılama, Hızlı İşlemler, ArasAI) HEM DE bu kabuğun kendi
+  // AppBar/BottomNav'ında (Tüm Modüller = hamburger menü, Profil sekmesi)
+  // yaşıyor — bu yüzden 5 anahtarın TAMAMI burada, tek sahipte tanımlanır ve
+  // ilk 3'ü HomeScreen'e constructor parametresiyle geçirilir.
+  final GlobalKey _welcomeKey = GlobalKey();
+  final GlobalKey _quickActionsKey = GlobalKey();
+  final GlobalKey _arasAiKey = GlobalKey();
+  final GlobalKey _allModulesKey = GlobalKey();
+  final GlobalKey _profileTabKey = GlobalKey();
+
+  late final ShowcaseView _showcaseView;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -86,6 +104,28 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
+
+    // showcaseview 5.x'te artık bir `ShowCaseWidget` sarmalayıcısına gerek
+    // yok (o API v6.0.0'da kaldırılacak şekilde deprecated) — tek bir
+    // `ShowcaseView.register()` çağrısı yeterli, overlay uygulamanın kök
+    // Navigator'ının Overlay'ine otomatik eklenir. MainShell, kullanıcı
+    // giriş yapmışken HER ZAMAN ekranda kalan kalıcı kabuk olduğu için
+    // (sekmeler arası geçişte yeniden oluşturulmaz) kayıt için doğal yer
+    // burası.
+    _showcaseView = ShowcaseView.register(
+      // Yalnızca görünür "İleri"/"Geç"/"Geri" butonları turu ilerletsin —
+      // dimli zeminin (barrier) HERHANGİ bir yerine dokunma varsayılan
+      // olarak da bir sonraki adıma geçirir (bkz. showcaseview
+      // handleBarrierTap). Bu, kullanıcının kazara/dolaylı bir dokunuşla
+      // (örn. ekranın herhangi bir yerine basarak) turu bilmeden
+      // ilerletmesini engeller — PROMPT madde 5'teki "kullanıcı bir sonraki
+      // adıma BİLEREK, ilgili butona basarak geçmeli" ilkesiyle tutarlı.
+      disableBarrierInteraction: true,
+      onFinish: _markHomeTourSeen,
+      onDismiss: (_) => _markHomeTourSeen(),
+    );
+    HomeTourController.registerRestartHandler(_restartHomeTour);
+
     // Profil sekmesindeki avatarın (fotoğraf varsa) alt navigasyon
     // ikonunda da görünebilmesi için uygulama açılışında bir kez çekilir.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -109,13 +149,59 @@ class _MainShellState extends State<MainShell> {
       if (notificationsEnabled) {
         context.read<NotificationProvider>().startPolling();
       }
+
+      // Bildirim izni istemi (varsa) kapandıktan SONRA turu başlat — aksi
+      // halde OS izin dialog'u ile coach-mark overlay'i aynı anda ekranda
+      // çakışabilir.
+      _maybeStartHomeTour();
     });
   }
 
   @override
   void dispose() {
+    HomeTourController.unregisterRestartHandler(_restartHomeTour);
+    _showcaseView.unregister();
     _notificationProvider?.stopPolling();
     super.dispose();
+  }
+
+  Future<void> _maybeStartHomeTour() async {
+    // Entegrasyon testi (bkz. integration_test/critical_flow_test.dart)
+    // gerçek widget etkileşimiyle çalışır ve girişten HEMEN sonra "İş
+    // Emirleri" sekmesine dokunur — turun tam ekranı kaplayan overlay'i bu
+    // dokunuşu yutup testi kırardı. `IntegrationTestWidgetsFlutterBinding`
+    // yalnızca entegrasyon testi altında kullanıldığı için, gerçek kullanıcı
+    // deneyimini hiç ETKİLEMEDEN tur bu ortamda atlanır — `integration_test`
+    // paketini burada import ETMEMEK için (o bir dev_dependency, uygulama
+    // koduna sızdırılmamalı) runtime tipi string olarak karşılaştırılır.
+    final bindingName = WidgetsBinding.instance.runtimeType.toString();
+    if (bindingName == 'IntegrationTestWidgetsFlutterBinding') return;
+
+    final hasSeen = await OnboardingPrefsService.hasSeenHomeTour();
+    if (hasSeen || !mounted) return;
+    _startHomeTour();
+  }
+
+  void _startHomeTour() {
+    _showcaseView.startShowCase([
+      _welcomeKey,
+      _quickActionsKey,
+      _arasAiKey,
+      _allModulesKey,
+      _profileTabKey,
+    ]);
+  }
+
+  Future<void> _markHomeTourSeen() =>
+      OnboardingPrefsService.setHasSeenHomeTour(true);
+
+  /// Ayarlar ekranındaki (Modül 17) "Turu Tekrar Göster" butonundan
+  /// [HomeTourController] aracılığıyla çağrılır: Ana Sayfa sekmesine döner
+  /// ve turu baştan başlatır — ilk seferinde yanlışlıkla "Geç"e basan ya da
+  /// turu tekrar hatırlamak isteyen kullanıcılar için bir kaçış kapısı.
+  void _restartHomeTour() {
+    setState(() => _index = 0);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startHomeTour());
   }
 
   /// Hub'daki (Ana Sayfa) "öne çıkanlar" kartlarından ya da ArasAI'nin
@@ -142,7 +228,12 @@ class _MainShellState extends State<MainShell> {
 
   Widget _buildScaffold(BuildContext context, AppUser? myProfile) {
     final tabs = <Widget>[
-      HomeScreen(onNavigate: _navigateToTab),
+      HomeScreen(
+        onNavigate: _navigateToTab,
+        onboardingWelcomeKey: _welcomeKey,
+        onboardingQuickActionsKey: _quickActionsKey,
+        onboardingArasAiKey: _arasAiKey,
+      ),
       const WorkOrderListScreen(),
       AssistantChatScreen(onNavigateToTab: _navigateToTab),
       const ProfileScreen(),
@@ -184,10 +275,31 @@ class _MainShellState extends State<MainShell> {
           // Scaffold'u bulur.
           if (isHomeTab)
             Builder(
-              builder: (context) => IconButton(
-                tooltip: 'Menü',
-                icon: const Icon(Icons.menu),
-                onPressed: () => Scaffold.of(context).openEndDrawer(),
+              builder: (context) => Showcase(
+                key: _allModulesKey,
+                // Yalnızca aksiyon butonları ilerletsin — bkz. üstteki
+                // disableBarrierInteraction notu, AYNI gerekçe hedefin
+                // kendisine dokunma için de geçerli.
+                disableDefaultTargetGestures: true,
+                title: 'Tüm Modüller',
+                description:
+                    'Ekipman sorgulama, İSG bildirimi ve diğer tüm '
+                    'özelliklere buradan ulaşabilirsiniz.',
+                tooltipBackgroundColor: CoachMarkStyle.background(context),
+                textColor: CoachMarkStyle.foreground(context),
+                tooltipBorderRadius: CoachMarkStyle.borderRadius,
+                titleTextStyle: CoachMarkStyle.title(context),
+                descTextStyle: CoachMarkStyle.description(context),
+                tooltipActionConfig: CoachMarkStyle.actionConfig,
+                tooltipActions: CoachMarkStyle.homeTourActions(
+                  context,
+                  isFirstStep: false,
+                ),
+                child: IconButton(
+                  tooltip: 'Menü',
+                  icon: const Icon(Icons.menu),
+                  onPressed: () => Scaffold.of(context).openEndDrawer(),
+                ),
               ),
             ),
           const NotificationBellButton(),
@@ -226,14 +338,39 @@ class _MainShellState extends State<MainShell> {
             label: 'ArasAI',
           ),
           NavigationDestination(
-            icon: myProfile != null
-                ? UserAvatar(
-                    photoPath: myProfile.photoPath,
-                    initials: myProfile.initials,
-                    role: myProfile.role,
-                    radius: 12,
-                  )
-                : const Icon(Icons.person_outline),
+            // Turun son adımı: unselected `icon` sarmalanır (bkz. Showcase'e
+            // BİLEREK yalnızca `icon`, `selectedIcon` DEĞİL — tur Ana
+            // Sayfa'dayken başlar, Profil sekmesi henüz SEÇİLİ değildir,
+            // dolayısıyla ekranda görünen budur; ikisini de sarmalamak aynı
+            // GlobalKey'in aynı anda iki yerde mount olmasına yol açardı).
+            icon: Builder(
+              builder: (context) => Showcase(
+                key: _profileTabKey,
+                disableDefaultTargetGestures: true,
+                title: 'Profil',
+                description:
+                    'Buradan profilinizi görüntüleyebilir ve '
+                    'ayarlarınızı yönetebilirsiniz.',
+                tooltipBackgroundColor: CoachMarkStyle.background(context),
+                textColor: CoachMarkStyle.foreground(context),
+                tooltipBorderRadius: CoachMarkStyle.borderRadius,
+                titleTextStyle: CoachMarkStyle.title(context),
+                descTextStyle: CoachMarkStyle.description(context),
+                tooltipActionConfig: CoachMarkStyle.actionConfig,
+                tooltipPosition: TooltipPosition.top,
+                tooltipActions: CoachMarkStyle.homeTourFinalStepActions(
+                  context,
+                ),
+                child: myProfile != null
+                    ? UserAvatar(
+                        photoPath: myProfile.photoPath,
+                        initials: myProfile.initials,
+                        role: myProfile.role,
+                        radius: 12,
+                      )
+                    : const Icon(Icons.person_outline),
+              ),
+            ),
             selectedIcon: myProfile != null
                 ? UserAvatar(
                     photoPath: myProfile.photoPath,

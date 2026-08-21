@@ -11,12 +11,14 @@ import '../../providers/two_factor_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../services/cache_service.dart';
 import '../../services/offline_queue_service.dart';
+import '../../services/onboarding_prefs_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/onboarding/home_tour_controller.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 import 'two_factor_setup_screen.dart';
 
@@ -65,6 +67,9 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: AppSpacing.lg),
             const _SectionLabel('Bekleyen İşlemler'),
             const _PendingActionsSection(),
+            const SizedBox(height: AppSpacing.lg),
+            const _SectionLabel('Uygulama Turu'),
+            const _AppTourSection(),
             const SizedBox(height: AppSpacing.lg),
             const _SectionLabel('Hakkında'),
             const _AboutSection(),
@@ -524,6 +529,61 @@ class _PendingActionRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Ana Sayfa Turu'nu (bkz. "Ana Sayfa Turu + Bağlamsal İpuçları" tasarım
+/// kararı, main_shell.dart) yeniden tetikler — ilk seferinde yanlışlıkla
+/// "Geç"e basan ya da turu tekrar hatırlamak isteyen kullanıcılar için bir
+/// kaçış kapısı (bkz. PROMPT madde 8). Bağlamsal ipuçları (risk rozeti, QR
+/// tarama) BİLEREK burada sıfırlanmaz — onlar zaten kullanıcı o ekrana her
+/// gittiğinde doğal olarak tekrar karşılaşabileceği, düşük riskli tek
+/// seferlik bilgi notları; "turu tekrar göster" ifadesi yalnızca ana turu
+/// kapsar.
+class _AppTourSection extends StatelessWidget {
+  const _AppTourSection();
+
+  Future<void> _restart(BuildContext context) async {
+    await OnboardingPrefsService.setHasSeenHomeTour(false);
+    if (!context.mounted) return;
+    // Ayarlar (ve varsa üzerine açılmış başka ekranlar) kapatılıp kalıcı
+    // kabuğa (MainShell) dönülür — tur, HomeTourController üzerinden orada
+    // Ana Sayfa sekmesine geçilip başlatılır (bkz. home_tour_controller.dart
+    // dosyasındaki döngüsel import notu).
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    HomeTourController.requestRestart();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      child: Row(
+        children: [
+          Icon(Icons.school_outlined, color: scheme.onSurfaceVariant),
+          const SizedBox(width: AppSpacing.sm + 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Ana Sayfa Turu'),
+                const SizedBox(height: 2),
+                Text(
+                  'İlk açılıştaki tanıtım turunu tekrar izleyin',
+                  style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          AppButton(
+            label: 'Turu Tekrar Göster',
+            variant: AppButtonVariant.secondary,
+            onPressed: () => _restart(context),
+          ),
+        ],
+      ),
     );
   }
 }
