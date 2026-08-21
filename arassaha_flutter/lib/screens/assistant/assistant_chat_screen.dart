@@ -9,6 +9,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_logo.dart';
+import '../../widgets/empty_state.dart';
 import '../admin/analytics_screen.dart';
 import '../admin/user_management_list_screen.dart';
 import '../dashboard_screen.dart';
@@ -110,19 +111,54 @@ class _AssistantChatScreenState extends State<AssistantChatScreen> {
     _inputController.clear();
 
     final provider = context.read<AssistantProvider>();
-    // Navigator'ı ÖNCE yakala: sendMessage'ın await'i sırasında bu widget
-    // pop edilmiş/dispose olmuş olsa bile (kullanıcı geri gidip başka bir
-    // ekrana geçtiyse) elimizdeki NavigatorState referansı geçerli kalır.
+    // Navigator'ı VE ScaffoldMessenger'ı ÖNCE yakala: sendMessage'ın await'i
+    // sırasında bu widget pop edilmiş/dispose olmuş olsa bile (kullanıcı
+    // geri gidip başka bir ekrana geçtiyse) elimizdeki referanslar geçerli
+    // kalır.
     final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     _scrollToBottom();
 
     final navigation = await provider.sendMessage(text);
     if (!mounted) return;
     _scrollToBottom();
 
+    // Sohbet İÇİ kalıcı işaret (bkz. _MessageBubble — kırmızı "Gönderilemedi,
+    // tekrar dene") TEK BAŞINA yeterli değil: kullanıcı o an ekranın alt
+    // kısmına bakmıyor olabilir. SnackBar, ANLIK bir bildirimle hatayı
+    // KESİNLİKLE fark etmesini garanti eder — ikisi BİRLİKTE PROMPT madde
+    // 2'deki "iki katmanlı" garanti.
+    if (provider.sendErrorMessage != null) {
+      _showSendErrorSnackBar(messenger, provider.sendErrorMessage!);
+    }
+
     if (navigation != null) {
       _handleNavigation(navigator, navigation.screen, navigation.status);
     }
+  }
+
+  /// Bir baloncuğun altındaki "Gönderilemedi, tekrar dene" işaretine
+  /// dokununca çağrılır — [AssistantProvider.retryMessage] SADECE o tek
+  /// mesajı, sohbetin tamamını yeniden yüklemeden tekrar gönderir.
+  void _retry(int messageId) async {
+    final provider = context.read<AssistantProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    await provider.retryMessage(messageId);
+    if (!mounted) return;
+    _scrollToBottom();
+
+    if (provider.sendErrorMessage != null) {
+      _showSendErrorSnackBar(messenger, provider.sendErrorMessage!);
+    }
+  }
+
+  void _showSendErrorSnackBar(
+    ScaffoldMessengerState messenger,
+    String message,
+  ) {
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// Asistanın navigate_to_screen yanıtını gerçek bir ekran geçişine çevirir.
@@ -246,21 +282,15 @@ class _AssistantChatScreenState extends State<AssistantChatScreen> {
     // Artık kendi Scaffold/AppBar'ı YOK (bkz. sınıf dokümantasyonu) —
     // WorkOrderListScreen/MapScreen ile AYNI desen: MainShell'in ortak
     // Scaffold'ının body'sine doğrudan bir Column döner.
+    // Gönderme hatası artık İKİ yerde gösteriliyor — baloncuğun kendisinde
+    // (kalıcı, bkz. _MessageBubble) ve bir SnackBar'da (anlık, bkz. _send/
+    // _retry) — burada AYRICA üçüncü, ad-hoc bir metin şeridi YOK; aynı
+    // sinyali üçüncü kez tekrarlamak gürültü olurdu ve İş Emri Listesi/
+    // Ekipman Listesi'nde de böyle kalıcı bir "son hata" şeridi yok.
     return Column(
       children: [
         Expanded(child: _buildBody(context, provider)),
         if (provider.isTyping) _TypingIndicator(),
-        if (provider.sendErrorMessage != null)
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.xs,
-            ),
-            child: Text(
-              provider.sendErrorMessage!,
-              style: AppTextStyles.caption(color: AppColors.danger(context)),
-            ),
-          ),
         _InputBar(controller: _inputController, onSend: () => _send()),
       ],
     );
@@ -271,18 +301,19 @@ class _AssistantChatScreenState extends State<AssistantChatScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    // İş Emri Listesi/Ekipman Listesi ile AYNI bileşen ve "Tekrar Dene"
+    // davranışı (bkz. PROMPT madde 1) — kullanıcı hangi ekranda olursa
+    // olsun aynı görsel dili görsün. `historyErrorMessage` zaten
+    // AssistantProvider.fetchHistory()'de mapExceptionToUserMessage(e) ile
+    // üretildi (bkz. providers/assistant_provider.dart) — burada AYRICA
+    // çevrilmez, olduğu gibi subtitle'a geçirilir.
     if (provider.historyErrorMessage != null && provider.messages.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Text(
-            provider.historyErrorMessage!,
-            textAlign: TextAlign.center,
-            style: AppTextStyles.bodyMedium(
-              color: AppColors.textSecondary(context),
-            ),
-          ),
-        ),
+      return EmptyState(
+        icon: Icons.chat_bubble_outline,
+        title: 'Sohbet geçmişi yüklenemedi',
+        subtitle: provider.historyErrorMessage!,
+        onPrimaryAction: () => provider.fetchHistory(),
+        primaryActionLabel: 'Tekrar Dene',
       );
     }
 
@@ -294,8 +325,13 @@ class _AssistantChatScreenState extends State<AssistantChatScreen> {
       controller: _scrollController,
       padding: const EdgeInsets.all(AppSpacing.md),
       itemCount: provider.messages.length,
-      itemBuilder: (context, index) =>
-          _MessageBubble(message: provider.messages[index]),
+      itemBuilder: (context, index) {
+        final message = provider.messages[index];
+        return _MessageBubble(
+          message: message,
+          onRetry: () => _retry(message.id),
+        );
+      },
     );
   }
 }
@@ -352,9 +388,17 @@ class _EmptyState extends StatelessWidget {
 
 /// Mesaj baloncuğu: kullanıcı sağda (birincil mavi), asistan solda
 /// (nötr/gri) + küçük bir ArasAI rozeti ile.
+///
+/// [ChatMessageStatus] yalnızca KULLANICI baloncukları için anlamlıdır
+/// (asistan mesajları `fromJson`'dan zaten `gonderildi` ile gelir, bkz.
+/// models/chat_message.dart) — `gonderiliyor` sırasında balonun altında
+/// küçük bir "Gönderiliyor…" spinner'ı, `basarisiz` durumunda ise kırmızı
+/// bir uyarı + dokunulabilir "Gönderilemedi, tekrar dene" satırı gösterir
+/// (bkz. PROMPT madde 2 — sohbet uygulamalarındaki standart desen).
 class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
-  const _MessageBubble({required this.message});
+  final VoidCallback onRetry;
+  const _MessageBubble({required this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -395,7 +439,27 @@ class _MessageBubble extends StatelessWidget {
     );
 
     if (isUser) {
-      return Align(alignment: Alignment.centerRight, child: bubble);
+      if (message.status == ChatMessageStatus.gonderildi) {
+        return Align(alignment: Alignment.centerRight, child: bubble);
+      }
+      return Align(
+        alignment: Alignment.centerRight,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            bubble,
+            Padding(
+              padding: const EdgeInsets.only(
+                right: AppSpacing.xs,
+                bottom: AppSpacing.xs,
+              ),
+              child: message.status == ChatMessageStatus.gonderiliyor
+                  ? const _SendingIndicator()
+                  : _SendFailedIndicator(onRetry: onRetry),
+            ),
+          ],
+        ),
+      );
     }
 
     // Asistan mesajlarının yanında küçük bir ArasAI rozeti — kullanıcı
@@ -410,6 +474,63 @@ class _MessageBubble extends StatelessWidget {
           const SizedBox(width: AppSpacing.xs),
           Flexible(child: bubble),
         ],
+      ),
+    );
+  }
+}
+
+/// `gonderiliyor` durumundaki bir kullanıcı baloncuğunun altında — kısa
+/// süreliğine görünür, dokunulamaz (yalnızca bilgilendirici).
+class _SendingIndicator extends StatelessWidget {
+  const _SendingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    final color = AppColors.textSecondary(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 10,
+          height: 10,
+          child: CircularProgressIndicator(strokeWidth: 1.5, color: color),
+        ),
+        const SizedBox(width: 4),
+        Text('Gönderiliyor…', style: AppTextStyles.caption(color: color)),
+      ],
+    );
+  }
+}
+
+/// `basarisiz` durumundaki bir kullanıcı baloncuğunun altında — kırmızı
+/// uyarı ikonu + dokunulabilir "Gönderilemedi, tekrar dene" metni.
+/// Dokununca YALNIZCA bu tek mesajı yeniden gönderir (bkz.
+/// AssistantProvider.retryMessage) — sohbetin tamamı yeniden yüklenmez.
+class _SendFailedIndicator extends StatelessWidget {
+  final VoidCallback onRetry;
+  const _SendFailedIndicator({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = AppColors.danger(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.chip),
+      onTap: onRetry,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline, size: 14, color: color),
+            const SizedBox(width: 4),
+            Text(
+              'Gönderilemedi, tekrar dene',
+              style: AppTextStyles.caption(
+                color: color,
+              ).copyWith(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
       ),
     );
   }

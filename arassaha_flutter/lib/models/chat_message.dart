@@ -1,3 +1,12 @@
+/// Yalnızca İSTEMCİ tarafında tutulan, iyimser (optimistic) gönderim
+/// durumu — backend'in `chat_messages` tablosunda böyle bir alan YOK,
+/// `fromJson`'dan gelen (geçmiş/asistan yanıtı) her mesaj zaten sunucuda
+/// kalıcı olduğu için doğrudan [gonderildi] varsayar. Yalnızca
+/// [AssistantProvider.sendMessage]'ın iyimser eklediği kullanıcı
+/// baloncuğu, gerçek sonuç (başarı/hata) belli olana kadar [gonderiliyor]
+/// ile başlar.
+enum ChatMessageStatus { gonderildi, gonderiliyor, basarisiz }
+
 /// AI Asistan / Sohbet Arayüzü (Modül 16).
 ///
 /// Hem GET /api/assistant/history hem de POST /api/assistant/query'nin
@@ -8,12 +17,14 @@ class ChatMessage {
   final String role; // 'user' | 'assistant'
   final String message;
   final DateTime createdAt;
+  final ChatMessageStatus status;
 
   ChatMessage({
     required this.id,
     required this.role,
     required this.message,
     required this.createdAt,
+    this.status = ChatMessageStatus.gonderildi,
   });
 
   bool get isUser => role == 'user';
@@ -24,6 +35,19 @@ class ChatMessage {
       role: json['role'] as String,
       message: json['message'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
+    );
+  }
+
+  /// [retryMessage]'ın aynı mesajı, yalnızca `status` değişmiş olarak
+  /// LİSTEDEKİ YERİNDE güncelleyebilmesi için — model immutable kalır,
+  /// provider `_messages[index] = eski.copyWith(...)` yapar.
+  ChatMessage copyWith({ChatMessageStatus? status}) {
+    return ChatMessage(
+      id: id,
+      role: role,
+      message: message,
+      createdAt: createdAt,
+      status: status ?? this.status,
     );
   }
 }
