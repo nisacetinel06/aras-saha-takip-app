@@ -97,6 +97,16 @@ dependencies:
   qr_flutter: ^4.1.0
   showcaseview: ^5.1.0
 
+  # Modül 4 (QR tarama) kamera izni akışı — Modül 5'teki (İSG, konum izni)
+  # geolocator ile AYNI "isPermanentlyDenied -> ayarlara yönlendir" ayrımı
+  # için. BİLİNÇLİ olarak ^13.0.1 DEĞİL: bu sürüm permission_handler_android
+  # 14.0.0'ı çeker, o sürümün build.gradle.kts'i projenin Kotlin Gradle
+  # Plugin kurulumuyla (build.gradle.kts:68 "Unresolved reference: kotlin")
+  # UYUMSUZ — `flutter build apk` bu yüzden başarısız oluyordu. ^12.0.1,
+  # permission_handler_android'i eski (Groovy tabanlı, sorunsuz) 13.0.0'a
+  # sabitler.
+  permission_handler: ^12.0.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
