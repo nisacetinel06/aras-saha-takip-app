@@ -16,6 +16,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/empty_state.dart';
 import '../equipment/equipment_list_screen.dart';
 
 /// Raporlar / Analitik Sayfası (Modül 14) — Dashboard'un (Modül 2) "büyütülmüş"
@@ -142,26 +143,18 @@ class _ReportSection extends StatelessWidget {
       );
     } else if (errorMessage != null && isEmpty) {
       content = AppCard(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(errorMessage!, textAlign: TextAlign.center),
-            const SizedBox(height: AppSpacing.sm),
-            AppButton(label: 'Tekrar Dene', onPressed: onRetry),
-          ],
+        child: EmptyState(
+          icon: Icons.error_outline,
+          title: '$title yüklenemedi',
+          subtitle: errorMessage!,
+          onPrimaryAction: onRetry,
+          primaryActionLabel: 'Tekrar Dene',
+          primaryActionVariant: AppButtonVariant.secondary,
         ),
       );
     } else if (isEmpty) {
       content = AppCard(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: Text(
-            emptyMessage,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
+        child: EmptyState(icon: Icons.bar_chart_outlined, title: emptyMessage),
       );
     } else {
       content = child;
@@ -667,12 +660,11 @@ class _MapErrorBanner extends StatelessWidget {
               ),
             ),
           ),
-          TextButton(
+          AppButton(
+            label: 'Tekrar Dene',
+            variant: AppButtonVariant.secondary,
+            color: scheme.onErrorContainer,
             onPressed: onRetry,
-            style: TextButton.styleFrom(
-              foregroundColor: scheme.onErrorContainer,
-            ),
-            child: const Text('Tekrar Dene'),
           ),
         ],
       ),

@@ -40,6 +40,13 @@ class EmptyState extends StatelessWidget {
   final VoidCallback? onPrimaryAction;
   final String? primaryActionLabel;
 
+  /// [onPrimaryAction] butonunun varyantı. Varsayılan `primary` — "İlk
+  /// kaydı oluştur" gibi asıl CTA'lar için doğru. Bir "Tekrar Dene" aksiyonu
+  /// geçiriliyorsa `AppButtonVariant.secondary` verilmeli (bkz.
+  /// CONTRIBUTING.md "Hata ve Boş Durum Standartları" — uygulama genelinde
+  /// TÜM "Tekrar Dene" butonları aynı stilde olmalı).
+  final AppButtonVariant primaryActionVariant;
+
   const EmptyState({
     super.key,
     required this.icon,
@@ -49,6 +56,7 @@ class EmptyState extends StatelessWidget {
     this.onClearFilters,
     this.onPrimaryAction,
     this.primaryActionLabel,
+    this.primaryActionVariant = AppButtonVariant.primary,
   });
 
   @override
@@ -57,78 +65,91 @@ class EmptyState extends StatelessWidget {
     final hasActiveFilters =
         activeFilters != null && activeFilters!.isNotEmpty;
 
+    final content = Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 56, color: AppColors.textSecondary(context)),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodyMedium(color: scheme.onSurface)
+                .copyWith(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: AppSpacing.xs + 2),
+            Text(
+              subtitle!,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodyMedium(
+                color: AppColors.textSecondary(context),
+              ),
+            ),
+          ],
+          if (hasActiveFilters) ...[
+            const SizedBox(height: AppSpacing.md),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: [
+                for (final filter in activeFilters!) _RemovableChip(filter: filter),
+              ],
+            ),
+            if (onClearFilters != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              SizedBox(
+                width: double.infinity,
+                child: AppButton(
+                  label: 'Tüm Filtreleri Temizle',
+                  icon: Icons.filter_alt_off_outlined,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: onClearFilters,
+                ),
+              ),
+            ],
+          ] else if (onPrimaryAction != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            SizedBox(
+              width: double.infinity,
+              child: AppButton(
+                label: primaryActionLabel ?? 'Aksiyon',
+                variant: primaryActionVariant,
+                onPressed: onPrimaryAction,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+
     // LayoutBuilder + SingleChildScrollView + ConstrainedBox(minHeight): bu
     // ekranların çoğu bir RefreshIndicator içinde yaşıyor — liste boşken bile
     // aşağı çekip yenileyebilmek için içerik SCROLL EDİLEBİLİR kalmalı, aynı
     // zamanda kısa içerik dikeyde ortalanmalı (mevcut ekranlardaki AYNI desen).
+    // Bu, YALNIZCA sınırlı (bounded) bir yükseklik verildiğinde güvenlidir —
+    // EmptyState zaten sınırsız yükseklikli bir Column içine (örn. Ana
+    // Sayfa'daki gömülü "Tamamlanan İş Emirlerim" önizleme bölümü gibi
+    // kendisi zaten kaydırılabilir bir üst widget'ın içine) yerleştirildiğinde
+    // `constraints.maxHeight` sonsuz olur — bu durumda `ConstrainedBox`'a
+    // sonsuz `minHeight` vermek layout hatasına yol açar, bu yüzden o
+    // durumda içerik SADECE ortalanır, ayrıca bir scroll view'a SARILMAZ (üst
+    // widget zaten kaydırılabilir).
     return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 56, color: AppColors.textSecondary(context)),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.bodyMedium(color: scheme.onSurface)
-                        .copyWith(fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: AppSpacing.xs + 2),
-                    Text(
-                      subtitle!,
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.bodyMedium(
-                        color: AppColors.textSecondary(context),
-                      ),
-                    ),
-                  ],
-                  if (hasActiveFilters) ...[
-                    const SizedBox(height: AppSpacing.md),
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: AppSpacing.xs,
-                      runSpacing: AppSpacing.xs,
-                      children: [
-                        for (final filter in activeFilters!)
-                          _RemovableChip(filter: filter),
-                      ],
-                    ),
-                    if (onClearFilters != null) ...[
-                      const SizedBox(height: AppSpacing.md),
-                      SizedBox(
-                        width: double.infinity,
-                        child: AppButton(
-                          label: 'Tüm Filtreleri Temizle',
-                          icon: Icons.filter_alt_off_outlined,
-                          variant: AppButtonVariant.secondary,
-                          onPressed: onClearFilters,
-                        ),
-                      ),
-                    ],
-                  ] else if (onPrimaryAction != null) ...[
-                    const SizedBox(height: AppSpacing.md),
-                    SizedBox(
-                      width: double.infinity,
-                      child: AppButton(
-                        label: primaryActionLabel ?? 'Aksiyon',
-                        onPressed: onPrimaryAction,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
+      builder: (context, constraints) {
+        if (!constraints.hasBoundedHeight) {
+          return Center(child: content);
+        }
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(child: content),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

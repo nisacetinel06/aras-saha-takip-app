@@ -10,6 +10,7 @@ import '../../services/device_telemetry_service.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 
 /// Cihaz Yönetimi — cihaz detay ekranı.
@@ -131,31 +132,14 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
         child: Builder(
           builder: (context) {
             if (device == null && provider.detailErrorMessage != null) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 56,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      const SizedBox(height: AppSpacing.sm + 4),
-                      Text(
-                        provider.detailErrorMessage!,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      AppButton(
-                        label: 'Tekrar Dene',
-                        onPressed: () =>
-                            provider.fetchDeviceDetail(widget.deviceId),
-                      ),
-                    ],
-                  ),
-                ),
+              return EmptyState(
+                icon: Icons.error_outline,
+                title: 'Cihaz yüklenemedi',
+                subtitle: provider.detailErrorMessage!,
+                onPrimaryAction: () =>
+                    provider.fetchDeviceDetail(widget.deviceId),
+                primaryActionLabel: 'Tekrar Dene',
+                primaryActionVariant: AppButtonVariant.secondary,
               );
             }
 

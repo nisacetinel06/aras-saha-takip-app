@@ -7,6 +7,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/sort_direction_control.dart';
 import '../../widgets/work_order_card.dart';
 import '../work_order_detail_screen.dart';
@@ -117,14 +118,38 @@ class _CompletedWorkOrdersScreenState
     }
 
     if (provider.errorMessage != null) {
-      return _ErrorState(
-        message: provider.errorMessage!,
-        onRetry: provider.loadInitial,
+      return EmptyState(
+        icon: Icons.error_outline,
+        title: 'Tamamlanan iş emirleri yüklenemedi',
+        subtitle: provider.errorMessage!,
+        onPrimaryAction: provider.loadInitial,
+        primaryActionLabel: 'Tekrar Dene',
+        primaryActionVariant: AppButtonVariant.secondary,
       );
     }
 
     if (provider.items.isEmpty) {
-      return _EmptyState(isSearching: provider.searchQuery.trim().isNotEmpty);
+      final isSearching = provider.searchQuery.trim().isNotEmpty;
+      void clearSearch() {
+        _searchController.clear();
+        provider.setSearchQuery('');
+      }
+
+      return EmptyState(
+        icon: Icons.task_alt_outlined,
+        title: isSearching
+            ? 'Aramanızla eşleşen tamamlanmış iş emri bulunamadı'
+            : 'Henüz tamamlanmış bir iş emriniz yok',
+        activeFilters: isSearching
+            ? [
+                ActiveFilterChip(
+                  label: 'Arama: ${provider.searchQuery.trim()}',
+                  onRemove: clearSearch,
+                ),
+              ]
+            : null,
+        onClearFilters: isSearching ? clearSearch : null,
+      );
     }
 
     return RefreshIndicator(
@@ -190,7 +215,7 @@ class _ListFooter extends StatelessWidget {
             const SizedBox(height: AppSpacing.xs),
             AppButton(
               label: 'Tekrar Dene',
-              variant: AppButtonVariant.text,
+              variant: AppButtonVariant.secondary,
               onPressed: provider.loadMore,
             ),
           ],
@@ -202,76 +227,3 @@ class _ListFooter extends StatelessWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  final bool isSearching;
-  const _EmptyState({required this.isSearching});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.task_alt_outlined,
-                    size: 56,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    isSearching
-                        ? 'Aramanızla eşleşen tamamlanmış iş emri bulunamadı.'
-                        : 'Henüz tamamlanmış bir iş emriniz yok.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: scheme.onSurfaceVariant,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  final String message;
-  final Future<void> Function() onRetry;
-
-  const _ErrorState({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 56,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 12),
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            AppButton(label: 'Tekrar Dene', onPressed: onRetry),
-          ],
-        ),
-      ),
-    );
-  }
-}

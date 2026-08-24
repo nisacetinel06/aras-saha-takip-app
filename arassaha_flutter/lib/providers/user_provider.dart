@@ -96,6 +96,7 @@ class UserProvider extends ChangeNotifier {
     required String role,
     String? phone,
     String? email,
+    String? il,
     int? supervisorId,
   }) async {
     _isSaving = true;
@@ -113,6 +114,7 @@ class UserProvider extends ChangeNotifier {
         role: role,
         phone: phone,
         email: email,
+        il: il,
         supervisorId: supervisorId,
       );
       return true;
@@ -133,6 +135,7 @@ class UserProvider extends ChangeNotifier {
     String? name,
     String? phone,
     String? email,
+    String? il,
     String? role,
     bool updateSupervisor = false,
     int? supervisorId,
@@ -147,6 +150,7 @@ class UserProvider extends ChangeNotifier {
         name: name,
         phone: phone,
         email: email,
+        il: il,
         role: role,
         updateSupervisor: updateSupervisor,
         supervisorId: supervisorId,

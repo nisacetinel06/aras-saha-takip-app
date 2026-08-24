@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/app_notification.dart';
+import '../../models/manager_message.dart';
+import '../../providers/manager_message_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
@@ -10,9 +12,11 @@ import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/cache_age_note.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 import '../equipment/equipment_detail_screen.dart';
 import '../isg/isg_report_detail_screen.dart';
+import '../messages/manager_message_detail_screen.dart';
 import '../work_order_detail_screen.dart';
 
 /// Bildirim Sistemi (Modül 6) — bildirimler ekranı.
@@ -69,13 +73,49 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 EquipmentDetailScreen(equipmentId: notification.relatedId),
           ),
         );
+      case NotificationRelatedType.managerMessage:
+        await _openManagerMessage(notification.relatedId);
     }
+  }
+
+  /// Bildirim yalnızca mesajın id'sini taşır (bkz. AppNotification.relatedId)
+  /// — tam içerik GET /api/manager-messages listesinde gelir, ayrı bir
+  /// "tek mesaj getir" endpoint'i yok (bkz. routes/managerMessages.js).
+  /// Liste henüz çekilmediyse (örn. kullanıcı Bildirimler'i mesaj ekranını
+  /// hiç açmadan gördüyse) burada bir kere çekilir.
+  Future<void> _openManagerMessage(int messageId) async {
+    final messageProvider = context.read<ManagerMessageProvider>();
+    if (messageProvider.messages.isEmpty) {
+      await messageProvider.fetchMyMessages();
+    }
+    if (!mounted) return;
+
+    ManagerMessage? message;
+    for (final m in messageProvider.messages) {
+      if (m.id == messageId) {
+        message = m;
+        break;
+      }
+    }
+
+    if (message == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Mesaj bulunamadı.')),
+      );
+      return;
+    }
+    final resolvedMessage = message;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ManagerMessageDetailScreen(message: resolvedMessage),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<NotificationProvider>();
-    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       // showNotificationBell: false — bu ekran zilin GİTTİĞİ yer, zilin
@@ -88,63 +128,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         top: false,
         child: RefreshIndicator(
           onRefresh: provider.fetchNotifications,
-          child: _buildBody(provider, scheme),
+          child: _buildBody(provider),
         ),
       ),
     );
   }
 
-  Widget _buildBody(NotificationProvider provider, ColorScheme scheme) {
+  Widget _buildBody(NotificationProvider provider) {
     if (provider.isLoading && provider.notifications.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
     if (provider.errorMessage != null && provider.notifications.isEmpty) {
-      return ListView(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              children: [
-                Icon(Icons.error_outline, size: 48, color: scheme.error),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  provider.errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: scheme.error),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                AppButton(
-                  label: 'Tekrar Dene',
-                  variant: AppButtonVariant.secondary,
-                  onPressed: provider.fetchNotifications,
-                ),
-              ],
-            ),
-          ),
-        ],
+      return EmptyState(
+        icon: Icons.error_outline,
+        title: 'Bildirimler yüklenemedi',
+        subtitle: provider.errorMessage!,
+        onPrimaryAction: provider.fetchNotifications,
+        primaryActionLabel: 'Tekrar Dene',
+        primaryActionVariant: AppButtonVariant.secondary,
       );
     }
 
     if (provider.notifications.isEmpty) {
-      return ListView(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 120),
-            child: Column(
-              children: [
-                Icon(Icons.notifications_none, size: 56, color: scheme.outline),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Henüz bir bildiriminiz yok',
-                  style: AppTextStyles.bodyMedium(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+      return const EmptyState(
+        icon: Icons.notifications_none,
+        title: 'Henüz bir bildiriminiz yok',
       );
     }
 

@@ -14,6 +14,7 @@ import 'providers/equipment_provider.dart';
 import 'providers/isg_provider.dart';
 import 'providers/kvkk_provider.dart';
 import 'providers/maintenance_provider.dart';
+import 'providers/manager_message_provider.dart';
 import 'providers/map_provider.dart';
 import 'providers/material_provider.dart';
 import 'providers/notification_provider.dart';
@@ -106,6 +107,7 @@ class _ArasSahaAppState extends State<ArasSahaApp> {
         ChangeNotifierProvider(create: (_) => MaterialProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => ManagerMessageProvider()),
         ChangeNotifierProvider(create: (_) => ReportsProvider()),
         ChangeNotifierProvider(create: (_) => AssistantProvider()),
         ChangeNotifierProvider(create: (_) => KvkkProvider()),

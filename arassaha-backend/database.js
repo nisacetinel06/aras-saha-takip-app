@@ -356,6 +356,37 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users (id)
   );
 
+  -- Yöneticiden Çalışana Duyuru/Mesaj Sistemi — BİLİNÇLİ olarak TEK YÖNLÜ:
+  -- yalnızca yönetici mesaj oluşturup bir/birden çok çalışana gönderir,
+  -- çalışan SADECE okur/okundu işaretler, cevap YAZAMAZ. Bu yüzden AI Asistan
+  -- (chat_messages, Modül 16) gibi bir "sohbet/conversation" modeli DEĞİL —
+  -- conversations/conversation_participants gibi tablolar BİLEREK YOK, bu
+  -- basitleştirilmiş iki tablo yeterli.
+  -- sender_user_id: her zaman bir yönetici (bkz. routes/managerMessages.js
+  -- POST / — requireRole('yonetici')).
+  CREATE TABLE IF NOT EXISTS manager_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sender_user_id INTEGER NOT NULL,
+    title TEXT,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (sender_user_id) REFERENCES users (id)
+  );
+
+  -- Bir mesajın her alıcısı için AYRI bir satır — okundu takibi (Modül'ün
+  -- "kim okudu kim okumadı" özelliği) bu tablo üzerinden yapılır. read_at
+  -- NULL ise henüz okunmamış demektir (notifications.is_read'in aksine burada
+  -- bir boolean değil, GERÇEK okunma zamanı tutulur — yönetici "ne zaman
+  -- okudu"yu da görebilsin diye, bkz. GET /:id/read-status).
+  CREATE TABLE IF NOT EXISTS manager_message_recipients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id INTEGER NOT NULL,
+    recipient_user_id INTEGER NOT NULL,
+    read_at TEXT,
+    FOREIGN KEY (message_id) REFERENCES manager_messages (id),
+    FOREIGN KEY (recipient_user_id) REFERENCES users (id)
+  );
+
   -- Basit Kullanım Analitiği (UX standardizasyonu turu, bölüm E) — ücretli/
   -- harici bir ısı haritası aracı yerine hafif bir kullanım logu. Gerçek bir
   -- analitik SDK'sı (Firebase Analytics, Mixpanel vb.) DEĞİLDİR — yalnızca
@@ -555,6 +586,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_data_deletion_requests_reviewed_at ON data_deletion_requests (reviewed_at);
   CREATE INDEX IF NOT EXISTS idx_file_purge_log_deleted_at ON file_purge_log (deleted_at);
   CREATE INDEX IF NOT EXISTS idx_material_stock_movements_created_at ON material_stock_movements (created_at);
+  CREATE INDEX IF NOT EXISTS idx_manager_message_recipients_recipient ON manager_message_recipients (recipient_user_id);
+  CREATE INDEX IF NOT EXISTS idx_manager_message_recipients_message ON manager_message_recipients (message_id);
 `);
 
 // Migrasyon: bu proje ilk kurulduğunda `users` tablosu `password_hash`
@@ -594,6 +627,14 @@ const userColumnAdditions = {
   is_active: 'INTEGER NOT NULL DEFAULT 1',
   totp_secret: 'TEXT',
   totp_enabled: 'INTEGER NOT NULL DEFAULT 0',
+  // Yöneticiden Çalışana Duyuru/Mesaj Sistemi — toplu gönderim kısayolu
+  // ("Şu İldeki Herkes") için: bir çalışanın hangi ilde görevli olduğu.
+  // equipment/work_orders'daki il/ilce/mahalle yapısal alanlarının aksine
+  // (bkz. utils/location.js) burada BİLİNÇLİ olarak yalnızca serbest metin
+  // bir `il` — kullanıcı sayısı az olduğu için ayrı bir ilçe/mahalle kırılımı
+  // ya da normalize edilmiş bir il listesi gerekmiyor, yönetici Kullanıcı
+  // Düzenle ekranından elle girer (bkz. routes/users.js PATCH /:id).
+  il: 'TEXT',
 };
 for (const [column, type] of Object.entries(userColumnAdditions)) {
   if (!userColumns.some((col) => col.name === column)) {

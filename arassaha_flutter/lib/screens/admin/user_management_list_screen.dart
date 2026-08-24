@@ -10,6 +10,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/role_badge.dart';
 import '../../widgets/user_avatar.dart';
 import '../../utils/role_helper.dart';
@@ -30,6 +31,19 @@ String? _roleFilterValue(_RoleFilter filter) {
   }
 }
 
+String _roleFilterLabel(_RoleFilter filter) {
+  switch (filter) {
+    case _RoleFilter.all:
+      return 'Tümü';
+    case _RoleFilter.teknisyen:
+      return 'Teknisyen';
+    case _RoleFilter.dispecer:
+      return 'Dispeçer';
+    case _RoleFilter.yonetici:
+      return 'Yönetici';
+  }
+}
+
 /// Kullanıcı Yönetimi paneli (Modül 8) — YALNIZCA YÖNETİCİ erişebilir.
 /// Teknisyen/dispeçer bir şekilde (deep link, state restore) bu ekrana
 /// ulaşırsa build() içinde Ana Sayfa'ya geri yönlendirilir (bkz.
@@ -45,6 +59,7 @@ class UserManagementListScreen extends StatefulWidget {
 class _UserManagementListScreenState extends State<UserManagementListScreen> {
   _RoleFilter _filter = _RoleFilter.all;
   String _searchQuery = '';
+  final _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -53,6 +68,17 @@ class _UserManagementListScreenState extends State<UserManagementListScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<UserProvider>().fetchAllUsers();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _clearSearchQuery() {
+    _searchController.clear();
+    setState(() => _searchQuery = '');
   }
 
   Future<void> _openCreate() async {
@@ -163,30 +189,13 @@ class _UserManagementListScreenState extends State<UserManagementListScreen> {
             }
 
             if (provider.usersErrorMessage != null && provider.users.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 56,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      const SizedBox(height: AppSpacing.sm + 4),
-                      Text(
-                        provider.usersErrorMessage!,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      AppButton(
-                        label: 'Tekrar Dene',
-                        onPressed: () => provider.fetchAllUsers(),
-                      ),
-                    ],
-                  ),
-                ),
+              return EmptyState(
+                icon: Icons.error_outline,
+                title: 'Kullanıcılar yüklenemedi',
+                subtitle: provider.usersErrorMessage!,
+                onPrimaryAction: () => provider.fetchAllUsers(),
+                primaryActionLabel: 'Tekrar Dene',
+                primaryActionVariant: AppButtonVariant.secondary,
               );
             }
 
@@ -213,6 +222,7 @@ class _UserManagementListScreenState extends State<UserManagementListScreen> {
                   // için isim/sicil no'ya göre anlık, istemci taraflı filtre —
                   // ayrı bir API isteği gerekmez.
                   TextField(
+                    controller: _searchController,
                     onChanged: (v) => setState(() => _searchQuery = v),
                     decoration: const InputDecoration(
                       hintText: 'İsim veya sicil no ile ara...',
@@ -227,11 +237,41 @@ class _UserManagementListScreenState extends State<UserManagementListScreen> {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   if (visibleUsers.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(top: AppSpacing.xl),
-                      child: Center(
-                        child: Text('Bu filtreye uyan kullanıcı yok.'),
-                      ),
+                    Builder(
+                      builder: (context) {
+                        final activeFilters = <ActiveFilterChip>[
+                          if (_filter != _RoleFilter.all)
+                            ActiveFilterChip(
+                              label: 'Rol: ${_roleFilterLabel(_filter)}',
+                              onRemove: () =>
+                                  setState(() => _filter = _RoleFilter.all),
+                            ),
+                          if (_searchQuery.trim().isNotEmpty)
+                            ActiveFilterChip(
+                              label: 'Arama: ${_searchQuery.trim()}',
+                              onRemove: _clearSearchQuery,
+                            ),
+                        ];
+
+                        return Padding(
+                          padding: const EdgeInsets.only(top: AppSpacing.xl),
+                          child: EmptyState(
+                            icon: Icons.people_outline,
+                            title: activeFilters.isEmpty
+                                ? 'Kullanıcı bulunmuyor'
+                                : 'Bu filtreye uyan kullanıcı yok',
+                            activeFilters: activeFilters.isEmpty
+                                ? null
+                                : activeFilters,
+                            onClearFilters: activeFilters.isEmpty
+                                ? null
+                                : () {
+                                    _clearSearchQuery();
+                                    setState(() => _filter = _RoleFilter.all);
+                                  },
+                          ),
+                        );
+                      },
                     )
                   else
                     ...visibleUsers.map(

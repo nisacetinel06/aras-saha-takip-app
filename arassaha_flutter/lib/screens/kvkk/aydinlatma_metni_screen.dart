@@ -8,6 +8,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/empty_state.dart';
 
 /// KVKK Aydınlatma Metni — tam metni gösterir. Metin backend'den (bkz.
 /// routes/kvkk.js GET /aydinlatma-metni) okunur; ileride hukuk/KVKK uyum
@@ -49,27 +50,14 @@ class _AydinlatmaMetniScreenState extends State<AydinlatmaMetniScreen> {
 
           if (provider.aydinlatmaMetniErrorMessage != null &&
               provider.aydinlatmaMetni == null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.error_outline, size: 56, color: scheme.error),
-                    const SizedBox(height: AppSpacing.sm + 4),
-                    Text(
-                      provider.aydinlatmaMetniErrorMessage!,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    AppButton(
-                      label: 'Tekrar Dene',
-                      onPressed: () =>
-                          context.read<KvkkProvider>().fetchAydinlatmaMetni(),
-                    ),
-                  ],
-                ),
-              ),
+            return EmptyState(
+              icon: Icons.error_outline,
+              title: 'Aydınlatma metni yüklenemedi',
+              subtitle: provider.aydinlatmaMetniErrorMessage!,
+              onPrimaryAction: () =>
+                  context.read<KvkkProvider>().fetchAydinlatmaMetni(),
+              primaryActionLabel: 'Tekrar Dene',
+              primaryActionVariant: AppButtonVariant.secondary,
             );
           }
 

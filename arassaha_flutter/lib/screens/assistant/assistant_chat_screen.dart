@@ -8,6 +8,7 @@ import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
+import '../../widgets/app_button.dart';
 import '../../widgets/app_logo.dart';
 import '../../widgets/empty_state.dart';
 import '../admin/analytics_screen.dart';
@@ -314,6 +315,7 @@ class _AssistantChatScreenState extends State<AssistantChatScreen> {
         subtitle: provider.historyErrorMessage!,
         onPrimaryAction: () => provider.fetchHistory(),
         primaryActionLabel: 'Tekrar Dene',
+        primaryActionVariant: AppButtonVariant.secondary,
       );
     }
 

@@ -16,6 +16,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/maintenance_recommendation_card.dart';
 import '../../widgets/ml_service_unavailable_notice.dart';
 import '../../widgets/onboarding/coach_mark_style.dart';
@@ -140,31 +141,14 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
         child: Builder(
           builder: (context) {
             if (equipment == null && provider.detailErrorMessage != null) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 56,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      const SizedBox(height: AppSpacing.sm + 4),
-                      Text(
-                        provider.detailErrorMessage!,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      AppButton(
-                        label: 'Tekrar Dene',
-                        onPressed: () =>
-                            provider.fetchEquipmentDetail(widget.equipmentId),
-                      ),
-                    ],
-                  ),
-                ),
+              return EmptyState(
+                icon: Icons.error_outline,
+                title: 'Ekipman yüklenemedi',
+                subtitle: provider.detailErrorMessage!,
+                onPrimaryAction: () =>
+                    provider.fetchEquipmentDetail(widget.equipmentId),
+                primaryActionLabel: 'Tekrar Dene',
+                primaryActionVariant: AppButtonVariant.secondary,
               );
             }
 
@@ -434,7 +418,6 @@ class _HistorySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<EquipmentProvider>();
-    final scheme = Theme.of(context).colorScheme;
 
     if (provider.isHistoryLoading &&
         provider.history.isEmpty &&
@@ -446,27 +429,20 @@ class _HistorySection extends StatelessWidget {
     }
 
     if (provider.historyErrorMessage != null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            provider.historyErrorMessage!,
-            style: TextStyle(color: scheme.error),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          AppButton(
-            label: 'Tekrar Dene',
-            variant: AppButtonVariant.secondary,
-            onPressed: () => provider.fetchEquipmentHistory(equipmentId),
-          ),
-        ],
+      return EmptyState(
+        icon: Icons.error_outline,
+        title: 'Arıza geçmişi yüklenemedi',
+        subtitle: provider.historyErrorMessage!,
+        onPrimaryAction: () => provider.fetchEquipmentHistory(equipmentId),
+        primaryActionLabel: 'Tekrar Dene',
+        primaryActionVariant: AppButtonVariant.secondary,
       );
     }
 
     if (provider.history.isEmpty) {
-      return Text(
-        'Bu ekipmanın kayıtlı arıza geçmişi bulunmuyor.',
-        style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant),
+      return const EmptyState(
+        icon: Icons.history,
+        title: 'Bu ekipmanın kayıtlı arıza geçmişi bulunmuyor.',
       );
     }
 

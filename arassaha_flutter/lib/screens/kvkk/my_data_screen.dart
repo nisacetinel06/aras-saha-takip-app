@@ -7,6 +7,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/empty_state.dart';
 import 'aydinlatma_metni_screen.dart';
 import 'deletion_request_screen.dart';
 
@@ -46,27 +47,14 @@ class _MyDataScreenState extends State<MyDataScreen> {
           }
 
           if (provider.summaryErrorMessage != null && summary == null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.error_outline, size: 56, color: scheme.error),
-                    const SizedBox(height: AppSpacing.sm + 4),
-                    Text(
-                      provider.summaryErrorMessage!,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    AppButton(
-                      label: 'Tekrar Dene',
-                      onPressed: () =>
-                          context.read<KvkkProvider>().fetchMyDataSummary(),
-                    ),
-                  ],
-                ),
-              ),
+            return EmptyState(
+              icon: Icons.error_outline,
+              title: 'Verileriniz yüklenemedi',
+              subtitle: provider.summaryErrorMessage!,
+              onPrimaryAction: () =>
+                  context.read<KvkkProvider>().fetchMyDataSummary(),
+              primaryActionLabel: 'Tekrar Dene',
+              primaryActionVariant: AppButtonVariant.secondary,
             );
           }
 

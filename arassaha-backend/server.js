@@ -35,6 +35,7 @@ const equipmentRouter = require('./routes/equipment');
 const riskRouter = require('./routes/risk');
 const anomalyRouter = require('./routes/anomaly');
 const isgRouter = require('./routes/isg');
+const managerMessagesRouter = require('./routes/managerMessages');
 const notificationsRouter = require('./routes/notifications');
 const nlpRouter = require('./routes/nlp');
 const maintenanceRouter = require('./routes/maintenance');
@@ -134,6 +135,7 @@ app.use('/api', verifyToken, riskRouter);
 // yollar tanımlar (bkz. routes/anomaly.js) — bu yüzden '/api' kökünde mount edilir.
 app.use('/api', verifyToken, anomalyRouter);
 app.use('/api/isg-reports', verifyToken, isgRouter);
+app.use('/api/manager-messages', verifyToken, managerMessagesRouter);
 app.use('/api/notifications', verifyToken, notificationsRouter);
 // nlpRouter da riskRouter gibi '/api/ml/...' altında tam yol tanımlar
 // (bkz. routes/nlp.js) — bu yüzden '/api' kökünde mount edilir.

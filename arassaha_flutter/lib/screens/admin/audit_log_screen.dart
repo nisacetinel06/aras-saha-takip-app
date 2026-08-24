@@ -85,7 +85,6 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
     }
 
     final provider = context.watch<AuditLogProvider>();
-    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: const AppTopBar(title: 'Güvenlik & Denetim Logu'),
@@ -102,23 +101,13 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                   }
 
                   if (provider.errorMessage != null && provider.entries.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.error_outline, size: 56, color: scheme.error),
-                            const SizedBox(height: AppSpacing.sm + 4),
-                            Text(provider.errorMessage!, textAlign: TextAlign.center),
-                            const SizedBox(height: AppSpacing.md),
-                            AppButton(
-                              label: 'Tekrar Dene',
-                              onPressed: () => provider.fetchInitial(),
-                            ),
-                          ],
-                        ),
-                      ),
+                    return EmptyState(
+                      icon: Icons.error_outline,
+                      title: 'Denetim kayıtları yüklenemedi',
+                      subtitle: provider.errorMessage!,
+                      onPrimaryAction: () => provider.fetchInitial(),
+                      primaryActionLabel: 'Tekrar Dene',
+                      primaryActionVariant: AppButtonVariant.secondary,
                     );
                   }
 

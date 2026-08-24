@@ -10,6 +10,7 @@ import '../../utils/error_mapper.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/empty_state.dart';
 
 /// Kullanım Analitiği (UX standardizasyonu turu, bölüm E) — YALNIZCA yönetici.
 ///
@@ -67,24 +68,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             }
 
             if (_errorMessage != null && _summary == null) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 56,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      const SizedBox(height: AppSpacing.sm + 4),
-                      Text(_errorMessage!, textAlign: TextAlign.center),
-                      const SizedBox(height: AppSpacing.md),
-                      AppButton(label: 'Tekrar Dene', onPressed: _load),
-                    ],
-                  ),
-                ),
+              return EmptyState(
+                icon: Icons.error_outline,
+                title: 'Kullanım analitiği yüklenemedi',
+                subtitle: _errorMessage!,
+                onPrimaryAction: _load,
+                primaryActionLabel: 'Tekrar Dene',
+                primaryActionVariant: AppButtonVariant.secondary,
               );
             }
 

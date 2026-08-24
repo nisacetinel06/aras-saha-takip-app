@@ -10,6 +10,7 @@ import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
+import '../../utils/error_mapper.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
@@ -52,13 +53,21 @@ class _IsgReportFormScreenState extends State<IsgReportFormScreen> {
   }
 
   Future<void> _pickPhoto(ImageSource source) async {
-    final picker = ImagePicker();
-    final XFile? file = await picker.pickImage(
-      source: source,
-      imageQuality: 85,
-    );
-    if (file == null) return;
-    setState(() => _photoFile = File(file.path));
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final picker = ImagePicker();
+      final XFile? file = await picker.pickImage(
+        source: source,
+        imageQuality: 85,
+      );
+      if (file == null) return;
+      setState(() => _photoFile = File(file.path));
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(mapExceptionToUserMessage(e))),
+      );
+    }
   }
 
   void _showPhotoSourcePicker() {
@@ -139,7 +148,7 @@ class _IsgReportFormScreenState extends State<IsgReportFormScreen> {
         _lng = position.longitude;
       });
     } catch (e) {
-      setState(() => _locationError = 'Konum alınamadı: $e');
+      setState(() => _locationError = mapExceptionToUserMessage(e));
     } finally {
       setState(() => _isGettingLocation = false);
     }

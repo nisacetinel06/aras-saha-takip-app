@@ -91,27 +91,13 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
 
                   if (provider.listErrorMessage != null &&
                       provider.materials.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              size: 56,
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                            const SizedBox(height: AppSpacing.sm + 4),
-                            Text(
-                              provider.listErrorMessage!,
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: AppSpacing.md),
-                            AppButton(label: 'Tekrar Dene', onPressed: _reload),
-                          ],
-                        ),
-                      ),
+                    return EmptyState(
+                      icon: Icons.error_outline,
+                      title: 'Malzemeler yüklenemedi',
+                      subtitle: provider.listErrorMessage!,
+                      onPrimaryAction: _reload,
+                      primaryActionLabel: 'Tekrar Dene',
+                      primaryActionVariant: AppButtonVariant.secondary,
                     );
                   }
 

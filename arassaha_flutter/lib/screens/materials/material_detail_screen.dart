@@ -10,6 +10,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 import '../work_order_detail_screen.dart';
 
@@ -74,32 +75,15 @@ class _MaterialDetailScreenState extends State<MaterialDetailScreen> {
         child: Builder(
           builder: (context) {
             if (detail == null && provider.detailErrorMessage != null) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 56,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      const SizedBox(height: AppSpacing.sm + 4),
-                      Text(
-                        provider.detailErrorMessage!,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      AppButton(
-                        label: 'Tekrar Dene',
-                        onPressed: () => context
-                            .read<MaterialProvider>()
-                            .fetchMaterialDetail(widget.materialId),
-                      ),
-                    ],
-                  ),
-                ),
+              return EmptyState(
+                icon: Icons.error_outline,
+                title: 'Malzeme yüklenemedi',
+                subtitle: provider.detailErrorMessage!,
+                onPrimaryAction: () => context
+                    .read<MaterialProvider>()
+                    .fetchMaterialDetail(widget.materialId),
+                primaryActionLabel: 'Tekrar Dene',
+                primaryActionVariant: AppButtonVariant.secondary,
               );
             }
 

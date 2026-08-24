@@ -10,6 +10,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
 import '../screens/work_order_detail_screen.dart';
+import '../utils/error_mapper.dart';
 import 'app_button.dart';
 import 'app_card.dart';
 
@@ -423,7 +424,7 @@ class _CreateWorkOrderDialogState extends State<_CreateWorkOrderDialog> {
       setState(() => _technicians = users);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _technicianError = e.toString());
+      setState(() => _technicianError = mapExceptionToUserMessage(e));
     } finally {
       if (mounted) setState(() => _isLoadingTechnicians = false);
     }
@@ -505,7 +506,13 @@ class _CreateWorkOrderDialogState extends State<_CreateWorkOrderDialog> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(_technicianError!, style: const TextStyle(fontSize: 12)),
+          Text(
+            _technicianError!,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.error,
+              fontSize: 12,
+            ),
+          ),
           const SizedBox(height: AppSpacing.xs),
           AppButton(
             label: 'Tekrar Dene',

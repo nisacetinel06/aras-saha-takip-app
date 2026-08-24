@@ -18,11 +18,13 @@ import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_text_styles.dart';
+import '../utils/error_mapper.dart';
 import '../utils/role_helper.dart' as role_helper;
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_top_bar.dart';
 import '../widgets/cache_age_note.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/material_picker_field.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/work_order_card.dart' show formatRelativeTime;
@@ -68,27 +70,13 @@ class _WorkOrderDetailBody extends StatelessWidget {
             }
 
             if (provider.errorMessage != null && provider.workOrder == null) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 56,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(provider.errorMessage!, textAlign: TextAlign.center),
-                      const SizedBox(height: 16),
-                      AppButton(
-                        label: 'Tekrar Dene',
-                        onPressed: provider.loadDetail,
-                      ),
-                    ],
-                  ),
-                ),
+              return EmptyState(
+                icon: Icons.error_outline,
+                title: 'İş emri yüklenemedi',
+                subtitle: provider.errorMessage!,
+                onPrimaryAction: provider.loadDetail,
+                primaryActionLabel: 'Tekrar Dene',
+                primaryActionVariant: AppButtonVariant.secondary,
               );
             }
 
@@ -764,13 +752,18 @@ class _PhotoSection extends StatelessWidget {
       return;
     }
 
-    final picker = ImagePicker();
     final provider = context.read<WorkOrderDetailProvider>();
 
-    final XFile? file = await picker.pickImage(
-      source: source,
-      imageQuality: 80,
-    );
+    final XFile? file;
+    try {
+      final picker = ImagePicker();
+      file = await picker.pickImage(source: source, imageQuality: 80);
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(mapExceptionToUserMessage(e))),
+      );
+      return;
+    }
     if (file == null) return;
 
     final success = await provider.addPhoto(File(file.path));
@@ -936,9 +929,14 @@ class _MaterialsSection extends StatelessWidget {
             child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
           )
         else if (provider.workOrderMaterialsErrorMessage != null)
-          Text(
-            provider.workOrderMaterialsErrorMessage!,
-            style: TextStyle(color: scheme.error, fontSize: 13),
+          EmptyState(
+            icon: Icons.error_outline,
+            title: 'Malzemeler yüklenemedi',
+            subtitle: provider.workOrderMaterialsErrorMessage!,
+            onPrimaryAction: () =>
+                provider.fetchWorkOrderMaterials(workOrder.id),
+            primaryActionLabel: 'Tekrar Dene',
+            primaryActionVariant: AppButtonVariant.secondary,
           )
         else if (provider.workOrderMaterials.isEmpty)
           Padding(
@@ -1352,7 +1350,7 @@ class _ReassignSheetState extends State<_ReassignSheet> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _loadError = e.toString());
+      setState(() => _loadError = mapExceptionToUserMessage(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -1391,8 +1389,6 @@ class _ReassignSheetState extends State<_ReassignSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     return Padding(
       padding: EdgeInsets.fromLTRB(
         AppSpacing.md,
@@ -1417,15 +1413,13 @@ class _ReassignSheetState extends State<_ReassignSheet> {
               ),
             )
           else if (_loadError != null) ...[
-            Text(
-              _loadError!,
-              style: TextStyle(color: scheme.error, fontSize: 13),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            AppButton(
-              label: 'Tekrar Dene',
-              variant: AppButtonVariant.secondary,
-              onPressed: _loadTechnicians,
+            EmptyState(
+              icon: Icons.error_outline,
+              title: 'Teknisyenler yüklenemedi',
+              subtitle: _loadError!,
+              onPrimaryAction: _loadTechnicians,
+              primaryActionLabel: 'Tekrar Dene',
+              primaryActionVariant: AppButtonVariant.secondary,
             ),
           ] else ...[
             DropdownButtonFormField<AssignedUser>(

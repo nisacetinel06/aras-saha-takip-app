@@ -17,6 +17,7 @@ import '../theme/app_text_styles.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_top_bar.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/work_order_card.dart' show formatRelativeTime;
 import 'equipment/equipment_detail_screen.dart';
@@ -90,9 +91,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: Consumer<DashboardProvider>(
         builder: (context, provider, _) {
           if (provider.errorMessage != null && provider.summary == null) {
-            return _ErrorState(
-              message: provider.errorMessage!,
-              onRetry: provider.fetchSummary,
+            return EmptyState(
+              icon: Icons.error_outline,
+              title: 'Panel verileri yüklenemedi',
+              subtitle: provider.errorMessage!,
+              onPrimaryAction: provider.fetchSummary,
+              primaryActionLabel: 'Tekrar Dene',
+              primaryActionVariant: AppButtonVariant.secondary,
             );
           }
 
@@ -290,7 +295,12 @@ class _StatusPieChart extends StatelessWidget {
     final total = entries.fold<int>(0, (sum, e) => sum + e.value);
 
     if (total == 0) {
-      return const _EmptyChartCard(message: 'Gösterilecek veri yok.');
+      return const AppCard(
+        child: EmptyState(
+          icon: Icons.bar_chart_outlined,
+          title: 'Gösterilecek veri yok',
+        ),
+      );
     }
 
     return AppCard(
@@ -366,7 +376,12 @@ class _PriorityBarChart extends StatelessWidget {
     );
 
     if (maxVal == 0) {
-      return const _EmptyChartCard(message: 'Gösterilecek veri yok.');
+      return const AppCard(
+        child: EmptyState(
+          icon: Icons.bar_chart_outlined,
+          title: 'Gösterilecek veri yok',
+        ),
+      );
     }
 
     final onSurface = Theme.of(context).colorScheme.onSurface;
@@ -438,7 +453,12 @@ class _RecentActivityList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return const _EmptyChartCard(message: 'Henüz bir aktivite yok.');
+      return const AppCard(
+        child: EmptyState(
+          icon: Icons.history_outlined,
+          title: 'Henüz bir aktivite yok',
+        ),
+      );
     }
 
     return AppCard(
@@ -506,12 +526,24 @@ class _RiskyEquipmentSection extends StatelessWidget {
 
     if (provider.riskyListErrorMessage != null &&
         provider.riskyEquipment.isEmpty) {
-      return _EmptyChartCard(message: provider.riskyListErrorMessage!);
+      return AppCard(
+        child: EmptyState(
+          icon: Icons.error_outline,
+          title: 'Riskli ekipmanlar yüklenemedi',
+          subtitle: provider.riskyListErrorMessage!,
+          onPrimaryAction: provider.fetchRiskyEquipment,
+          primaryActionLabel: 'Tekrar Dene',
+          primaryActionVariant: AppButtonVariant.secondary,
+        ),
+      );
     }
 
     if (provider.riskyEquipment.isEmpty) {
-      return const _EmptyChartCard(
-        message: 'Henüz risk skoru hesaplanmış ekipman yok.',
+      return const AppCard(
+        child: EmptyState(
+          icon: Icons.query_stats_outlined,
+          title: 'Henüz risk skoru hesaplanmış ekipman yok',
+        ),
       );
     }
 
@@ -601,11 +633,25 @@ class _LowStockMaterialsSection extends StatelessWidget {
 
     if (provider.lowStockErrorMessage != null &&
         provider.lowStockMaterials.isEmpty) {
-      return _EmptyChartCard(message: provider.lowStockErrorMessage!);
+      return AppCard(
+        child: EmptyState(
+          icon: Icons.error_outline,
+          title: 'Kritik stok verileri yüklenemedi',
+          subtitle: provider.lowStockErrorMessage!,
+          onPrimaryAction: provider.fetchLowStockMaterials,
+          primaryActionLabel: 'Tekrar Dene',
+          primaryActionVariant: AppButtonVariant.secondary,
+        ),
+      );
     }
 
     if (provider.lowStockMaterials.isEmpty) {
-      return const _EmptyChartCard(message: 'Kritik stokta malzeme yok.');
+      return const AppCard(
+        child: EmptyState(
+          icon: Icons.inventory_2_outlined,
+          title: 'Kritik stokta malzeme yok',
+        ),
+      );
     }
 
     return AppCard(
@@ -680,55 +726,6 @@ class _LowStockMaterialTile extends StatelessWidget {
   }
 }
 
-class _EmptyChartCard extends StatelessWidget {
-  final String message;
-  const _EmptyChartCard({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: Text(
-          message,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  final String message;
-  final Future<void> Function() onRetry;
-
-  const _ErrorState({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 56,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 12),
-            Text('Veriler yüklenemedi: $message', textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            AppButton(label: 'Tekrar Dene', onPressed: onRetry),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 /// Veri gelene kadar kartların/grafiklerin yerinde gösterilen basit bir
 /// nabız (pulse) animasyonu — ek bir shimmer paketi gerektirmez.

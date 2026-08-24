@@ -8,6 +8,7 @@ import '../../providers/equipment_provider.dart';
 import '../../services/analytics_service.dart';
 import '../../services/onboarding_prefs_service.dart';
 import '../../theme/app_spacing.dart';
+import '../../utils/error_mapper.dart';
 import '../../widgets/app_button.dart';
 import 'equipment_detail_screen.dart';
 
@@ -200,7 +201,9 @@ class _QrScannerScreenState extends State<QrScannerScreen>
                   // ayrıca ve önceden ele alındığı için, bu yalnızca GERÇEK
                   // donanım hatalarına (örn. kamera başka bir uygulama
                   // tarafından kullanılıyor) düşen bir güvenlik ağıdır.
-                  errorBuilder: (context, error) => const _ScannerErrorView(),
+                  errorBuilder: (context, error) => _ScannerErrorView(
+                    message: mapExceptionToUserMessage(error),
+                  ),
                 ),
                 const _ScanFrameOverlay(),
                 if (_showFirstUseHint &&
@@ -452,7 +455,8 @@ class _CameraPermissionView extends StatelessWidget {
 /// güvenlik ağı — izin reddi artık [_CameraPermissionView] tarafından
 /// ÖNCEDEN ele alındığı için burada ayrıca bir izin ayrımı YAPILMAZ.
 class _ScannerErrorView extends StatelessWidget {
-  const _ScannerErrorView();
+  final String message;
+  const _ScannerErrorView({required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -470,19 +474,22 @@ class _ScannerErrorView extends StatelessWidget {
                 color: Colors.white70,
               ),
               const SizedBox(height: AppSpacing.md),
-              const Text(
-                'Kamera kullanılamıyor. Lütfen kodu manuel olarak girin.',
+              Text(
+                message,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70),
+                style: const TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: AppSpacing.md),
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white54),
-                ),
+              // Bu ekran BİLİNÇLİ olarak uygulamanın normal temasını
+              // KULLANMAZ (tam ekran siyah kamera arayüzü, bkz. sınıf
+              // dokümantasyonu) — AppButton'ın `color` geçersiz kılması
+              // TAM BUNUN İÇİN var: buton yine AppButton (tüm butonlar için
+              // TEK ortak bileşen), sadece bu siyah zemine uysun diye beyaz.
+              AppButton(
+                label: 'Manuel Kod Girişine Dön',
+                variant: AppButtonVariant.secondary,
+                color: Colors.white,
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Manuel Kod Girişine Dön'),
               ),
             ],
           ),

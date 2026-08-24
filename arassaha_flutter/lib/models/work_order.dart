@@ -94,13 +94,26 @@ class AssignedUser {
   final String name;
   final String role;
 
-  AssignedUser({required this.id, required this.name, required this.role});
+  /// Yalnızca yönetici için zenginleştirilmiş GET /api/users yanıtında
+  /// dolu gelir (bkz. routes/users.js FULL_FIELDS) — Yöneticiden Çalışana
+  /// Duyuru/Mesaj Sistemi'nin "Şu İldeki Herkes" kısayolu için (bkz.
+  /// providers/manager_message_provider.dart). Diğer tüketicilerde (PICKER_FIELDS)
+  /// her zaman null'dur.
+  final String? il;
+
+  AssignedUser({
+    required this.id,
+    required this.name,
+    required this.role,
+    this.il,
+  });
 
   factory AssignedUser.fromJson(Map<String, dynamic> json) {
     return AssignedUser(
       id: json['id'] as int,
       name: json['name'] as String,
       role: json['role'] as String? ?? '',
+      il: json['il'] as String?,
     );
   }
 

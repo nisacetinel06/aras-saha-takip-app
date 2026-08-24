@@ -7,6 +7,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/role_badge.dart';
 import '../../widgets/user_avatar.dart';
 import '../admin/user_management_list_screen.dart';
@@ -77,26 +78,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     if (userProvider.profileErrorMessage != null && profile == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.error_outline, size: 56, color: scheme.error),
-              const SizedBox(height: AppSpacing.sm + 4),
-              Text(
-                userProvider.profileErrorMessage!,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppButton(
-                label: 'Tekrar Dene',
-                onPressed: () => context.read<UserProvider>().fetchMyProfile(),
-              ),
-            ],
-          ),
-        ),
+      return EmptyState(
+        icon: Icons.error_outline,
+        title: 'Profil yüklenemedi',
+        subtitle: userProvider.profileErrorMessage!,
+        onPrimaryAction: () => context.read<UserProvider>().fetchMyProfile(),
+        primaryActionLabel: 'Tekrar Dene',
+        primaryActionVariant: AppButtonVariant.secondary,
       );
     }
 

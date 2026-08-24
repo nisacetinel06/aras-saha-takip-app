@@ -81,9 +81,13 @@ class _WorkOrderListScreenState extends State<WorkOrderListScreen> {
               }
 
               if (provider.errorMessage != null) {
-                return _ErrorState(
-                  message: provider.errorMessage!,
-                  onRetry: provider.loadWorkOrders,
+                return EmptyState(
+                  icon: Icons.error_outline,
+                  title: 'İş emirleri yüklenemedi',
+                  subtitle: provider.errorMessage!,
+                  onPrimaryAction: provider.loadWorkOrders,
+                  primaryActionLabel: 'Tekrar Dene',
+                  primaryActionVariant: AppButtonVariant.secondary,
                 );
               }
 
@@ -290,32 +294,3 @@ class _FilterBar extends StatelessWidget {
   }
 }
 
-class _ErrorState extends StatelessWidget {
-  final String message;
-  final Future<void> Function() onRetry;
-
-  const _ErrorState({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 56,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 12),
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            AppButton(label: 'Tekrar Dene', onPressed: onRetry),
-          ],
-        ),
-      ),
-    );
-  }
-}

@@ -8,13 +8,16 @@ import '../../providers/auth_provider.dart';
 import '../../providers/completed_work_orders_provider.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../providers/maintenance_provider.dart';
+import '../../providers/manager_message_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
+import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_logo.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/onboarding/coach_mark_style.dart';
 import '../../widgets/role_badge.dart';
 import '../../widgets/user_avatar.dart';
@@ -24,6 +27,8 @@ import '../equipment/qr_scanner_screen.dart';
 import '../isg/isg_report_form_screen.dart';
 import '../maintenance/maintenance_recommendations_screen.dart';
 import '../map/map_screen.dart';
+import '../messages/manager_messages_screen.dart';
+import '../messages/send_manager_message_screen.dart';
 import '../work_orders/create_work_order_screen.dart';
 import 'completed_work_orders_section.dart';
 
@@ -123,13 +128,21 @@ class _HomeScreenState extends State<HomeScreen> {
       if (context.read<AuthProvider>().isTeknisyen) {
         context.read<CompletedWorkOrdersProvider>().loadInitial();
       }
+      // "Yöneticiden Mesajlar" Çabuk Erişim kartındaki okunmamış rozeti için
+      // — yönetici bu mesajların ALICISI olmadığı için (bkz. sınıf
+      // dokümantasyonu, TEK YÖNLÜ model) bu isteği hiç atmaz.
+      if (!context.read<AuthProvider>().isYonetici) {
+        context.read<ManagerMessageProvider>().fetchMyMessages();
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final summary = context.watch<DashboardProvider>().summary;
+    final dashboardProvider = context.watch<DashboardProvider>();
+    final summary = dashboardProvider.summary;
+    final unreadMessageCount = context.watch<ManagerMessageProvider>().unreadCount;
     final auth = context.watch<AuthProvider>();
     final myProfile = context.watch<UserProvider>().myProfile;
     final pendingMaintenanceCount = auth.isYonetici
@@ -176,6 +189,14 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
     ).push(MaterialPageRoute(builder: (_) => const UserEditScreen()));
 
+    void goToSendManagerMessage() => Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SendManagerMessageScreen()),
+    );
+
+    void goToManagerMessages() => Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ManagerMessagesScreen()),
+    );
+
     // Hızlı İşlemler: kullanıcının doğrudan bir eylem BAŞLATACAĞI girişler
     // (bir şey oluşturma/gönderme) — role göre SABİT liste.
     final List<_ActionData> quickActions;
@@ -191,6 +212,11 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: Icons.person_add_alt_outlined,
           label: 'Yeni Kullanıcı Ekle',
           onTap: goToAddUser,
+        ),
+        _ActionData(
+          icon: Icons.campaign_outlined,
+          label: 'Çalışanlara Mesaj Gönder',
+          onTap: goToSendManagerMessage,
         ),
       ];
     } else if (auth.isDispecer) {
@@ -263,6 +289,12 @@ class _HomeScreenState extends State<HomeScreen> {
           onTap: goToMap,
         ),
         _AccessData(
+          icon: Icons.mail_outline,
+          title: 'Yöneticiden Mesajlar',
+          badgeCount: unreadMessageCount,
+          onTap: goToManagerMessages,
+        ),
+        _AccessData(
           icon: Icons.smart_toy_outlined,
           title: 'ArasAI',
           subtitle: 'Sorularını doğal dilde sor',
@@ -282,6 +314,12 @@ class _HomeScreenState extends State<HomeScreen> {
           title: 'Harita',
           subtitle: 'Konum görünümü',
           onTap: goToMap,
+        ),
+        _AccessData(
+          icon: Icons.mail_outline,
+          title: 'Yöneticiden Mesajlar',
+          badgeCount: unreadMessageCount,
+          onTap: goToManagerMessages,
         ),
         _AccessData(
           icon: Icons.smart_toy_outlined,
@@ -344,6 +382,8 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: AppSpacing.lg),
               _StatsRow(
                 summary: summary,
+                errorMessage: dashboardProvider.errorMessage,
+                onRetry: dashboardProvider.fetchSummary,
                 acilCount: acilCount,
                 isTeknisyen: auth.isTeknisyen,
                 isYonetici: auth.isYonetici,
@@ -541,12 +581,16 @@ class _GreetingRow extends StatelessWidget {
 /// her role, "kritik uyarı sayısı" yalnızca yöneticiye.
 class _StatsRow extends StatelessWidget {
   final DashboardSummary? summary;
+  final String? errorMessage;
+  final VoidCallback onRetry;
   final int acilCount;
   final bool isTeknisyen;
   final bool isYonetici;
 
   const _StatsRow({
     required this.summary,
+    required this.errorMessage,
+    required this.onRetry,
     required this.acilCount,
     required this.isTeknisyen,
     required this.isYonetici,
@@ -554,6 +598,19 @@ class _StatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (summary == null && errorMessage != null) {
+      return AppCard(
+        child: EmptyState(
+          icon: Icons.error_outline,
+          title: 'Özet bilgiler yüklenemedi',
+          subtitle: errorMessage!,
+          onPrimaryAction: onRetry,
+          primaryActionLabel: 'Tekrar Dene',
+          primaryActionVariant: AppButtonVariant.secondary,
+        ),
+      );
+    }
+
     if (summary == null) {
       return const AppCard(
         padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
@@ -731,11 +788,17 @@ class _AccessData {
   final String title;
   final String? subtitle;
   final VoidCallback onTap;
+
+  /// Bildirim ziliyle (bkz. widgets/app_top_bar.dart NotificationBellButton)
+  /// AYNI desende bir okunmamış-sayısı rozeti — 0 iken hiç gösterilmez.
+  final int badgeCount;
+
   const _AccessData({
     required this.icon,
     required this.title,
     this.subtitle,
     required this.onTap,
+    this.badgeCount = 0,
   });
 }
 
@@ -768,7 +831,50 @@ class _QuickAccessTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(data.icon, size: 20, color: scheme.onSurfaceVariant),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(data.icon, size: 20, color: scheme.onSurfaceVariant),
+                  if (data.badgeCount > 0)
+                    Positioned(
+                      top: -4,
+                      right: -6,
+                      child: IgnorePointer(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 14,
+                            minHeight: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.danger(context),
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.pill,
+                            ),
+                            border: Border.all(
+                              color: scheme.surfaceContainerLowest,
+                              width: 1.5,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            data.badgeCount > 9 ? '9+' : '${data.badgeCount}',
+                            style: TextStyle(
+                              color: accessibleOnColor(
+                                AppColors.danger(context),
+                              ),
+                              fontSize: 8,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
               const SizedBox(width: AppSpacing.sm + 2),
               Expanded(
                 child: Column(

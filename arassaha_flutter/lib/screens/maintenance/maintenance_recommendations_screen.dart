@@ -274,24 +274,13 @@ class _Body extends StatelessWidget {
     }
 
     if (provider.errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.error_outline,
-                size: 56,
-                color: Theme.of(context).colorScheme.error,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(provider.errorMessage!, textAlign: TextAlign.center),
-              const SizedBox(height: AppSpacing.md),
-              AppButton(label: 'Tekrar Dene', onPressed: onRetry),
-            ],
-          ),
-        ),
+      return EmptyState(
+        icon: Icons.error_outline,
+        title: 'Bakım önerileri yüklenemedi',
+        subtitle: provider.errorMessage!,
+        onPrimaryAction: onRetry,
+        primaryActionLabel: 'Tekrar Dene',
+        primaryActionVariant: AppButtonVariant.secondary,
       );
     }
 

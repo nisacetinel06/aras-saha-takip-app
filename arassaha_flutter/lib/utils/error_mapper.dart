@@ -3,6 +3,11 @@ import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
+import 'package:geolocator/geolocator.dart'
+    show LocationServiceDisabledException, PermissionDeniedException;
+import 'package:mobile_scanner/mobile_scanner.dart'
+    show MobileScannerException, MobileScannerErrorCode;
 
 import '../services/api_service.dart';
 
@@ -36,6 +41,37 @@ String mapExceptionToUserMessage(dynamic error) {
   }
   if (error is FormatException) {
     return 'Beklenmeyen bir hata oluştu';
+  }
+  if (error is LocationServiceDisabledException) {
+    return 'Konum servisleri kapalı, lütfen cihaz ayarlarından konumu açın';
+  }
+  if (error is PermissionDeniedException) {
+    return 'Konum izni verilmedi, lütfen ayarlardan izin verin';
+  }
+  if (error is MobileScannerException) {
+    switch (error.errorCode) {
+      case MobileScannerErrorCode.permissionDenied:
+        return 'Kamera izni verilmedi, lütfen ayarlardan izin verin';
+      case MobileScannerErrorCode.unsupported:
+        return 'Bu cihazda kamera taraması desteklenmiyor';
+      default:
+        return 'Kamera başlatılamadı, lütfen tekrar deneyin';
+    }
+  }
+  // image_picker (kamera/galeri) ve flutter_secure_storage'ın platform
+  // katmanından fırlattığı hatalar hep PlatformException'dır — .code alanı
+  // pakete göre değişir (bkz. image_picker "camera_access_denied" /
+  // "photo_access_denied"), ama kullanıcıya tek tip anlaşılır bir mesaj
+  // yeterli; teknik .code kDebugMode logunda zaten yukarıda tutuluyor.
+  if (error is PlatformException) {
+    switch (error.code) {
+      case 'camera_access_denied':
+        return 'Kamera erişimi reddedildi, lütfen ayarlardan izin verin';
+      case 'photo_access_denied':
+        return 'Galeri erişimi reddedildi, lütfen ayarlardan izin verin';
+      default:
+        return 'Cihaz özelliğine erişilirken bir sorun oluştu, lütfen tekrar deneyin';
+    }
   }
   if (error is ApiException) {
     switch (error.statusCode) {

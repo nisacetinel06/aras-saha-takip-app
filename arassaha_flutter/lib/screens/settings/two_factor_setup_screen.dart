@@ -11,6 +11,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/empty_state.dart';
 
 enum _SetupStep { qrAndBackupCodes, enterConfirmCode, done }
 
@@ -78,7 +79,6 @@ class _TwoFactorSetupScreenState extends State<TwoFactorSetupScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TwoFactorProvider>();
-    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: const AppTopBar(title: 'İki Faktörlü Doğrulama', showBackButton: true),
@@ -89,23 +89,13 @@ class _TwoFactorSetupScreenState extends State<TwoFactorSetupScreen> {
           }
 
           if (provider.setupErrorMessage != null && provider.otpauthUri == null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.error_outline, size: 56, color: scheme.error),
-                    const SizedBox(height: AppSpacing.sm + 4),
-                    Text(provider.setupErrorMessage!, textAlign: TextAlign.center),
-                    const SizedBox(height: AppSpacing.md),
-                    AppButton(
-                      label: 'Tekrar Dene',
-                      onPressed: () => context.read<TwoFactorProvider>().setup(),
-                    ),
-                  ],
-                ),
-              ),
+            return EmptyState(
+              icon: Icons.error_outline,
+              title: 'İki adımlı doğrulama kurulumu yüklenemedi',
+              subtitle: provider.setupErrorMessage!,
+              onPrimaryAction: () => context.read<TwoFactorProvider>().setup(),
+              primaryActionLabel: 'Tekrar Dene',
+              primaryActionVariant: AppButtonVariant.secondary,
             );
           }
 

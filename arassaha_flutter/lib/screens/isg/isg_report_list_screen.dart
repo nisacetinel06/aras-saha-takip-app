@@ -9,6 +9,7 @@ import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 import 'isg_report_detail_screen.dart';
 import 'isg_report_form_screen.dart';
@@ -67,30 +68,13 @@ class _IsgReportListScreenState extends State<IsgReportListScreen> {
             }
 
             if (provider.listErrorMessage != null && provider.reports.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 56,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      const SizedBox(height: AppSpacing.sm + 4),
-                      Text(
-                        provider.listErrorMessage!,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      AppButton(
-                        label: 'Tekrar Dene',
-                        onPressed: provider.fetchReports,
-                      ),
-                    ],
-                  ),
-                ),
+              return EmptyState(
+                icon: Icons.error_outline,
+                title: 'İSG bildirimleri yüklenemedi',
+                subtitle: provider.listErrorMessage!,
+                onPrimaryAction: provider.fetchReports,
+                primaryActionLabel: 'Tekrar Dene',
+                primaryActionVariant: AppButtonVariant.secondary,
               );
             }
 
@@ -110,10 +94,24 @@ class _IsgReportListScreenState extends State<IsgReportListScreen> {
                   _FilterBar(provider: provider),
                   const SizedBox(height: AppSpacing.sm),
                   if (provider.reports.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(top: AppSpacing.xl),
-                      child: Center(
-                        child: Text('Bu filtreye uyan bildirim yok.'),
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.xl),
+                      child: EmptyState(
+                        icon: Icons.add_alert_outlined,
+                        title: provider.filterStatus == null
+                            ? 'Bildirim bulunmuyor'
+                            : 'Bu filtreye uyan bildirim yok',
+                        activeFilters: provider.filterStatus == null
+                            ? null
+                            : [
+                                ActiveFilterChip(
+                                  label: 'Durum: ${provider.filterStatus!.label}',
+                                  onRemove: () => provider.setFilter(null),
+                                ),
+                              ],
+                        onClearFilters: provider.filterStatus == null
+                            ? null
+                            : () => provider.setFilter(null),
                       ),
                     )
                   else

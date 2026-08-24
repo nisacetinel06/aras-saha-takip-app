@@ -375,21 +375,31 @@ class _ErrorBanner extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              'Konum verileri yüklenemedi',
-              style: TextStyle(
-                color: scheme.onErrorContainer,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Konum verileri yüklenemedi',
+                  style: TextStyle(
+                    color: scheme.onErrorContainer,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                Text(
+                  message,
+                  style: TextStyle(color: scheme.onErrorContainer, fontSize: 12),
+                ),
+              ],
             ),
           ),
-          TextButton(
+          const SizedBox(width: 4),
+          AppButton(
+            label: 'Tekrar Dene',
+            variant: AppButtonVariant.secondary,
+            color: scheme.onErrorContainer,
             onPressed: onRetry,
-            style: TextButton.styleFrom(
-              foregroundColor: scheme.onErrorContainer,
-            ),
-            child: const Text('Tekrar Dene'),
           ),
         ],
       ),

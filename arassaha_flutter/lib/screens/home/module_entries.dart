@@ -14,6 +14,9 @@ import '../isg/isg_report_list_screen.dart';
 import '../maintenance/maintenance_recommendations_screen.dart';
 import '../map/map_screen.dart';
 import '../materials/material_list_screen.dart';
+import '../messages/manager_messages_screen.dart';
+import '../messages/send_manager_message_screen.dart';
+import '../messages/sent_messages_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../reports/reports_screen.dart';
 import '../settings/settings_screen.dart';
@@ -162,7 +165,35 @@ List<ModuleEntry> buildModuleEntries(
         color: AppColors.primary,
         screenBuilder: (_) => const AuditLogScreen(),
       ),
-    ],
+      // Yöneticiden Çalışana Duyuru/Mesaj Sistemi — SADECE yönetici gönderir
+      // (bkz. sınıf dokümantasyonu, backend requireRole('yonetici')).
+      ModuleEntry(
+        icon: Icons.campaign_outlined,
+        title: 'Çalışanlara Mesaj Gönder',
+        subtitle: 'Duyuru oluştur ve gönder',
+        category: 'Yönetim',
+        color: AppColors.positive,
+        screenBuilder: (_) => const SendManagerMessageScreen(),
+      ),
+      ModuleEntry(
+        icon: Icons.outgoing_mail,
+        title: 'Gönderilen Mesajlar',
+        subtitle: 'Okundu takibi',
+        category: 'Yönetim',
+        color: AppColors.primary,
+        screenBuilder: (_) => const SentMessagesScreen(),
+      ),
+    ] else
+      // Yönetici bu mesajların ALICISI olmadığı için (TEK YÖNLÜ model)
+      // yalnızca çalışan rollerine gösterilir.
+      ModuleEntry(
+        icon: Icons.mail_outline,
+        title: 'Yöneticiden Mesajlar',
+        subtitle: 'Size gönderilen duyurular',
+        category: 'Sistem',
+        color: AppColors.primary,
+        screenBuilder: (_) => const ManagerMessagesScreen(),
+      ),
     ModuleEntry(
       icon: Icons.notifications_outlined,
       title: 'Bildirimler',

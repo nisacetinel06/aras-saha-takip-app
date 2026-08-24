@@ -62,6 +62,12 @@ class AppUser {
   final String sicilNo;
   final String? phone;
   final String? email;
+
+  /// Yöneticiden Çalışana Duyuru/Mesaj Sistemi — "Şu İldeki Herkes" toplu
+  /// gönderim kısayolu için (bkz. providers/manager_message_provider.dart).
+  /// equipment/work_orders'daki yapısal il/ilce/mahalle alanlarının aksine
+  /// serbest metin, yönetici Kullanıcı Düzenle ekranından elle girer.
+  final String? il;
   final String? photoPath;
   final bool isActive;
   final int? supervisorId;
@@ -80,6 +86,7 @@ class AppUser {
     required this.sicilNo,
     this.phone,
     this.email,
+    this.il,
     this.photoPath,
     this.isActive = true,
     this.supervisorId,
@@ -95,6 +102,7 @@ class AppUser {
       sicilNo: json['sicil_no'] as String? ?? '',
       phone: json['phone'] as String?,
       email: json['email'] as String?,
+      il: json['il'] as String?,
       photoPath: json['photo_path'] as String?,
       isActive: json['is_active'] as bool? ?? true,
       supervisorId: json['supervisor_id'] as int?,
@@ -127,6 +135,7 @@ class AppUser {
     String? role,
     String? phone,
     String? email,
+    String? il,
     String? photoPath,
     bool? isActive,
     bool? totpEnabled,
@@ -138,6 +147,7 @@ class AppUser {
       sicilNo: sicilNo,
       phone: phone ?? this.phone,
       email: email ?? this.email,
+      il: il ?? this.il,
       photoPath: photoPath ?? this.photoPath,
       isActive: isActive ?? this.isActive,
       supervisorId: supervisorId,

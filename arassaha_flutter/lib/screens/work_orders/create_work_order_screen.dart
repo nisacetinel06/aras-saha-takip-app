@@ -10,6 +10,7 @@ import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
+import '../../utils/error_mapper.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
@@ -160,7 +161,7 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
       );
       setState(() => _technicians = users);
     } catch (e) {
-      setState(() => _technicianError = e.toString());
+      setState(() => _technicianError = mapExceptionToUserMessage(e));
     } finally {
       setState(() => _isLoadingTechnicians = false);
     }
@@ -198,7 +199,7 @@ class _CreateWorkOrderScreenState extends State<CreateWorkOrderScreen> {
       );
       Navigator.of(context).pop(true);
     } catch (e) {
-      setState(() => _submitError = e.toString());
+      setState(() => _submitError = mapExceptionToUserMessage(e));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

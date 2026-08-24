@@ -49,7 +49,7 @@ const PICKER_FIELDS = 'id, name, role, sicil_no';
 // totp_enabled DAHİL (Ayarlar ekranının "2FA etkin mi?" durumunu bilmesi
 // için — bkz. routes/twoFactor.js) ama totp_secret ASLA DAHİL DEĞİL — bu
 // alan hiçbir response'ta (bu dahil) dışarı sızmaz.
-const FULL_FIELDS = 'id, name, role, sicil_no, phone, email, photo_path, is_active, supervisor_id, totp_enabled';
+const FULL_FIELDS = 'id, name, role, sicil_no, phone, email, il, photo_path, is_active, supervisor_id, totp_enabled';
 
 function mapFullUser(row) {
   if (!row) return row;
@@ -118,7 +118,7 @@ router.get('/me', (req, res) => {
 // devamı) — Flutter tarafı bu filtreyi teknisyen seçicilerinde her zaman gönderir.
 router.get('/', (req, res) => {
   try {
-    const { role, active } = req.query;
+    const { role, active, il } = req.query;
     const isAdmin = req.user.role === 'yonetici';
 
     const conditions = [];
@@ -130,6 +130,14 @@ router.get('/', (req, res) => {
     if (active !== undefined) {
       conditions.push('is_active = ?');
       params.push(active === 'true' || active === '1' ? 1 : 0);
+    }
+    // Yöneticiden Çalışana Duyuru/Mesaj Sistemi — "Şu İldeki Herkes" toplu
+    // gönderim kısayolu için (bkz. routes/managerMessages.js). il yalnızca
+    // FULL_FIELDS ile döndüğünden bu filtre pratikte sadece yönetici
+    // çağrılarında anlamlıdır, ama diğer roller de gönderirse zararsızdır.
+    if (il) {
+      conditions.push('il = ?');
+      params.push(il);
     }
     if (req.user.role === 'dispecer') {
       conditions.push('(supervisor_id = ? OR id = ?)');
@@ -160,7 +168,7 @@ router.get('/', (req, res) => {
 // bağlamak için), GERÇEKTEN bir dispeçere ait olduğu doğrulanır.
 router.post('/', requireRole('yonetici'), (req, res) => {
   try {
-    const { name, sicil_no, password, role, phone, email } = req.body;
+    const { name, sicil_no, password, role, phone, email, il } = req.body;
 
     if (!name || typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ error: 'name alanı zorunludur.' });
@@ -192,8 +200,8 @@ router.post('/', requireRole('yonetici'), (req, res) => {
     const password_hash = bcrypt.hashSync(password, 10);
     const info = db
       .prepare(
-        `INSERT INTO users (name, role, sicil_no, password_hash, phone, email, supervisor_id, is_active)
-         VALUES (@name, @role, @sicil_no, @password_hash, @phone, @email, @supervisor_id, 1)`
+        `INSERT INTO users (name, role, sicil_no, password_hash, phone, email, il, supervisor_id, is_active)
+         VALUES (@name, @role, @sicil_no, @password_hash, @phone, @email, @il, @supervisor_id, 1)`
       )
       .run({
         name: name.trim(),
@@ -202,6 +210,7 @@ router.post('/', requireRole('yonetici'), (req, res) => {
         password_hash,
         phone: phone ? String(phone).trim() : null,
         email: email ? String(email).trim() : null,
+        il: il ? String(il).trim() : null,
         supervisor_id: supervisorId,
       });
 
@@ -271,7 +280,7 @@ router.patch('/:id', requireRole('yonetici'), (req, res) => {
       return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
     }
 
-    const { name, phone, email, role, supervisor_id } = req.body;
+    const { name, phone, email, il, role, supervisor_id } = req.body;
     if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
       return res.status(400).json({ error: 'name alanı boş olamaz.' });
     }
@@ -304,6 +313,10 @@ router.patch('/:id', requireRole('yonetici'), (req, res) => {
     if (email !== undefined) {
       fields.push('email = ?');
       params.push(email ? String(email).trim() : null);
+    }
+    if (il !== undefined) {
+      fields.push('il = ?');
+      params.push(il ? String(il).trim() : null);
     }
     if (role !== undefined) {
       fields.push('role = ?');

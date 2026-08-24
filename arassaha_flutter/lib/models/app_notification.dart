@@ -6,7 +6,8 @@ import 'package:flutter/material.dart';
 enum NotificationRelatedType {
   workOrder,
   isgReport,
-  equipment;
+  equipment,
+  managerMessage;
 
   static NotificationRelatedType fromJson(String value) {
     switch (value) {
@@ -16,6 +17,8 @@ enum NotificationRelatedType {
         return NotificationRelatedType.isgReport;
       case 'equipment':
         return NotificationRelatedType.equipment;
+      case 'manager_message':
+        return NotificationRelatedType.managerMessage;
       default:
         return NotificationRelatedType.workOrder;
     }
@@ -29,6 +32,8 @@ enum NotificationRelatedType {
         return Icons.shield_outlined;
       case NotificationRelatedType.equipment:
         return Icons.inventory_2_outlined;
+      case NotificationRelatedType.managerMessage:
+        return Icons.mail_outline;
     }
   }
 }
@@ -83,6 +88,7 @@ class AppNotification {
     NotificationRelatedType.workOrder: 'work_order',
     NotificationRelatedType.isgReport: 'isg_report',
     NotificationRelatedType.equipment: 'equipment',
+    NotificationRelatedType.managerMessage: 'manager_message',
   };
 
   /// Ayarlar ve Çevrimdışı Mod (Modül 17) — Okuma Önbelleği için: NotificationProvider

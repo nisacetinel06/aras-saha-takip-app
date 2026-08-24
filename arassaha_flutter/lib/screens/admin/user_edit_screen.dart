@@ -10,10 +10,12 @@ import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
+import '../../utils/error_mapper.dart';
 import '../../utils/role_helper.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/sticky_form_footer.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
@@ -37,6 +39,7 @@ class _UserEditScreenState extends State<UserEditScreen> {
   final _nameController = TextEditingController();
   final _sicilNoController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _ilController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -94,7 +97,7 @@ class _UserEditScreenState extends State<UserEditScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _dispatchersErrorMessage = e.toString());
+      setState(() => _dispatchersErrorMessage = mapExceptionToUserMessage(e));
     } finally {
       if (mounted) setState(() => _isLoadingDispatchers = false);
     }
@@ -106,6 +109,7 @@ class _UserEditScreenState extends State<UserEditScreen> {
     _sicilNoController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _ilController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -136,6 +140,7 @@ class _UserEditScreenState extends State<UserEditScreen> {
       _sicilNoController.text = user.sicilNo;
       _phoneController.text = user.phone ?? '';
       _emailController.text = user.email ?? '';
+      _ilController.text = user.il ?? '';
       _role = user.role;
       _originalRole = user.role;
       _isActive = user.isActive;
@@ -148,13 +153,21 @@ class _UserEditScreenState extends State<UserEditScreen> {
   }
 
   Future<void> _pickPhoto(ImageSource source) async {
-    final picker = ImagePicker();
-    final XFile? file = await picker.pickImage(
-      source: source,
-      imageQuality: 85,
-    );
-    if (file == null) return;
-    setState(() => _newPhotoFile = File(file.path));
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final picker = ImagePicker();
+      final XFile? file = await picker.pickImage(
+        source: source,
+        imageQuality: 85,
+      );
+      if (file == null) return;
+      setState(() => _newPhotoFile = File(file.path));
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(mapExceptionToUserMessage(e))),
+      );
+    }
   }
 
   void _showPhotoSourcePicker() {
@@ -320,6 +333,7 @@ class _UserEditScreenState extends State<UserEditScreen> {
         name: _nameController.text.trim(),
         phone: _phoneController.text.trim(),
         email: _emailController.text.trim(),
+        il: _ilController.text.trim(),
         role: _role,
         updateSupervisor: isTeknisyen,
         supervisorId: isTeknisyen ? _selectedSupervisor?.id : null,
@@ -332,6 +346,7 @@ class _UserEditScreenState extends State<UserEditScreen> {
         role: _role,
         phone: _phoneController.text.trim(),
         email: _emailController.text.trim(),
+        il: _ilController.text.trim(),
         supervisorId: isTeknisyen ? _selectedSupervisor?.id : null,
       );
     }
@@ -399,20 +414,13 @@ class _UserEditScreenState extends State<UserEditScreen> {
         child: _isLoadingDetail
             ? const Center(child: CircularProgressIndicator())
             : _loadErrorMessage != null
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.error_outline, size: 56, color: scheme.error),
-                      const SizedBox(height: AppSpacing.sm + 4),
-                      Text(_loadErrorMessage!, textAlign: TextAlign.center),
-                      const SizedBox(height: AppSpacing.md),
-                      AppButton(label: 'Tekrar Dene', onPressed: _loadUser),
-                    ],
-                  ),
-                ),
+            ? EmptyState(
+                icon: Icons.error_outline,
+                title: 'Kullanıcı yüklenemedi',
+                subtitle: _loadErrorMessage!,
+                onPrimaryAction: _loadUser,
+                primaryActionLabel: 'Tekrar Dene',
+                primaryActionVariant: AppButtonVariant.secondary,
               )
             : ListView(
                 padding: const EdgeInsets.fromLTRB(
@@ -482,6 +490,23 @@ class _UserEditScreenState extends State<UserEditScreen> {
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
                       hintText: 'Örn. ahmet.yilmaz@arasedas.com.tr',
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+
+                  Text('İl', style: Theme.of(context).textTheme.headlineSmall),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    controller: _ilController,
+                    decoration: const InputDecoration(
+                      hintText: 'Örn. Erzurum',
+                      // Yöneticiden Çalışana Duyuru/Mesaj Sistemi'ndeki "Şu
+                      // İldeki Herkes" toplu gönderim kısayolu bu alanı
+                      // kullanır (bkz. send_manager_message_screen.dart) —
+                      // opsiyonel, boş bırakılırsa yalnızca o kısayolda
+                      // görünmez.
+                      helperText:
+                          'Toplu mesaj gönderiminde "Şu İldeki Herkes" kısayolu için kullanılır.',
                     ),
                   ),
                   const SizedBox(height: AppSpacing.lg),
@@ -678,20 +703,13 @@ class _UserEditScreenState extends State<UserEditScreen> {
     }
 
     if (_dispatchersErrorMessage != null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _dispatchersErrorMessage!,
-            style: TextStyle(color: scheme.error, fontSize: 13),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          AppButton(
-            label: 'Tekrar Dene',
-            variant: AppButtonVariant.secondary,
-            onPressed: _loadDispatchers,
-          ),
-        ],
+      return EmptyState(
+        icon: Icons.error_outline,
+        title: 'Dispeçerler yüklenemedi',
+        subtitle: _dispatchersErrorMessage!,
+        onPrimaryAction: _loadDispatchers,
+        primaryActionLabel: 'Tekrar Dene',
+        primaryActionVariant: AppButtonVariant.secondary,
       );
     }
 

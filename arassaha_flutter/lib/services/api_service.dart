@@ -15,6 +15,7 @@ import '../models/isg_report.dart';
 import '../models/kvkk_models.dart';
 import '../models/maintenance_recommendation.dart';
 import '../models/managed_device.dart';
+import '../models/manager_message.dart';
 import '../models/material.dart';
 import '../models/usage_analytics.dart';
 import '../models/meter_anomaly.dart';
@@ -822,12 +823,14 @@ class ApiService {
   Future<List<AssignedUser>> getUsers({
     String? roleFilter,
     bool activeOnly = false,
+    String? ilFilter,
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/users').replace(
         queryParameters: {
           if (roleFilter != null) 'role': roleFilter,
           if (activeOnly) 'active': 'true',
+          if (ilFilter != null) 'il': ilFilter,
         },
       );
       final response = await _get(uri);
@@ -957,6 +960,7 @@ class ApiService {
     required String role,
     String? phone,
     String? email,
+    String? il,
     int? supervisorId,
   }) async {
     try {
@@ -970,6 +974,7 @@ class ApiService {
           'role': role,
           if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
           if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+          if (il != null && il.trim().isNotEmpty) 'il': il.trim(),
           'supervisor_id': ?supervisorId,
         }),
       );
@@ -1011,6 +1016,7 @@ class ApiService {
     String? name,
     String? phone,
     String? email,
+    String? il,
     String? role,
     bool updateSupervisor = false,
     int? supervisorId,
@@ -1023,6 +1029,7 @@ class ApiService {
           'name': ?name,
           'phone': ?phone,
           'email': ?email,
+          'il': ?il,
           'role': ?role,
           if (updateSupervisor) 'supervisor_id': supervisorId,
         }),
@@ -1942,6 +1949,130 @@ class ApiService {
       // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
       // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
       // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
+      rethrow;
+    }
+  }
+
+  // --- Yöneticiden Çalışana Duyuru/Mesaj Sistemi ---
+  // TEK YÖNLÜ yayın: yalnızca yönetici mesaj oluşturur, çalışan SADECE okur.
+  // Bkz. routes/managerMessages.js — sohbet/AI Asistan (chat_message.dart)
+  // metotlarıyla KARIŞTIRILMAMALI, bu TAMAMEN ayrı, tek yönlü bir modeldir.
+
+  /// GET /api/manager-messages — giriş yapmış herkes, KENDİSİNİN ALICI
+  /// OLDUĞU mesajları listeler (yönetici de kendi aldıklarını görür).
+  Future<List<ManagerMessage>> getManagerMessages() async {
+    try {
+      final uri = Uri.parse('$baseUrl/manager-messages');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Mesajlar alınamadı.'),
+        );
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => ManagerMessage.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
+  /// PATCH /api/manager-messages/:id/read — mesajın alıcısı kendi okundu
+  /// zamanını işaretler. Bu kullanıcı bu mesajın alıcısı DEĞİLSE backend 404
+  /// döner (bkz. routes/managerMessages.js — SEC-02 tarzı sahiplik kontrolü).
+  Future<void> markManagerMessageRead(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/manager-messages/$id/read');
+      final response = await _patch(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Mesaj okundu olarak işaretlenemedi.'),
+        );
+      }
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
+  /// POST /api/manager-messages — SADECE yönetici. `title` opsiyoneldir.
+  Future<void> sendManagerMessage({
+    String? title,
+    required String content,
+    required List<int> recipientUserIds,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/manager-messages');
+      final response = await _post(
+        uri,
+        body: jsonEncode({
+          if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
+          'content': content.trim(),
+          'recipient_user_ids': recipientUserIds,
+        }),
+      );
+
+      if (response.statusCode != 201) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Mesaj gönderilemedi.'),
+        );
+      }
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
+  /// GET /api/manager-messages/sent — SADECE yönetici, kendi gönderdiği
+  /// mesajları okundu/toplam alıcı sayısıyla listeler.
+  Future<List<SentManagerMessage>> getSentManagerMessages() async {
+    try {
+      final uri = Uri.parse('$baseUrl/manager-messages/sent');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Gönderilen mesajlar alınamadı.'),
+        );
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => SentManagerMessage.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
+  /// GET /api/manager-messages/:id/read-status — SADECE o mesajı gönderen
+  /// yönetici (başka bir yönetici ya da alıcı çağırırsa backend 403/404 döner).
+  Future<MessageReadStatus> getManagerMessageReadStatus(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/manager-messages/$id/read-status');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Okundu bilgisi alınamadı.'),
+        );
+      }
+
+      return MessageReadStatus.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
       rethrow;
     }
   }
