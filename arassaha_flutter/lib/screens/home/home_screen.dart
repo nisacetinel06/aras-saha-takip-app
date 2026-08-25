@@ -9,6 +9,7 @@ import '../../providers/completed_work_orders_provider.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../providers/maintenance_provider.dart';
 import '../../providers/manager_message_provider.dart';
+import '../../providers/sos_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
@@ -20,6 +21,7 @@ import '../../widgets/app_logo.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/onboarding/coach_mark_style.dart';
 import '../../widgets/role_badge.dart';
+import '../../widgets/sos_button.dart';
 import '../../widgets/user_avatar.dart';
 import '../admin/user_edit_screen.dart';
 import '../dashboard_screen.dart';
@@ -29,6 +31,7 @@ import '../maintenance/maintenance_recommendations_screen.dart';
 import '../map/map_screen.dart';
 import '../messages/manager_messages_screen.dart';
 import '../messages/send_manager_message_screen.dart';
+import '../sos/sos_alerts_screen.dart';
 import '../work_orders/create_work_order_screen.dart';
 import 'completed_work_orders_section.dart';
 
@@ -134,6 +137,14 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!context.read<AuthProvider>().isYonetici) {
         context.read<ManagerMessageProvider>().fetchMyMessages();
       }
+      // Acil Durum (SOS) Modülü — "SOS Uyarıları" kartındaki aktif bildirim
+      // rozeti için (bkz. build). Yalnızca dispeçer/yönetici bu isteği atar;
+      // teknisyen bu ekranı hiç görmediği için (backend zaten
+      // requireRole('dispecer', 'yonetici') ile korur) gereksiz bir istek atılmaz.
+      final auth = context.read<AuthProvider>();
+      if (auth.isYonetici || auth.isDispecer) {
+        context.read<SosProvider>().fetchActiveAlerts();
+      }
     });
   }
 
@@ -143,6 +154,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final dashboardProvider = context.watch<DashboardProvider>();
     final summary = dashboardProvider.summary;
     final unreadMessageCount = context.watch<ManagerMessageProvider>().unreadCount;
+    final sosActiveCount = context.watch<SosProvider>().activeCount;
     final auth = context.watch<AuthProvider>();
     final myProfile = context.watch<UserProvider>().myProfile;
     final pendingMaintenanceCount = auth.isYonetici
@@ -196,6 +208,10 @@ class _HomeScreenState extends State<HomeScreen> {
     void goToManagerMessages() => Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const ManagerMessagesScreen()),
     );
+
+    void goToSosAlerts() => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SosAlertsScreen()));
 
     // Hızlı İşlemler: kullanıcının doğrudan bir eylem BAŞLATACAĞI girişler
     // (bir şey oluşturma/gönderme) — role göre SABİT liste.
@@ -379,6 +395,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   onAvatarTap: () => widget.onNavigate(3),
                 ),
               ),
+              const SizedBox(height: AppSpacing.md),
+              // Acil Durum (SOS) Modülü — Ana Sayfa'nın EN ÜSTÜNDE, kaydırmaya
+              // gerek kalmadan görünür (bkz. PROMPT madde 4). BİLİNÇLİ olarak
+              // TÜM rollere gösterilir: backend POST /api/sos-alerts hiçbir rol
+              // kısıtlaması UYGULAMAZ ("her rol acil durum bildirebilmeli",
+              // bkz. routes/sosAlerts.js) — bu UI kararı backend'in izin
+              // modeliyle tutarlı tutuldu.
+              const SosButton(),
               const SizedBox(height: AppSpacing.lg),
               _StatsRow(
                 summary: summary,
@@ -432,6 +456,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: AppTextStyles.headingMedium(color: scheme.onSurface),
               ),
               const SizedBox(height: AppSpacing.sm),
+              // Acil Durum (SOS) Modülü — SADECE dispeçer/yönetici (bildirimi
+              // ALAN taraf). BİLİNÇLİ olarak Çabuk Erişim'in nötr/çizgisel
+              // stilinden (_QuickAccessTile) TAMAMEN FARKLI — dolu kırmızı,
+              // tam genişlik, aktif sayı rozetiyle: bu, sıradan bir gezinme
+              // linkinden çok daha yüksek önemde (bkz. PROMPT madde 7).
+              if (auth.isYonetici || auth.isDispecer) ...[
+                _SosAlertsAccessCard(
+                  activeCount: sosActiveCount,
+                  onTap: goToSosAlerts,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
               LayoutBuilder(
                 builder: (context, constraints) {
                   return GridView.count(
@@ -775,6 +811,91 @@ class _QuickActionCard extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Acil Durum (SOS) Modülü — bkz. yukarısı build() içindeki kullanım notu.
+class _SosAlertsAccessCard extends StatelessWidget {
+  final int activeCount;
+  final VoidCallback onTap;
+
+  const _SosAlertsAccessCard({required this.activeCount, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final danger = AppColors.danger(context);
+    final onDanger = accessibleOnColor(danger);
+
+    return SizedBox(
+      width: double.infinity,
+      child: Material(
+        color: danger,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm + 4,
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.sos_rounded, color: onDanger, size: 28),
+                const SizedBox(width: AppSpacing.sm + 2),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'SOS Uyarıları',
+                        style: TextStyle(
+                          color: onDanger,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                      Text(
+                        activeCount > 0
+                            ? '$activeCount aktif acil durum bildirimi'
+                            : 'Aktif bildirim yok',
+                        style: TextStyle(
+                          color: onDanger.withValues(alpha: 0.9),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (activeCount > 0) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: onDanger,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    child: Text(
+                      activeCount > 9 ? '9+' : '$activeCount',
+                      style: TextStyle(
+                        color: danger,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                Icon(Icons.chevron_right, color: onDanger),
+              ],
             ),
           ),
         ),

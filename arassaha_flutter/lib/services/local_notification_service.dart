@@ -28,6 +28,27 @@ class LocalNotificationService {
   static const _channelDescription =
       'İş emri, İSG bildirimi ve ekipman risk güncellemeleri.';
 
+  // Acil Durum (SOS) Modülü — AYRI bir kanal, BİLEREK sıradan bildirim
+  // kanalından (`_channelId`) farklı: Android'de kanal başına ayrı ses/
+  // titreşim paterni tanımlanabilmesinin TEK yolu budur (aynı kanalda
+  // importance/tekil show() çağrısı bunu sağlayamaz). `Importance.max` +
+  // özel titreşim paterni, bir SOS bildiriminin bildirim çubuğunda sıradan
+  // bir "Yeni bildiriminiz var" mesajından anında ayırt edilmesini sağlar
+  // (bkz. NotificationProvider._pollOnce — related_type='sos_alert' ise
+  // bu kanal kullanılır).
+  static const _sosChannelId = 'arassaha_sos_alerts';
+  static const _sosChannelName = 'ArasSaha Acil Durum (SOS) Uyarıları';
+  static const _sosChannelDescription =
+      'Bir teknisyenden gelen acil durum (SOS) bildirimi.';
+  static final _sosVibrationPattern = Int64List.fromList([
+    0,
+    400,
+    200,
+    400,
+    200,
+    400,
+  ]);
+
   Future<void> initialize() async {
     if (_initialized) return;
 
@@ -45,11 +66,20 @@ class LocalNotificationService {
       description: _channelDescription,
       importance: Importance.high,
     );
-    await _plugin
+    final sosChannel = AndroidNotificationChannel(
+      _sosChannelId,
+      _sosChannelName,
+      description: _sosChannelDescription,
+      importance: Importance.max,
+      enableVibration: true,
+      vibrationPattern: _sosVibrationPattern,
+    );
+    final androidPlugin = _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(channel);
+        >();
+    await androidPlugin?.createNotificationChannel(channel);
+    await androidPlugin?.createNotificationChannel(sosChannel);
 
     _initialized = true;
   }
@@ -78,17 +108,36 @@ class LocalNotificationService {
     }
   }
 
-  Future<void> showNotification(String title, String body) async {
+  /// `isUrgent`: SOS Modülü — true ise ayrı, daha yüksek önem seviyeli
+  /// kanal (`_sosChannelId`, farklı titreşim paterni) kullanılır (bkz.
+  /// NotificationProvider._pollOnce).
+  Future<void> showNotification(
+    String title,
+    String body, {
+    bool isUrgent = false,
+  }) async {
     if (!_initialized) await initialize();
 
-    const androidDetails = AndroidNotificationDetails(
-      _channelId,
-      _channelName,
-      channelDescription: _channelDescription,
-      importance: Importance.high,
-      priority: Priority.high,
-    );
-    const details = NotificationDetails(android: androidDetails);
+    final androidDetails = isUrgent
+        ? AndroidNotificationDetails(
+            _sosChannelId,
+            _sosChannelName,
+            channelDescription: _sosChannelDescription,
+            importance: Importance.max,
+            priority: Priority.max,
+            enableVibration: true,
+            vibrationPattern: _sosVibrationPattern,
+            fullScreenIntent: true,
+            category: AndroidNotificationCategory.alarm,
+          )
+        : const AndroidNotificationDetails(
+            _channelId,
+            _channelName,
+            channelDescription: _channelDescription,
+            importance: Importance.high,
+            priority: Priority.high,
+          );
+    final details = NotificationDetails(android: androidDetails);
 
     try {
       // id olarak epoch milisaniyesi kullanılır — art arda gelen bildirimler

@@ -20,7 +20,7 @@ const insertNotification = db.prepare(`
 /**
  * @param {number} userId - Bildirimin gideceği kullanıcı (users.id).
  * @param {string} message - Kullanıcıya gösterilecek Türkçe mesaj.
- * @param {'work_order'|'isg_report'|'equipment'|'material'} relatedType - İlgili kaydın türü.
+ * @param {'work_order'|'isg_report'|'equipment'|'material'|'manager_message'|'sos_alert'} relatedType - İlgili kaydın türü.
  * @param {number} relatedId - İlgili kaydın id'si.
  */
 function createNotification(userId, message, relatedType, relatedId) {

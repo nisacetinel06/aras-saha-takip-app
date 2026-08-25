@@ -155,12 +155,32 @@ class NotificationProvider extends ChangeNotifier {
     await fetchUnreadCount();
 
     if (_unreadCount > previousCount) {
-      // Artışın kaynağını burada tekrar sorgulamıyoruz — genel bir mesaj
-      // yeterli, spesifik içeriği kullanıcı Bildirimler ekranını açınca görür
-      // (bkz. ARCHITECTURE.md).
+      // Acil Durum (SOS) Modülü: normalde artışın kaynağı burada tekrar
+      // sorgulanmaz (genel bir mesaj yeterlidir, spesifik içeriği kullanıcı
+      // Bildirimler ekranını açınca görür) — AMA bir SOS bildirimi sıradan
+      // bir bildirimden (iş emri, İSG vb.) AYIRT EDİLEBİLİR olmalı (bkz.
+      // PROMPT madde 8). Bu yüzden yalnızca BU durumda (artış tespit edildiğinde,
+      // yani nadiren — her 30 sn'de bir DEĞİL) tam listeyi çekip en yeni
+      // okunmamış bildirimin türüne bakıyoruz.
+      var isSosAlert = false;
+      String body = 'Yeni bildiriminiz var';
+      try {
+        final latest = await _apiService.getNotifications(unreadOnly: true);
+        if (latest.isNotEmpty) {
+          final newest = latest.first;
+          isSosAlert = newest.relatedType == NotificationRelatedType.sosAlert;
+          if (isSosAlert) body = newest.message;
+        }
+      } catch (_) {
+        // Tür tespiti başarısız olursa (ağ hatası vb.) sessizce genel
+        // bildirime düşülür — polling akışı asla kullanıcıya hata göstermez
+        // (bkz. fetchUnreadCount üstündeki AYNI gerekçe).
+      }
+
       await LocalNotificationService.instance.showNotification(
-        'ArasSaha',
-        'Yeni bildiriminiz var',
+        isSosAlert ? '🚨 ACİL DURUM' : 'ArasSaha',
+        body,
+        isUrgent: isSosAlert,
       );
     }
   }

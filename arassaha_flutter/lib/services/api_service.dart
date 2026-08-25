@@ -20,6 +20,7 @@ import '../models/material.dart';
 import '../models/usage_analytics.dart';
 import '../models/meter_anomaly.dart';
 import '../models/report.dart';
+import '../models/sos_alert.dart';
 import '../models/work_order.dart';
 import '../models/work_order_map_pin.dart';
 
@@ -2070,6 +2071,145 @@ class ApiService {
       }
 
       return MessageReadStatus.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
+  // --- Acil Durum / SOS Bildirimi Modülü ---
+  // bkz. routes/sosAlerts.js. POST BİLİNÇLİ olarak minimal — yalnızca lat/lng
+  // gönderir, backend tarafı da hiçbir ekstra doğrulama/adım eklemez (hız
+  // önceliği).
+
+  /// POST /api/sos-alerts — giriş yapmış HERKES. Yalnızca konum gönderir.
+  Future<int> createSosAlert({required double lat, required double lng}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/sos-alerts');
+      final response = await _post(
+        uri,
+        body: jsonEncode({'lat': lat, 'lng': lng}),
+      );
+
+      if (response.statusCode != 201) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Acil durum bildirimi gönderilemedi.'),
+        );
+      }
+
+      final data = jsonDecode(response.body);
+      return data['id'] as int;
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
+  /// PATCH /api/sos-alerts/:id/note — SADECE bildirimi oluşturan kullanıcı,
+  /// sonradan opsiyonel bir not ekler.
+  Future<void> addSosAlertNote(int id, String note) async {
+    try {
+      final uri = Uri.parse('$baseUrl/sos-alerts/$id/note');
+      final response = await _patch(uri, body: jsonEncode({'note': note}));
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Not eklenemedi.'),
+        );
+      }
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
+  /// GET /api/sos-alerts — SADECE dispeçer/yönetici, tüm bildirimleri
+  /// (aktif + geçmiş) en yeniden en eskiye listeler.
+  Future<List<SosAlert>> getSosAlerts() async {
+    try {
+      final uri = Uri.parse('$baseUrl/sos-alerts');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'SOS bildirimleri listelenemedi.'),
+        );
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => SosAlert.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
+  /// PATCH /api/sos-alerts/:id/acknowledge — SADECE dispeçer/yönetici.
+  Future<void> acknowledgeSosAlert(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/sos-alerts/$id/acknowledge');
+      final response = await _patch(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Bildirim onaylanamadı.'),
+        );
+      }
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
+  /// PATCH /api/sos-alerts/:id/close — SADECE dispeçer/yönetici.
+  Future<void> closeSosAlert(int id, {String? closedNote}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/sos-alerts/$id/close');
+      final response = await _patch(
+        uri,
+        body: jsonEncode({if (closedNote != null) 'closed_note': closedNote}),
+      );
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Bildirim kapatılamadı.'),
+        );
+      }
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
+  /// GET /api/users/me/supervisor — "Yöneticimi Ara" butonu için, giriş
+  /// yapmış kullanıcının KENDİ bağlı olduğu dispeçer/yöneticinin ad+telefonu.
+  /// Bağlı bir yönetici yoksa backend 404 döner — bu durumda çağıran taraf
+  /// (bkz. screens/sos/sos_sent_screen.dart) sabit Acil Durum Hattı'na düşer.
+  Future<SupervisorContact?> getMySupervisorContact() async {
+    try {
+      final uri = Uri.parse('$baseUrl/users/me/supervisor');
+      final response = await _get(uri);
+
+      if (response.statusCode == 404) return null;
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Yönetici bilgisi alınamadı.'),
+        );
+      }
+
+      return SupervisorContact.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
     } on SessionExpiredException {

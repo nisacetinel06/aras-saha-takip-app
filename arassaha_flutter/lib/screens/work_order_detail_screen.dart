@@ -26,6 +26,7 @@ import '../widgets/app_top_bar.dart';
 import '../widgets/cache_age_note.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/material_picker_field.dart';
+import '../widgets/sos_button.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/work_order_card.dart' show formatRelativeTime;
 import 'equipment/equipment_detail_screen.dart';
@@ -60,7 +61,14 @@ class _WorkOrderDetailBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const AppTopBar(title: 'İş Emri Detayı'),
+      // Acil Durum (SOS) Modülü — KAPSAM KARARI: İş Emri Detayı, sahadaki bir
+      // teknisyenin aktif olarak üzerinde çalıştığı sırada en sık açık
+      // tuttuğu ekran olduğu için extraActions'a küçük bir SOS ikonu eklendi
+      // (bkz. widgets/sos_button.dart SosAppBarAction dokümantasyonu).
+      appBar: const AppTopBar(
+        title: 'İş Emri Detayı',
+        extraActions: [SosAppBarAction()],
+      ),
       body: SafeArea(
         top: false,
         child: Consumer<WorkOrderDetailProvider>(

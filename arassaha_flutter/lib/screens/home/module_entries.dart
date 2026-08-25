@@ -20,6 +20,7 @@ import '../messages/sent_messages_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../reports/reports_screen.dart';
 import '../settings/settings_screen.dart';
+import '../sos/sos_alerts_screen.dart';
 
 /// Uygulamadaki HER modülün TEK kaynağı — Ana Sayfa'nın hamburger menü
 /// panelinde ([AppNavigationDrawer]) rol bazlı filtrelenerek gösterilir.
@@ -104,6 +105,19 @@ List<ModuleEntry> buildModuleEntries(
         category: 'Operasyon',
         color: AppColors.positive,
         screenBuilder: (_) => const MaintenanceRecommendationsScreen(),
+      ),
+    // Acil Durum (SOS) Modülü — bildirimi ALAN taraf (dispeçer/yönetici).
+    // Teknisyen/dispeçer bildirim GÖNDERİR ama bu ekranı görmez — Ana
+    // Sayfa'daki her zaman erişilebilir SosButton zaten yeterli (bkz.
+    // home_screen.dart), ayrıca bir hamburger menü girişine gerek yok.
+    if (auth.isYonetici || auth.isDispecer)
+      ModuleEntry(
+        icon: Icons.sos_outlined,
+        title: 'SOS Uyarıları',
+        subtitle: 'Acil durum bildirimleri',
+        category: 'Operasyon',
+        color: AppColors.danger,
+        screenBuilder: (_) => const SosAlertsScreen(),
       ),
     if (auth.isYonetici) ...[
       ModuleEntry(

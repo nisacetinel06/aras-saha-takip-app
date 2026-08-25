@@ -7,7 +7,8 @@ enum NotificationRelatedType {
   workOrder,
   isgReport,
   equipment,
-  managerMessage;
+  managerMessage,
+  sosAlert;
 
   static NotificationRelatedType fromJson(String value) {
     switch (value) {
@@ -19,6 +20,8 @@ enum NotificationRelatedType {
         return NotificationRelatedType.equipment;
       case 'manager_message':
         return NotificationRelatedType.managerMessage;
+      case 'sos_alert':
+        return NotificationRelatedType.sosAlert;
       default:
         return NotificationRelatedType.workOrder;
     }
@@ -34,6 +37,8 @@ enum NotificationRelatedType {
         return Icons.inventory_2_outlined;
       case NotificationRelatedType.managerMessage:
         return Icons.mail_outline;
+      case NotificationRelatedType.sosAlert:
+        return Icons.sos_outlined;
     }
   }
 }
@@ -89,6 +94,7 @@ class AppNotification {
     NotificationRelatedType.isgReport: 'isg_report',
     NotificationRelatedType.equipment: 'equipment',
     NotificationRelatedType.managerMessage: 'manager_message',
+    NotificationRelatedType.sosAlert: 'sos_alert',
   };
 
   /// Ayarlar ve Çevrimdışı Mod (Modül 17) — Okuma Önbelleği için: NotificationProvider

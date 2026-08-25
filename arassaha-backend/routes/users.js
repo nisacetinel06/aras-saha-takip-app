@@ -103,6 +103,32 @@ router.get('/me', (req, res) => {
   }
 });
 
+// GET /api/users/me/supervisor — giriş yapmış herkes, KENDİ bağlı olduğu
+// dispeçer/yöneticinin ad+telefonunu görür. Acil Durum (SOS) Modülü için:
+// "Yöneticimi Ara" butonunun aranacak numarayı bulabilmesi gerekir, ama
+// PICKER_FIELDS (bkz. yukarısı) BİLİNÇLİ olarak telefon İÇERMEZ ve tam
+// telefon FULL_FIELDS'i (GET /:id) yalnızca yöneticiye açıktır. Bu, dar bir
+// GÜVENLİK İSTİSNASI: yalnızca arayan kullanıcının KENDİ supervisor_id'sine
+// ait kayıt döner, başka hiçbir kullanıcının telefonu açığa çıkmaz.
+router.get('/me/supervisor', (req, res) => {
+  try {
+    const me = db.prepare('SELECT supervisor_id FROM users WHERE id = ?').get(req.user.id);
+    if (!me || !me.supervisor_id) {
+      return res.status(404).json({ error: 'Bağlı bir yönetici/dispeçer bulunamadı.' });
+    }
+
+    const supervisor = db.prepare('SELECT id, name, phone FROM users WHERE id = ?').get(me.supervisor_id);
+    if (!supervisor) {
+      return res.status(404).json({ error: 'Bağlı bir yönetici/dispeçer bulunamadı.' });
+    }
+
+    res.json(supervisor);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Yönetici bilgisi alınırken bir hata oluştu.' });
+  }
+});
+
 // GET /api/users?role=teknisyen&active=true
 // İKİ FARKLI TÜKETİCİSİ var, bu yüzden rolüne göre farklı davranır:
 // 1) "Kişi seçici" kullanımı (iş emri atama, İSG bildiren personel) — TÜM

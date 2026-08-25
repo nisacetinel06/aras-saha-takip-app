@@ -11,6 +11,7 @@ import '../../theme/app_spacing.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/sos_button.dart';
 import '../../widgets/status_badge.dart';
 import '../equipment/equipment_detail_screen.dart';
 import '../work_order_detail_screen.dart';
@@ -197,7 +198,14 @@ class _MapScreenState extends State<MapScreen> {
     final provider = context.watch<MapProvider>();
 
     return Scaffold(
-      appBar: const AppTopBar(title: 'Harita'),
+      // Acil Durum (SOS) Modülü — KAPSAM KARARI: Harita, sahadaki bir
+      // teknisyenin en sık açık tuttuğu ekranlardan biri olduğu için
+      // extraActions'a küçük bir SOS ikonu eklendi (bkz. widgets/sos_button.dart
+      // SosAppBarAction dokümantasyonu — "en sık kullanılan 2-3 ekran" kapsamı).
+      appBar: const AppTopBar(
+        title: 'Harita',
+        extraActions: [SosAppBarAction()],
+      ),
       body: Column(
         children: [
           _MapFilterBar(provider: provider),

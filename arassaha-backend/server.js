@@ -36,6 +36,7 @@ const riskRouter = require('./routes/risk');
 const anomalyRouter = require('./routes/anomaly');
 const isgRouter = require('./routes/isg');
 const managerMessagesRouter = require('./routes/managerMessages');
+const sosAlertsRouter = require('./routes/sosAlerts');
 const notificationsRouter = require('./routes/notifications');
 const nlpRouter = require('./routes/nlp');
 const maintenanceRouter = require('./routes/maintenance');
@@ -136,6 +137,8 @@ app.use('/api', verifyToken, riskRouter);
 app.use('/api', verifyToken, anomalyRouter);
 app.use('/api/isg-reports', verifyToken, isgRouter);
 app.use('/api/manager-messages', verifyToken, managerMessagesRouter);
+// Acil Durum (SOS) Bildirimi — bkz. routes/sosAlerts.js.
+app.use('/api/sos-alerts', verifyToken, sosAlertsRouter);
 app.use('/api/notifications', verifyToken, notificationsRouter);
 // nlpRouter da riskRouter gibi '/api/ml/...' altında tam yol tanımlar
 // (bkz. routes/nlp.js) — bu yüzden '/api' kökünde mount edilir.

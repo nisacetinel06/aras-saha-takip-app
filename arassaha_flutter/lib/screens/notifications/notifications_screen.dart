@@ -17,6 +17,7 @@ import '../../widgets/work_order_card.dart' show formatRelativeTime;
 import '../equipment/equipment_detail_screen.dart';
 import '../isg/isg_report_detail_screen.dart';
 import '../messages/manager_message_detail_screen.dart';
+import '../sos/sos_alerts_screen.dart';
 import '../work_order_detail_screen.dart';
 
 /// Bildirim Sistemi (Modül 6) — bildirimler ekranı.
@@ -75,6 +76,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         );
       case NotificationRelatedType.managerMessage:
         await _openManagerMessage(notification.relatedId);
+      case NotificationRelatedType.sosAlert:
+        // Bu bildirim yalnızca dispeçer/yönetici'ye gider (bkz.
+        // routes/sosAlerts.js POST /) — SOS Uyarıları ekranı zaten TÜM
+        // bildirimleri listeler, tek bir kayda özel bir detay ekranı yok.
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const SosAlertsScreen()),
+        );
     }
   }
 

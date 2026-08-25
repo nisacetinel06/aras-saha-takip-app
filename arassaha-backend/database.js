@@ -558,6 +558,41 @@ db.exec(`
     replaced_by_token_hash TEXT,
     FOREIGN KEY (user_id) REFERENCES users (id)
   );
+
+  -- Acil Durum / SOS Bildirimi Modülü — bkz. routes/sosAlerts.js. Sahada
+  -- çalışan bir teknisyenin TEK dokunuşla mevcut konumunu ve bir acil durum
+  -- bildirimini dispeçer/yöneticilere göndermesi içindir. work_orders/
+  -- isg_reports'tan BİLİNÇLİ olarak TAMAMEN AYRI, minimal bir tablo: bu akışta
+  -- HIZ her şeyden önce gelir (bkz. POST / — gereksiz doğrulama/adım YOK).
+  -- status: 'aktif' | 'onaylandi' ("gördüm/ilgileniyorum") | 'kapatildi'.
+  -- note NULL olabilir — teknisyen tek dokunuşla gönderirken bir metin alanı
+  -- doldurmaya ZORLANMAZ; sonradan AYRI bir istekle (PATCH /:id/note)
+  -- eklenebilir, ilk bildirimin hızını hiç etkilemez.
+  CREATE TABLE IF NOT EXISTS sos_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    triggered_by_user_id INTEGER NOT NULL,
+    lat REAL NOT NULL,
+    lng REAL NOT NULL,
+    note TEXT,
+    status TEXT NOT NULL DEFAULT 'aktif',
+    acknowledged_by_user_id INTEGER,
+    acknowledged_at TEXT,
+    closed_by_user_id INTEGER,
+    closed_note TEXT,
+    closed_at TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (triggered_by_user_id) REFERENCES users (id),
+    FOREIGN KEY (acknowledged_by_user_id) REFERENCES users (id),
+    FOREIGN KEY (closed_by_user_id) REFERENCES users (id)
+  );
+`);
+
+// SOS Uyarıları (Acil Durum Modülü) PERFORMANS — GET /api/sos-alerts
+// (dispeçer/yönetici listesi, bkz. routes/sosAlerts.js) her zaman
+// created_at DESC sıralar; index olmadan bildirim sayısı arttıkça tam tablo
+// taraması gerekir.
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_sos_alerts_created_at ON sos_alerts (created_at);
 `);
 
 // refresh_tokens PERFORMANS — POST /refresh'in HER çağrısı token_hash'e göre
