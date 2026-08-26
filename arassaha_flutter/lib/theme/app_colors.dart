@@ -85,7 +85,9 @@ class AppColors {
   // tanımlanmaz.
   static const lightAuditGiris = Color(0xFF0891B2); // camgöbeği
   static const lightAuditKullaniciYonetimi = Color(0xFF64748B); // slate
-  static const lightAuditCihazYonetimi = Color(0xFF7C3AED); // mor (rol paletindeki dispeçer moruyla AYNI aile, kasıtlı — ikisi de "yönetimsel" bir işlemi imler)
+  static const lightAuditCihazYonetimi = Color(
+    0xFF7C3AED,
+  ); // mor (rol paletindeki dispeçer moruyla AYNI aile, kasıtlı — ikisi de "yönetimsel" bir işlemi imler)
   static const lightAuditStok = Color(0xFF0D9488); // teal
   static const lightAuditKvkk = Color(0xFFA16207); // amber-kahve
   static const lightAuditDosyaTemizleme = Color(0xFF475569); // koyu slate
@@ -248,15 +250,21 @@ Color auditCategoryColor(BuildContext context, AuditLogCategory? category) {
     case AuditLogCategory.giris:
       return isDark ? AppColors.darkAuditGiris : AppColors.lightAuditGiris;
     case AuditLogCategory.kullaniciYonetimi:
-      return isDark ? AppColors.darkAuditKullaniciYonetimi : AppColors.lightAuditKullaniciYonetimi;
+      return isDark
+          ? AppColors.darkAuditKullaniciYonetimi
+          : AppColors.lightAuditKullaniciYonetimi;
     case AuditLogCategory.cihazYonetimi:
-      return isDark ? AppColors.darkAuditCihazYonetimi : AppColors.lightAuditCihazYonetimi;
+      return isDark
+          ? AppColors.darkAuditCihazYonetimi
+          : AppColors.lightAuditCihazYonetimi;
     case AuditLogCategory.stok:
       return isDark ? AppColors.darkAuditStok : AppColors.lightAuditStok;
     case AuditLogCategory.kvkk:
       return isDark ? AppColors.darkAuditKvkk : AppColors.lightAuditKvkk;
     case AuditLogCategory.dosyaTemizleme:
-      return isDark ? AppColors.darkAuditDosyaTemizleme : AppColors.lightAuditDosyaTemizleme;
+      return isDark
+          ? AppColors.darkAuditDosyaTemizleme
+          : AppColors.lightAuditDosyaTemizleme;
     case null:
       return AppColors.textSecondary(context);
   }

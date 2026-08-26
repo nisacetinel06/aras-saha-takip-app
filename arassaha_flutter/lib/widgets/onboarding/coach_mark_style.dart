@@ -28,9 +28,9 @@ class CoachMarkStyle {
   static Color foreground(BuildContext context) =>
       accessibleOnColor(background(context));
 
-  static TextStyle title(BuildContext context) =>
-      AppTextStyles.headingMedium(color: foreground(context))
-          .copyWith(fontSize: 16);
+  static TextStyle title(BuildContext context) => AppTextStyles.headingMedium(
+    color: foreground(context),
+  ).copyWith(fontSize: 16);
 
   static TextStyle description(BuildContext context) =>
       AppTextStyles.bodyMedium(color: foreground(context));

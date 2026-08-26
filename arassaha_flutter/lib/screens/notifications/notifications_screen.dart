@@ -13,6 +13,7 @@ import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/cache_age_note.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/staggered_fade_in.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
 import '../equipment/equipment_detail_screen.dart';
 import '../isg/isg_report_detail_screen.dart';
@@ -80,9 +81,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         // Bu bildirim yalnızca dispeçer/yönetici'ye gider (bkz.
         // routes/sosAlerts.js POST /) — SOS Uyarıları ekranı zaten TÜM
         // bildirimleri listeler, tek bir kayda özel bir detay ekranı yok.
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const SosAlertsScreen()),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const SosAlertsScreen()));
     }
   }
 
@@ -107,9 +108,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     if (message == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mesaj bulunamadı.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Mesaj bulunamadı.')));
       return;
     }
     final resolvedMessage = message;
@@ -191,12 +192,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
           const SizedBox(height: AppSpacing.sm),
         ],
-        ...provider.notifications.map(
-          (n) => Padding(
+        ...provider.notifications.asMap().entries.map(
+          (entry) => Padding(
+            key: ValueKey(entry.value.id),
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: _NotificationTile(
-              notification: n,
-              onTap: () => _openNotification(n),
+            child: StaggeredFadeIn(
+              index: entry.key,
+              child: _NotificationTile(
+                notification: entry.value,
+                onTap: () => _openNotification(entry.value),
+              ),
             ),
           ),
         ),
@@ -215,11 +220,22 @@ class _NotificationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isUnread = !notification.isRead;
+    // Acil Durum (SOS) Modülü — bir SOS kaydı, listede diğer bildirim
+    // türlerinden (iş emri, İSG, risk vb.) HER ZAMAN ayırt edilebilir olmalı
+    // — okunmuş/çözülmüş olsa BİLE (bir yönetici geçmişe dönük tararken
+    // "hangileri SOS'tu" sorusunu anında cevaplayabilsin diye). Bu yüzden
+    // rengi salt okunma durumundan (isUnread) BAĞIMSIZ, tür bazında seçilir
+    // — ama SosButton/_SosAlertsAccessCard'daki dolu-kırmızı blok DEĞİL,
+    // AppCard'ın zaten var olan ince şerit/tint mekanizması kullanılır.
+    final isSos = notification.relatedType == NotificationRelatedType.sosAlert;
+    final accentColor = isSos
+        ? AppColors.danger(context)
+        : AppColors.primary(context);
 
     return AppCard(
       onTap: onTap,
-      statusStripeColor: isUnread ? AppColors.primary(context) : null,
-      backgroundTint: isUnread ? AppColors.primary(context) : null,
+      statusStripeColor: isSos ? accentColor : (isUnread ? accentColor : null),
+      backgroundTint: isUnread ? accentColor : null,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -228,19 +244,21 @@ class _NotificationTile extends StatelessWidget {
             height: 36,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color:
-                  (isUnread
-                          ? AppColors.primary(context)
-                          : scheme.outlineVariant)
-                      .withValues(alpha: isUnread ? 1 : 0.4),
+              color: isSos
+                  ? accentColor.withValues(alpha: isUnread ? 1 : 0.15)
+                  : (isUnread ? accentColor : scheme.outlineVariant).withValues(
+                      alpha: isUnread ? 1 : 0.4,
+                    ),
               shape: BoxShape.circle,
             ),
             child: Icon(
               notification.relatedType.icon,
               size: 18,
-              color: isUnread
-                  ? accessibleOnColor(AppColors.primary(context))
-                  : scheme.onSurfaceVariant,
+              color: isSos
+                  ? (isUnread ? accessibleOnColor(accentColor) : accentColor)
+                  : (isUnread
+                        ? accessibleOnColor(accentColor)
+                        : scheme.onSurfaceVariant),
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
@@ -248,6 +266,28 @@ class _NotificationTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (isSos) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: accentColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(AppRadius.chip),
+                    ),
+                    child: Text(
+                      'ACİL',
+                      style: TextStyle(
+                        color: accentColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
                 Text(
                   notification.message,
                   style: AppTextStyles.bodyMedium(color: scheme.onSurface)
@@ -272,7 +312,7 @@ class _NotificationTile extends StatelessWidget {
               height: 8,
               margin: const EdgeInsets.only(top: 4),
               decoration: BoxDecoration(
-                color: AppColors.primary(context),
+                color: accentColor,
                 shape: BoxShape.circle,
               ),
             ),

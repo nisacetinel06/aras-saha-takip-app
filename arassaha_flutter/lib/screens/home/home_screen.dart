@@ -150,10 +150,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final dashboardProvider = context.watch<DashboardProvider>();
     final summary = dashboardProvider.summary;
-    final unreadMessageCount = context.watch<ManagerMessageProvider>().unreadCount;
+    final unreadMessageCount = context
+        .watch<ManagerMessageProvider>()
+        .unreadCount;
     final sosActiveCount = context.watch<SosProvider>().activeCount;
     final auth = context.watch<AuthProvider>();
     final myProfile = context.watch<UserProvider>().myProfile;
@@ -201,13 +202,13 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
     ).push(MaterialPageRoute(builder: (_) => const UserEditScreen()));
 
-    void goToSendManagerMessage() => Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SendManagerMessageScreen()),
-    );
+    void goToSendManagerMessage() => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SendManagerMessageScreen()));
 
-    void goToManagerMessages() => Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ManagerMessagesScreen()),
-    );
+    void goToManagerMessages() => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ManagerMessagesScreen()));
 
     void goToSosAlerts() => Navigator.of(
       context,
@@ -395,14 +396,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   onAvatarTap: () => widget.onNavigate(3),
                 ),
               ),
-              const SizedBox(height: AppSpacing.md),
-              // Acil Durum (SOS) Modülü — Ana Sayfa'nın EN ÜSTÜNDE, kaydırmaya
-              // gerek kalmadan görünür (bkz. PROMPT madde 4). BİLİNÇLİ olarak
-              // TÜM rollere gösterilir: backend POST /api/sos-alerts hiçbir rol
-              // kısıtlaması UYGULAMAZ ("her rol acil durum bildirebilmeli",
-              // bkz. routes/sosAlerts.js) — bu UI kararı backend'in izin
-              // modeliyle tutarlı tutuldu.
-              const SosButton(),
               const SizedBox(height: AppSpacing.lg),
               _StatsRow(
                 summary: summary,
@@ -416,7 +409,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
               Text(
                 'Hızlı İşlemler',
-                style: AppTextStyles.headingMedium(color: scheme.onSurface),
+                style: AppTextStyles.caption(
+                  color: AppColors.textSecondary(context),
+                ).copyWith(fontWeight: FontWeight.w600, fontSize: 13),
               ),
               const SizedBox(height: AppSpacing.sm),
               Showcase(
@@ -444,8 +439,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemCount: quickActions.length,
                     separatorBuilder: (_, _) =>
                         const SizedBox(width: AppSpacing.sm),
-                    itemBuilder: (context, i) =>
-                        _QuickActionCard(data: quickActions[i]),
+                    itemBuilder: (context, i) => SizedBox(
+                      width: 132,
+                      child: AppButton(
+                        variant: AppButtonVariant.compactAction,
+                        icon: quickActions[i].icon,
+                        label: quickActions[i].label,
+                        onPressed: quickActions[i].onTap,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -453,14 +455,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
               Text(
                 'Çabuk Erişim',
-                style: AppTextStyles.headingMedium(color: scheme.onSurface),
+                style: AppTextStyles.caption(
+                  color: AppColors.textSecondary(context),
+                ).copyWith(fontWeight: FontWeight.w600, fontSize: 13),
               ),
               const SizedBox(height: AppSpacing.sm),
               // Acil Durum (SOS) Modülü — SADECE dispeçer/yönetici (bildirimi
-              // ALAN taraf). BİLİNÇLİ olarak Çabuk Erişim'in nötr/çizgisel
-              // stilinden (_QuickAccessTile) TAMAMEN FARKLI — dolu kırmızı,
-              // tam genişlik, aktif sayı rozetiyle: bu, sıradan bir gezinme
-              // linkinden çok daha yüksek önemde (bkz. PROMPT madde 7).
+              // ALAN taraf). Bu, SosButton (gerçek tek-dokunuş tetikleyici,
+              // sayfanın TEK dolu-kırmızı öğesi) ile AYNI dolu-blok stilini
+              // kullanıyordu — ama bu kart yalnızca SosAlertsScreen'e giden
+              // bir GEZİNME linki, bir aksiyon tetiklemiyor. İki dolu-kırmızı
+              // blok aynı sayfada aynı ağırlıkta durunca kırmızının anlamı
+              // sulanıyordu. Artık _QuickAccessTile ile AYNI kart dilini
+              // (AppCard) kullanıyor; aktif bildirim varken sol şerit + hafif
+              // kırmızı ton + küçük rozetle işaretleniyor, yokken diğer
+              // Çabuk Erişim kartlarından ayırt edilemiyor.
               if (auth.isYonetici || auth.isDispecer) ...[
                 _SosAlertsAccessCard(
                   activeCount: sosActiveCount,
@@ -498,9 +507,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             textColor: CoachMarkStyle.foreground(context),
                             tooltipBorderRadius: CoachMarkStyle.borderRadius,
                             titleTextStyle: CoachMarkStyle.title(context),
-                            descTextStyle: CoachMarkStyle.description(
-                              context,
-                            ),
+                            descTextStyle: CoachMarkStyle.description(context),
                             tooltipActionConfig: CoachMarkStyle.actionConfig,
                             tooltipActions: CoachMarkStyle.homeTourActions(
                               context,
@@ -522,6 +529,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: AppSpacing.lg),
                 const CompletedWorkOrdersSection(),
               ],
+
+              // Acil Durum (SOS) Modülü — sayfanın EN ALTINDA, kendi başına
+              // duran bir şerit (bkz. widgets/sos_button.dart). BİLİNÇLİ
+              // olarak TÜM rollere gösterilir: backend POST /api/sos-alerts
+              // hiçbir rol kısıtlaması UYGULAMAZ ("her rol acil durum
+              // bildirebilmeli", bkz. routes/sosAlerts.js) — bu UI kararı
+              // backend'in izin modeliyle tutarlı tutuldu.
+              const SizedBox(height: AppSpacing.lg),
+              const SosButton(),
             ],
           ),
         ),
@@ -695,6 +711,11 @@ class _StatsRow extends StatelessWidget {
   }
 }
 
+/// Özet şerit kartı: ortalanmış içerik, ÜSTTE büyük sayı, ALTTA küçük etiket
+/// — referans düzenle birebir (bkz. görev talimatı madde 3). İkon (metrik
+/// rengiyle) sayının üstünde, küçük bir ipucu olarak kalır; sayı/etiket
+/// sırası ESKİDEN tersti (etiket+ikon üstte, sayı altta), buradaki tek
+/// değişiklik BU sıralama — veri/renk mantığı aynı (bkz. _StatsRow).
 class _StatTile extends StatelessWidget {
   final IconData icon;
   final String value;
@@ -715,32 +736,26 @@ class _StatTile extends StatelessWidget {
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurface,
-                  ),
-                  maxLines: 2,
-                ),
-              ),
-              Icon(icon, size: 18, color: scheme.onSurface),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm + 2),
+          Icon(icon, size: 18, color: color),
+          const SizedBox(height: AppSpacing.xs + 2),
           Text(
             value,
+            textAlign: TextAlign.center,
             style: AppTextStyles.headingMedium(
               color: scheme.onSurface,
-            ).copyWith(fontSize: 22),
+            ).copyWith(fontSize: 18),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            style: AppTextStyles.caption(
+              color: AppColors.textSecondary(context),
+            ),
           ),
         ],
       ),
@@ -759,67 +774,13 @@ class _ActionData {
   });
 }
 
-/// Hızlı İşlemler kartı: dolu (filled) birincil mavi zemin, ikon ÜSTTE +
-/// metin ALTTA — "bir şey yapmaya davet eden", dikkat çekici bir görsel dil.
-/// Çabuk Erişim'in ([_QuickAccessTile]) ince/nötr stilinden BİLİNÇLİ olarak
-/// tamamen farklı (bkz. UI denetimi Bölüm A) — kullanıcı bir bakışta bunun
-/// bir aksiyon başlatıcı olduğunu anlamalı.
-class _QuickActionCard extends StatelessWidget {
-  final _ActionData data;
-  const _QuickActionCard({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    final primary = AppColors.primary(context);
-    final onPrimary = accessibleOnColor(primary);
-
-    return SizedBox(
-      width: 132,
-      child: Material(
-        color: primary,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadius.card),
-          onTap: data.onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm + 2,
-              vertical: AppSpacing.sm + 4,
-            ),
-            // FittedBox: iki satıra saran uzun etiketlerde (örn. "Yeni
-            // Kullanıcı Ekle") font metriklerine bağlı birkaç piksellik
-            // taşmayı GARANTİ olarak önler — sabit yükseklikli kartın
-            // içeriği gerekirse hafifçe küçültülür, asla taşmaz.
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(data.icon, color: onPrimary, size: 26),
-                  const SizedBox(height: AppSpacing.xs + 2),
-                  Text(
-                    data.label,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: onPrimary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Acil Durum (SOS) Modülü — bkz. yukarısı build() içindeki kullanım notu.
+///
+/// BİLİNÇLİ olarak diğer TÜM Çabuk Erişim kartlarıyla (_QuickAccessTile) AYNI
+/// kart dilini (AppCard, `flat: true`) konuşur — bir aksiyon tetiklemez,
+/// yalnızca SosAlertsScreen'e götürür. Tek fark, aktif bir bildirim varken
+/// kartın AppCard'ın zaten var olan "durum şeridi" mekanizmasıyla (bkz.
+/// app_card.dart) kırmızıya işaretlenmesi.
 class _SosAlertsAccessCard extends StatelessWidget {
   final int activeCount;
   final VoidCallback onTap;
@@ -828,77 +789,75 @@ class _SosAlertsAccessCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final danger = AppColors.danger(context);
-    final onDanger = accessibleOnColor(danger);
+    final hasActive = activeCount > 0;
+    final accentColor = hasActive ? danger : scheme.onSurfaceVariant;
 
-    return SizedBox(
-      width: double.infinity,
-      child: Material(
-        color: danger,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(AppRadius.card),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.sm + 4,
-            ),
-            child: Row(
+    return AppCard(
+      flat: true,
+      onTap: onTap,
+      statusStripeColor: hasActive ? danger : null,
+      backgroundTint: hasActive ? danger : null,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm + 4,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.sos_outlined, color: accentColor, size: 24),
+          const SizedBox(width: AppSpacing.sm + 2),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.sos_rounded, color: onDanger, size: 28),
-                const SizedBox(width: AppSpacing.sm + 2),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'SOS Uyarıları',
-                        style: TextStyle(
-                          color: onDanger,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
-                        ),
-                      ),
-                      Text(
-                        activeCount > 0
-                            ? '$activeCount aktif acil durum bildirimi'
-                            : 'Aktif bildirim yok',
-                        style: TextStyle(
-                          color: onDanger.withValues(alpha: 0.9),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                Text(
+                  'SOS Uyarıları',
+                  style: TextStyle(
+                    color: scheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
                   ),
                 ),
-                if (activeCount > 0) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: onDanger,
-                      borderRadius: BorderRadius.circular(AppRadius.pill),
-                    ),
-                    child: Text(
-                      activeCount > 9 ? '9+' : '$activeCount',
-                      style: TextStyle(
-                        color: danger,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                      ),
-                    ),
+                Text(
+                  hasActive
+                      ? '$activeCount aktif acil durum bildirimi'
+                      : 'Aktif bildirim yok',
+                  style: TextStyle(
+                    color: AppColors.textSecondary(context),
+                    fontSize: 12,
                   ),
-                  const SizedBox(width: 4),
-                ],
-                Icon(Icons.chevron_right, color: onDanger),
+                ),
               ],
             ),
           ),
-        ),
+          if (hasActive) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: danger,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                border: Border.all(
+                  color: scheme.surfaceContainerLowest,
+                  width: 1.5,
+                ),
+              ),
+              child: Text(
+                activeCount > 9 ? '9+' : '$activeCount',
+                style: TextStyle(
+                  color: accessibleOnColor(danger),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
+          Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
+        ],
       ),
     );
   }
@@ -923,10 +882,11 @@ class _AccessData {
   });
 }
 
-/// Çabuk Erişim kartı: ince kenarlıklı (outline), nötr/beyaz zemin, ikon
-/// SOLDA + metin SAĞDA — sade/çizgisel bir görsel dil. [_QuickActionCard]'ın
-/// dolu/renkli stilinden BİLİNÇLİ olarak farklı: bu bir gezinme linki,
-/// "bir şey yapmaz", yalnızca bir ekrana götürür.
+/// Çabuk Erişim kartı: [AppCard]'ın `flat: true` varyantı (ince kenarlıklı,
+/// gölgesiz, nötr zemin) — ikon SOLDA + metin ORTADA + sağ ok SAĞDA, sade/
+/// çizgisel bir görsel dil. [AppButtonVariant.compactAction]'ın dolu/renkli
+/// stilinden BİLİNÇLİ olarak farklı: bu bir gezinme linki, "bir şey yapmaz",
+/// yalnızca bir ekrana götürür.
 class _QuickAccessTile extends StatelessWidget {
   final _AccessData data;
   const _QuickAccessTile({required this.data});
@@ -935,100 +895,89 @@ class _QuickAccessTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    return Material(
-      color: scheme.surfaceContainerLowest,
-      borderRadius: BorderRadius.circular(AppRadius.card),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        onTap: data.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm + 4,
-            vertical: AppSpacing.sm,
-          ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.card),
-            border: Border.all(color: scheme.outlineVariant),
-          ),
-          child: Row(
+    return AppCard(
+      flat: true,
+      onTap: data.onTap,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm + 4,
+        vertical: AppSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
             children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Icon(data.icon, size: 20, color: scheme.onSurfaceVariant),
-                  if (data.badgeCount > 0)
-                    Positioned(
-                      top: -4,
-                      right: -6,
-                      child: IgnorePointer(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 1,
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 14,
-                            minHeight: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.danger(context),
-                            borderRadius: BorderRadius.circular(
-                              AppRadius.pill,
-                            ),
-                            border: Border.all(
-                              color: scheme.surfaceContainerLowest,
-                              width: 1.5,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            data.badgeCount > 9 ? '9+' : '${data.badgeCount}',
-                            style: TextStyle(
-                              color: accessibleOnColor(
-                                AppColors.danger(context),
-                              ),
-                              fontSize: 8,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+              Icon(data.icon, size: 20, color: scheme.onSurfaceVariant),
+              if (data.badgeCount > 0)
+                Positioned(
+                  top: -4,
+                  right: -6,
+                  child: IgnorePointer(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 14,
+                        minHeight: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.danger(context),
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                        border: Border.all(
+                          color: scheme.surfaceContainerLowest,
+                          width: 1.5,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        data.badgeCount > 9 ? '9+' : '${data.badgeCount}',
+                        style: TextStyle(
+                          color: accessibleOnColor(AppColors.danger(context)),
+                          fontSize: 8,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(width: AppSpacing.sm + 2),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      data.title,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: scheme.onSurface,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (data.subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        data.subtitle!,
-                        style: AppTextStyles.caption(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
-              ),
             ],
           ),
-        ),
+          const SizedBox(width: AppSpacing.sm + 2),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  data.title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (data.subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    data.subtitle!,
+                    style: AppTextStyles.caption(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          // Referans düzen madde 5: sağda küçük bir sağ ok ikonu — önceki
+          // sürümde YOKTU, "bu bir yere götürür" ipucunu tamamlıyor.
+          Icon(Icons.chevron_right, size: 18, color: scheme.onSurfaceVariant),
+        ],
       ),
     );
   }

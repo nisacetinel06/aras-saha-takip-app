@@ -150,9 +150,9 @@ class _TwoFactorSettingsSectionState extends State<_TwoFactorSettingsSection> {
   }
 
   Future<void> _openSetup() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const TwoFactorSetupScreen()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const TwoFactorSetupScreen()));
     if (!mounted) return;
     context.read<UserProvider>().fetchMyProfile();
   }
@@ -188,8 +188,9 @@ class _TwoFactorSettingsSectionState extends State<_TwoFactorSettingsSection> {
               TextButton(
                 onPressed: passwordController.text.isEmpty
                     ? null
-                    : () =>
-                        Navigator.of(dialogContext).pop(passwordController.text),
+                    : () => Navigator.of(
+                        dialogContext,
+                      ).pop(passwordController.text),
                 style: TextButton.styleFrom(
                   foregroundColor: Theme.of(dialogContext).colorScheme.error,
                 ),
@@ -233,7 +234,9 @@ class _TwoFactorSettingsSectionState extends State<_TwoFactorSettingsSection> {
         children: [
           Icon(
             isEnabled ? Icons.verified_user_outlined : Icons.gpp_maybe_outlined,
-            color: isEnabled ? AppColors.success(context) : scheme.onSurfaceVariant,
+            color: isEnabled
+                ? AppColors.success(context)
+                : scheme.onSurfaceVariant,
           ),
           const SizedBox(width: AppSpacing.sm + 4),
           Expanded(

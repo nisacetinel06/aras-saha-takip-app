@@ -11,6 +11,8 @@ import '../../theme/app_spacing.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/staggered_fade_in.dart';
 
 String _formatDateTime(DateTime date) {
   return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year} '
@@ -70,7 +72,9 @@ class _SosAlertsScreenState extends State<SosAlertsScreen> {
   Future<void> _call(String? phone) async {
     if (phone == null || phone.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bu kullanıcı için kayıtlı bir telefon numarası yok.')),
+        const SnackBar(
+          content: Text('Bu kullanıcı için kayıtlı bir telefon numarası yok.'),
+        ),
       );
       return;
     }
@@ -169,7 +173,6 @@ class _SosAlertsScreenState extends State<SosAlertsScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<SosProvider>();
-    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: const AppTopBar(title: 'SOS Uyarıları'),
@@ -204,57 +207,46 @@ class _SosAlertsScreenState extends State<SosAlertsScreen> {
                   if (provider.isListLoading && provider.alerts.isEmpty) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  if (provider.listErrorMessage != null && provider.alerts.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.error_outline, color: scheme.error, size: 40),
-                            const SizedBox(height: AppSpacing.sm),
-                            Text(provider.listErrorMessage!, textAlign: TextAlign.center),
-                            const SizedBox(height: AppSpacing.sm),
-                            AppButton(
-                              label: 'Tekrar Dene',
-                              variant: AppButtonVariant.secondary,
-                              onPressed: provider.fetchActiveAlerts,
-                            ),
-                          ],
-                        ),
-                      ),
+                  if (provider.listErrorMessage != null &&
+                      provider.alerts.isEmpty) {
+                    return EmptyState(
+                      icon: Icons.error_outline,
+                      title: 'SOS uyarıları yüklenemedi',
+                      subtitle: provider.listErrorMessage!,
+                      onPrimaryAction: provider.fetchActiveAlerts,
+                      primaryActionLabel: 'Tekrar Dene',
+                      primaryActionVariant: AppButtonVariant.secondary,
                     );
                   }
                   if (provider.alerts.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.check_circle_outline, color: AppColors.success(context), size: 40),
-                            const SizedBox(height: AppSpacing.sm),
-                            const Text('Şu anda kayıtlı bir SOS bildirimi yok.'),
-                          ],
-                        ),
-                      ),
+                    return const EmptyState(
+                      icon: Icons.check_circle_outline,
+                      title: 'Şu anda kayıtlı bir SOS bildirimi yok.',
                     );
                   }
 
                   return ListView.separated(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     itemCount: provider.alerts.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(height: AppSpacing.sm),
                     itemBuilder: (context, index) {
                       final alert = provider.alerts[index];
-                      return _SosAlertCard(
-                        alert: alert,
-                        onCall: () => _call(alert.reporterPhone),
-                        onAcknowledge: () =>
-                            context.read<SosProvider>().acknowledgeAlert(alert.id),
-                        onClose: () => _confirmClose(alert),
-                        onLocate: () =>
-                            _mapController.move(LatLng(alert.lat, alert.lng), 13),
+                      return StaggeredFadeIn(
+                        key: ValueKey(alert.id),
+                        index: index,
+                        child: _SosAlertCard(
+                          alert: alert,
+                          onCall: () => _call(alert.reporterPhone),
+                          onAcknowledge: () => context
+                              .read<SosProvider>()
+                              .acknowledgeAlert(alert.id),
+                          onClose: () => _confirmClose(alert),
+                          onLocate: () => _mapController.move(
+                            LatLng(alert.lat, alert.lng),
+                            13,
+                          ),
+                        ),
                       );
                     },
                   );
@@ -333,11 +325,19 @@ class _SosAlertCard extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.location_on_outlined, size: 16, color: scheme.primary),
+                Icon(
+                  Icons.location_on_outlined,
+                  size: 16,
+                  color: scheme.primary,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   '${alert.lat.toStringAsFixed(5)}, ${alert.lng.toStringAsFixed(5)} — Haritada Gör',
-                  style: TextStyle(fontSize: 12, color: scheme.primary, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -350,14 +350,23 @@ class _SosAlertCard extends StatelessWidget {
                 color: scheme.surfaceContainerHighest.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(AppRadius.chip),
               ),
-              child: Text(alert.note!, style: TextStyle(fontSize: 13, color: scheme.onSurface)),
+              child: Text(
+                alert.note!,
+                style: TextStyle(fontSize: 13, color: scheme.onSurface),
+              ),
             ),
           ],
-          if (alert.status == SosAlertStatus.kapatildi && alert.closedNote != null && alert.closedNote!.trim().isNotEmpty) ...[
+          if (alert.status == SosAlertStatus.kapatildi &&
+              alert.closedNote != null &&
+              alert.closedNote!.trim().isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(
               'Çözüm notu: ${alert.closedNote}',
-              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant, fontStyle: FontStyle.italic),
+              style: TextStyle(
+                fontSize: 12,
+                color: scheme.onSurfaceVariant,
+                fontStyle: FontStyle.italic,
+              ),
             ),
           ],
           const SizedBox(height: AppSpacing.sm + 2),

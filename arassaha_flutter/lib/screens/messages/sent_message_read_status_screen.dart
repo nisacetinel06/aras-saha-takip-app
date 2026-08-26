@@ -38,9 +38,7 @@ class _SentMessageReadStatusScreenState
     super.initState();
     AnalyticsService.logScreenView('SentMessageReadStatusScreen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ManagerMessageProvider>().fetchReadStatus(
-        widget.messageId,
-      );
+      context.read<ManagerMessageProvider>().fetchReadStatus(widget.messageId);
     });
   }
 
@@ -53,8 +51,7 @@ class _SentMessageReadStatusScreenState
       body: SafeArea(
         top: false,
         child: RefreshIndicator(
-          onRefresh: () =>
-              provider.fetchReadStatus(widget.messageId),
+          onRefresh: () => provider.fetchReadStatus(widget.messageId),
           child: _buildBody(provider),
         ),
       ),
@@ -155,16 +152,15 @@ class _RecipientTile extends StatelessWidget {
               children: [
                 Text(
                   recipient.name,
-                  style: AppTextStyles.bodyMedium(color: scheme.onSurface)
-                      .copyWith(fontWeight: FontWeight.w600),
+                  style: AppTextStyles.bodyMedium(
+                    color: scheme.onSurface,
+                  ).copyWith(fontWeight: FontWeight.w600),
                 ),
                 Text(
                   isRead
                       ? '${formatRelativeTime(recipient.readAt!)} okundu'
                       : 'Henüz okunmadı',
-                  style: AppTextStyles.caption(
-                    color: scheme.onSurfaceVariant,
-                  ),
+                  style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
                 ),
               ],
             ),

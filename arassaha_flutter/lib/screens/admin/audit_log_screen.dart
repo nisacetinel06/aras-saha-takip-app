@@ -50,7 +50,10 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
     final now = DateTime.now();
     final initialRange =
         provider.fromDateFilter != null && provider.toDateFilter != null
-        ? DateTimeRange(start: provider.fromDateFilter!, end: provider.toDateFilter!)
+        ? DateTimeRange(
+            start: provider.fromDateFilter!,
+            end: provider.toDateFilter!,
+          )
         : null;
 
     final picked = await showDateRangePicker(
@@ -65,7 +68,14 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
     // gününün kendisindeki kayıtlar (o günün 00:00'ından SONRAKİ hiçbir
     // kaydı) filtre dışında kalırdı; kullanıcı "bugüne kadar" seçtiğinde
     // bugünün kayıtlarını görmeyi bekler.
-    final endOfDay = DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59);
+    final endOfDay = DateTime(
+      picked.end.year,
+      picked.end.month,
+      picked.end.day,
+      23,
+      59,
+      59,
+    );
     provider.setDateRange(picked.start, endOfDay);
   }
 
@@ -100,7 +110,8 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  if (provider.errorMessage != null && provider.entries.isEmpty) {
+                  if (provider.errorMessage != null &&
+                      provider.entries.isEmpty) {
                     return EmptyState(
                       icon: Icons.error_outline,
                       title: 'Denetim kayıtları yüklenemedi',
@@ -118,7 +129,8 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                           label: 'Kategori: ${provider.categoryFilter!.label}',
                           onRemove: () => provider.setCategory(null),
                         ),
-                      if (provider.fromDateFilter != null && provider.toDateFilter != null)
+                      if (provider.fromDateFilter != null &&
+                          provider.toDateFilter != null)
                         ActiveFilterChip(
                           label:
                               'Tarih: ${_formatDate(provider.fromDateFilter!)} - ${_formatDate(provider.toDateFilter!)}',
@@ -135,7 +147,9 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                           ? 'Sistemde bir işlem yapıldıkça burada görünecek.'
                           : null,
                       activeFilters: activeFilters,
-                      onClearFilters: activeFilters.isEmpty ? null : provider.clearAllFilters,
+                      onClearFilters: activeFilters.isEmpty
+                          ? null
+                          : provider.clearAllFilters,
                     );
                   }
 
@@ -149,7 +163,9 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                         AppSpacing.md,
                         AppSpacing.xl,
                       ),
-                      itemCount: provider.entries.length + 1, // +1: alt "Daha Fazla Yükle" satırı
+                      itemCount:
+                          provider.entries.length +
+                          1, // +1: alt "Daha Fazla Yükle" satırı
                       itemBuilder: (context, index) {
                         if (index == provider.entries.length) {
                           return _LoadMoreFooter(
@@ -210,7 +226,9 @@ class _FilterBar extends StatelessWidget {
                   selected: isSelected,
                   showCheckmark: false,
                   labelStyle: TextStyle(
-                    color: isSelected ? scheme.onPrimary : scheme.onSurfaceVariant,
+                    color: isSelected
+                        ? scheme.onPrimary
+                        : scheme.onSurfaceVariant,
                   ),
                   onSelected: (_) => provider.setCategory(entry.value),
                 ),
@@ -227,14 +245,16 @@ class _FilterBar extends StatelessWidget {
                   onPressed: onPickDateRange,
                   icon: const Icon(Icons.date_range_outlined, size: 18),
                   label: Text(
-                    provider.fromDateFilter != null && provider.toDateFilter != null
+                    provider.fromDateFilter != null &&
+                            provider.toDateFilter != null
                         ? '${_formatDate(provider.fromDateFilter!)} - ${_formatDate(provider.toDateFilter!)}'
                         : 'Tarih Aralığı Seç',
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
-              if (provider.fromDateFilter != null || provider.toDateFilter != null) ...[
+              if (provider.fromDateFilter != null ||
+                  provider.toDateFilter != null) ...[
                 const SizedBox(width: AppSpacing.xs),
                 IconButton(
                   tooltip: 'Tarih filtresini kaldır',
@@ -266,7 +286,9 @@ class _AuditLogRow extends StatelessWidget {
       // kayıtlarda kenar şeridi kullanılır — kategori rengiyle KARIŞTIRILMAZ
       // (bkz. dosya başı not, görev talimatı). Kategori kendi rengini
       // aşağıdaki ikon dairesinde taşır.
-      statusStripeColor: entry.isSecurityAlert ? AppColors.danger(context) : null,
+      statusStripeColor: entry.isSecurityAlert
+          ? AppColors.danger(context)
+          : null,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -297,7 +319,9 @@ class _AuditLogRow extends StatelessWidget {
                     ),
                     Text(
                       formatRelativeTime(entry.timestamp),
-                      style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                      style: AppTextStyles.caption(
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),

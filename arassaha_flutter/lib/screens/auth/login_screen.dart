@@ -51,9 +51,9 @@ class _LoginScreenState extends State<LoginScreen> {
     // 2. adımıdır.
     if (!mounted) return;
     if (auth.requiresTwoFactor) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const TwoFactorVerifyScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const TwoFactorVerifyScreen()));
     }
   }
 

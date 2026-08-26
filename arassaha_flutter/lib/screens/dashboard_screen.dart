@@ -726,7 +726,6 @@ class _LowStockMaterialTile extends StatelessWidget {
   }
 }
 
-
 /// Veri gelene kadar kartların/grafiklerin yerinde gösterilen basit bir
 /// nabız (pulse) animasyonu — ek bir shimmer paketi gerektirmez.
 class _DashboardSkeleton extends StatefulWidget {

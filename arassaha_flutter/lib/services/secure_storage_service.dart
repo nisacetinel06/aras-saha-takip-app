@@ -34,7 +34,8 @@ class SecureStorageService {
   static const _refreshTokenKey = 'refresh_token';
   static const _userJsonKey = 'current_user';
 
-  Future<void> saveToken(String token) => _storage.write(key: _tokenKey, value: token);
+  Future<void> saveToken(String token) =>
+      _storage.write(key: _tokenKey, value: token);
   Future<String?> getToken() => _storage.read(key: _tokenKey);
   Future<void> deleteToken() => _storage.delete(key: _tokenKey);
 
@@ -57,7 +58,8 @@ class SecureStorageService {
   // AuthProvider.tryAutoLogin). Bu iki metod, ileride bu davranış
   // değişirse (örn. çevrimdışı açılışta son bilinen kullanıcıyı göstermek
   // gibi) kullanılabilecek şekilde servis arayüzünde tutuluyor.
-  Future<void> saveUserJson(String userJson) => _storage.write(key: _userJsonKey, value: userJson);
+  Future<void> saveUserJson(String userJson) =>
+      _storage.write(key: _userJsonKey, value: userJson);
   Future<String?> getUserJson() => _storage.read(key: _userJsonKey);
   Future<void> deleteUserJson() => _storage.delete(key: _userJsonKey);
 

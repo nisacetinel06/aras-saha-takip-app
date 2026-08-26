@@ -105,7 +105,8 @@ class _IsgReportListScreenState extends State<IsgReportListScreen> {
                             ? null
                             : [
                                 ActiveFilterChip(
-                                  label: 'Durum: ${provider.filterStatus!.label}',
+                                  label:
+                                      'Durum: ${provider.filterStatus!.label}',
                                   onRemove: () => provider.setFilter(null),
                                 ),
                               ],

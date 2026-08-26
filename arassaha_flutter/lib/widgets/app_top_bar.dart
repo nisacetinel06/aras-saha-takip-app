@@ -80,31 +80,49 @@ class NotificationBellButton extends StatelessWidget {
             MaterialPageRoute(builder: (_) => const NotificationsScreen()),
           ),
         ),
-        if (unreadCount > 0)
-          Positioned(
-            top: 6,
-            right: 6,
-            child: IgnorePointer(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                decoration: BoxDecoration(
-                  color: AppColors.danger(context),
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                  border: Border.all(color: scheme.surface, width: 1.5),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  unreadCount > 9 ? '9+' : '$unreadCount',
-                  style: TextStyle(
-                    color: accessibleOnColor(AppColors.danger(context)),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
+        Positioned(
+          top: 6,
+          right: 6,
+          child: IgnorePointer(
+            // Rozet, okunmamış sayı değiştiğinde (artış veya
+            // markAllAsRead ile sıfırlanma) küçük bir "pop" (ölçek)
+            // animasyonuyla belirir/kaybolur — AnimatedSwitcher'ın
+            // `ValueKey(unreadCount)`'a bağlı olması, her farklı sayı
+            // değerinde yeni bir widget/animasyon tetikler.
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, animation) =>
+                  ScaleTransition(scale: animation, child: child),
+              child: unreadCount > 0
+                  ? Container(
+                      key: ValueKey(unreadCount),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.danger(context),
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                        border: Border.all(color: scheme.surface, width: 1.5),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        unreadCount > 9 ? '9+' : '$unreadCount',
+                        style: TextStyle(
+                          color: accessibleOnColor(AppColors.danger(context)),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(key: ValueKey('empty')),
             ),
           ),
+        ),
       ],
     );
   }

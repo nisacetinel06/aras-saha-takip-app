@@ -25,8 +25,7 @@ class CompletedWorkOrdersScreen extends StatefulWidget {
       _CompletedWorkOrdersScreenState();
 }
 
-class _CompletedWorkOrdersScreenState
-    extends State<CompletedWorkOrdersScreen> {
+class _CompletedWorkOrdersScreenState extends State<CompletedWorkOrdersScreen> {
   late final TextEditingController _searchController;
   final _scrollController = ScrollController();
   Timer? _debounce;
@@ -94,9 +93,7 @@ class _CompletedWorkOrdersScreenState
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  provider.isLoading
-                      ? ' '
-                      : '${provider.items.length} kayıt',
+                  provider.isLoading ? ' ' : '${provider.items.length} kayıt',
                   style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
                 ),
                 SortDirectionControl(
@@ -112,7 +109,10 @@ class _CompletedWorkOrdersScreenState
     );
   }
 
-  Widget _buildBody(BuildContext context, CompletedWorkOrdersProvider provider) {
+  Widget _buildBody(
+    BuildContext context,
+    CompletedWorkOrdersProvider provider,
+  ) {
     if (provider.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -169,7 +169,8 @@ class _CompletedWorkOrdersScreenState
             showCompletedDate: true,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => WorkOrderDetailScreen(workOrderId: workOrder.id),
+                builder: (_) =>
+                    WorkOrderDetailScreen(workOrderId: workOrder.id),
               ),
             ),
           );
@@ -226,4 +227,3 @@ class _ListFooter extends StatelessWidget {
     return const SizedBox(height: AppSpacing.md);
   }
 }
-

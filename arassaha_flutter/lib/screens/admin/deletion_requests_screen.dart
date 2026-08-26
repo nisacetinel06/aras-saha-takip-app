@@ -37,8 +37,7 @@ class DeletionRequestsScreen extends StatefulWidget {
   const DeletionRequestsScreen({super.key});
 
   @override
-  State<DeletionRequestsScreen> createState() =>
-      _DeletionRequestsScreenState();
+  State<DeletionRequestsScreen> createState() => _DeletionRequestsScreenState();
 }
 
 class _DeletionRequestsScreenState extends State<DeletionRequestsScreen> {
@@ -110,7 +109,9 @@ class _DeletionRequestsScreenState extends State<DeletionRequestsScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Red gerekçesi zorunludur (örn. "Yasal saklama süresi dolmadığı için reddedildi").'),
+                const Text(
+                  'Red gerekçesi zorunludur (örn. "Yasal saklama süresi dolmadığı için reddedildi").',
+                ),
                 const SizedBox(height: AppSpacing.sm + 4),
                 TextField(
                   controller: noteController,
@@ -207,12 +208,13 @@ class _DeletionRequestsScreenState extends State<DeletionRequestsScreen> {
           // Bekleyen talepler her zaman EN ÜSTTE — yöneticinin dikkat etmesi
           // gereken (aksiyon bekleyen) satırlar, zaten sonuçlanmış olanların
           // arasında kaybolmasın diye.
-          final sorted = [...provider.allRequests]..sort((a, b) {
-            final aPending = a.status == KvkkRequestStatus.beklemede;
-            final bPending = b.status == KvkkRequestStatus.beklemede;
-            if (aPending != bPending) return aPending ? -1 : 1;
-            return b.createdAt.compareTo(a.createdAt);
-          });
+          final sorted = [...provider.allRequests]
+            ..sort((a, b) {
+              final aPending = a.status == KvkkRequestStatus.beklemede;
+              final bPending = b.status == KvkkRequestStatus.beklemede;
+              if (aPending != bPending) return aPending ? -1 : 1;
+              return b.createdAt.compareTo(a.createdAt);
+            });
 
           return RefreshIndicator(
             onRefresh: () => provider.fetchAllDeletionRequests(),
@@ -220,8 +222,7 @@ class _DeletionRequestsScreenState extends State<DeletionRequestsScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: sorted.length,
-              separatorBuilder: (_, _) =>
-                  const SizedBox(height: AppSpacing.sm),
+              separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
               itemBuilder: (context, index) {
                 final request = sorted[index];
                 return _RequestCard(
@@ -294,7 +295,8 @@ class _RequestCard extends StatelessWidget {
               style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant),
             ),
           ],
-          if (!isPending && request.reviewerNote != null &&
+          if (!isPending &&
+              request.reviewerNote != null &&
               request.reviewerNote!.trim().isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(

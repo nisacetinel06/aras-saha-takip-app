@@ -15,8 +15,7 @@ import 'user_avatar.dart';
 /// modül listesi TEK kaynaktan ([buildModuleEntries]) beslenir, burada ayrıca
 /// kopyalanmaz.
 class AppNavigationDrawer extends StatelessWidget {
-  final void Function(int tabIndex, {WorkOrderStatus? statusFilter})
-  onNavigate;
+  final void Function(int tabIndex, {WorkOrderStatus? statusFilter}) onNavigate;
 
   const AppNavigationDrawer({super.key, required this.onNavigate});
 
@@ -220,7 +219,11 @@ class _DrawerModuleTile extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, size: 20, color: scheme.onSurfaceVariant),
+              Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: scheme.onSurfaceVariant,
+              ),
             ],
           ),
         ),

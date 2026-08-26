@@ -15,7 +15,14 @@ import '../theme/app_spacing.dart';
 ///   "Pasifleştir") — danger (kırmızı), outline. Durum renkleri (success/
 ///   warning/danger) BAŞKA HİÇBİR yerde genel bir buton rengi olarak
 ///   kullanılmaz — yalnızca bu varyant ve rozetler/durum şeritlerinde.
-enum AppButtonVariant { primary, secondary, text, destructive }
+/// - `compactAction`: Ana Sayfa "Hızlı İşlemler" formatı — dolu primary
+///   (mavi) zemin, ikon ÜSTTE + etiket ALTTA, dar/sabit genişlikte bir
+///   çağıranın (örn. yatay kaydırmalı bir liste) içine oturacak şekilde
+///   tasarlanmıştır (bkz. home_screen.dart _ActionData kullanımı). Diğer
+///   varyantların aksine yatay değil DİKEY bir içerik düzeni kullanır — bu
+///   yüzden `minHeight: 48` kısıtı UYGULANMAZ, boyut çağıranın sardığı
+///   `SizedBox`'tan gelir.
+enum AppButtonVariant { primary, secondary, text, destructive, compactAction }
 
 /// Uygulamadaki TÜM butonlar için tek ortak bileşen. Metin her zaman
 /// `Flexible` + `TextOverflow.ellipsis` ile sarmalanır — buton ne kadar dar
@@ -51,8 +58,10 @@ class AppButton extends StatelessWidget {
       // D1 kontrast bulgusu: koyu temada scheme.primary (#5B9BE0) sabit
       // Colors.white ile yalnızca 2.91:1 kontrast veriyordu (WCAG AA eşiği
       // 4.5:1) — accessibleOnColor doğru rengi (ihtiyaç halinde koyu) hesaplar.
-      if (variant == AppButtonVariant.primary)
+      if (variant == AppButtonVariant.primary ||
+          variant == AppButtonVariant.compactAction) {
         return accessibleOnColor(color ?? scheme.primary);
+      }
       if (color != null) return color!;
       return variant == AppButtonVariant.destructive
           ? scheme.error
@@ -150,6 +159,71 @@ class AppButton extends StatelessWidget {
             ),
             onPressed: effectiveOnPressed,
             child: content,
+          ),
+        );
+      case AppButtonVariant.compactAction:
+        final bg = color ?? scheme.primary;
+        final fg = accessibleOnColor(bg);
+        // E3 (kullanım analitiği): primary ile AYNI merkezi loglama — bu
+        // varyant da bir aksiyon BAŞLATIYOR (bkz. sınıf başı doc yorumu),
+        // primary'den yalnızca DÜZENİ (dikey) farklı.
+        final loggedOnPressed = effectiveOnPressed == null
+            ? null
+            : () {
+                AnalyticsService.logButtonTap(
+                  AnalyticsService.currentScreen,
+                  label,
+                );
+                effectiveOnPressed();
+              };
+        return Material(
+          color: bg,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppRadius.card),
+            onTap: loggedOnPressed,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm + 2,
+                vertical: AppSpacing.sm + 4,
+              ),
+              child: isLoading
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: fg,
+                      ),
+                    )
+                  // FittedBox: iki satıra saran uzun etiketlerde (örn. "Yeni
+                  // Kullanıcı Ekle") font metriklerine bağlı birkaç
+                  // piksellik taşmayı GARANTİ olarak önler.
+                  : FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (icon != null) ...[
+                            Icon(icon, color: fg, size: 26),
+                            const SizedBox(height: AppSpacing.xs + 2),
+                          ],
+                          Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: fg,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
           ),
         );
     }

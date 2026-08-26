@@ -167,9 +167,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label: 'Kişisel Verilerim ve Gizlilik',
               icon: Icons.privacy_tip_outlined,
               variant: AppButtonVariant.secondary,
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const MyDataScreen()),
-              ),
+              onPressed: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const MyDataScreen())),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),

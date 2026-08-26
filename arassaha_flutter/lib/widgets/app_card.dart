@@ -19,6 +19,14 @@ class AppCard extends StatelessWidget {
   /// kendi rengiyle hafifçe tonlanması için.
   final Color? backgroundTint;
 
+  /// "Çabuk Erişim" liste-satırı stili — bkz. home_screen.dart
+  /// _QuickAccessTile/_SosAlertsAccessCard: gölgesiz, ince kenarlıklı, biraz
+  /// daha küçük köşe yuvarlaklığı (AppRadius.button, 10px) — nötr bir "bir
+  /// yere git" satırı için standart kartın (12px + hafif gölge) dolgun
+  /// görünümünden BİLİNÇLİ olarak daha sade. Varsayılan false: mevcut TÜM
+  /// çağıranlar (37+ ekran) etkilenmeden aynı kalır.
+  final bool flat;
+
   const AppCard({
     super.key,
     required this.child,
@@ -26,6 +34,7 @@ class AppCard extends StatelessWidget {
     this.onTap,
     this.statusStripeColor,
     this.backgroundTint,
+    this.flat = false,
   });
 
   Widget _buildContent(BuildContext context) {
@@ -62,6 +71,8 @@ class AppCard extends StatelessWidget {
             ),
           );
 
+    final radius = flat ? AppRadius.button : AppRadius.card;
+
     // Container'ı ClipRRect ile sarmıyoruz — bu, dışa taşan gölgeyi de
     // keserdi. Köşe yuvarlaklığının içerik taşırmasını önlemek InkWell'in
     // kendi borderRadius'una bırakılıyor.
@@ -70,13 +81,17 @@ class AppCard extends StatelessWidget {
         color:
             backgroundTint?.withValues(alpha: isDark ? 0.28 : 0.22) ??
             scheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: BorderRadius.circular(radius),
         border: Border.all(
           color:
               backgroundTint?.withValues(alpha: isDark ? 0.55 : 0.45) ??
-              scheme.outlineVariant.withValues(alpha: isDark ? 0.5 : 0.3),
+              scheme.outlineVariant.withValues(
+                // flat: gölge yok, kenarlık TEK derinlik ipucu — biraz daha
+                // belirgin olması gerekir (bkz. yukarısı doc yorumu).
+                alpha: flat ? (isDark ? 0.6 : 0.7) : (isDark ? 0.5 : 0.3),
+              ),
         ),
-        boxShadow: isDark
+        boxShadow: (isDark || flat)
             ? null
             : [
                 BoxShadow(

@@ -1058,7 +1058,9 @@ class _MaterialUsageRow extends StatelessWidget {
                   Flexible(
                     child: Text(
                       '${usage.recordedByName} · ${formatRelativeTime(usage.createdAt)}',
-                      style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                      style: AppTextStyles.caption(
+                        color: scheme.onSurfaceVariant,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),

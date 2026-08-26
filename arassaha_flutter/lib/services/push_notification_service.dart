@@ -58,8 +58,7 @@ class PushNotificationService {
     // Uygulama TAMAMEN KAPALIYKEN bir bildirime dokunarak açıldıysa —
     // onMessageOpenedApp bu durumu YAKALAMAZ (henüz dinlemiyor olurdu),
     // bu yüzden ayrıca kontrol edilir.
-    final initialMessage = await FirebaseMessaging.instance
-        .getInitialMessage();
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
       _handleNotificationTap(initialMessage);
     }

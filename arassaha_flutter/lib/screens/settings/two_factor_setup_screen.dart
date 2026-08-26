@@ -81,14 +81,18 @@ class _TwoFactorSetupScreenState extends State<TwoFactorSetupScreen> {
     final provider = context.watch<TwoFactorProvider>();
 
     return Scaffold(
-      appBar: const AppTopBar(title: 'İki Faktörlü Doğrulama', showBackButton: true),
+      appBar: const AppTopBar(
+        title: 'İki Faktörlü Doğrulama',
+        showBackButton: true,
+      ),
       body: Builder(
         builder: (context) {
           if (provider.isSettingUp && provider.otpauthUri == null) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (provider.setupErrorMessage != null && provider.otpauthUri == null) {
+          if (provider.setupErrorMessage != null &&
+              provider.otpauthUri == null) {
             return EmptyState(
               icon: Icons.error_outline,
               title: 'İki adımlı doğrulama kurulumu yüklenemedi',
@@ -105,9 +109,11 @@ class _TwoFactorSetupScreenState extends State<TwoFactorSetupScreen> {
                 otpauthUri: provider.otpauthUri!,
                 backupCodes: provider.backupCodes,
                 codesSavedConfirmed: _codesSavedConfirmed,
-                onCodesSavedChanged: (v) => setState(() => _codesSavedConfirmed = v),
+                onCodesSavedChanged: (v) =>
+                    setState(() => _codesSavedConfirmed = v),
                 onCopyAll: () => _copyAllBackupCodes(provider.backupCodes),
-                onContinue: () => setState(() => _step = _SetupStep.enterConfirmCode),
+                onContinue: () =>
+                    setState(() => _step = _SetupStep.enterConfirmCode),
               );
             case _SetupStep.enterConfirmCode:
               return _EnterConfirmCodeStep(
@@ -207,7 +213,9 @@ class _QrAndBackupCodesStep extends StatelessWidget {
                         ),
                         child: SelectableText(
                           code,
-                          style: AppTextStyles.dataMono(color: scheme.onSurface),
+                          style: AppTextStyles.dataMono(
+                            color: scheme.onSurface,
+                          ),
                         ),
                       ),
                     )
@@ -279,7 +287,10 @@ class _EnterConfirmCodeStep extends StatelessWidget {
           autofocus: true,
           onSubmitted: (_) => onConfirm(),
           style: AppTextStyles.headingMedium(color: scheme.onSurface),
-          decoration: const InputDecoration(labelText: 'Kod', hintText: '123456'),
+          decoration: const InputDecoration(
+            labelText: 'Kod',
+            hintText: '123456',
+          ),
         ),
         if (errorMessage != null) ...[
           const SizedBox(height: AppSpacing.sm),
@@ -288,7 +299,10 @@ class _EnterConfirmCodeStep extends StatelessWidget {
               Icon(Icons.error_outline, size: 16, color: scheme.error),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(errorMessage!, style: TextStyle(color: scheme.error, fontSize: 13)),
+                child: Text(
+                  errorMessage!,
+                  style: TextStyle(color: scheme.error, fontSize: 13),
+                ),
               ),
             ],
           ),
@@ -319,7 +333,11 @@ class _DoneStep extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.check_circle_outline, size: 64, color: AppColors.success(context)),
+            Icon(
+              Icons.check_circle_outline,
+              size: 64,
+              color: AppColors.success(context),
+            ),
             const SizedBox(height: AppSpacing.md),
             Text(
               '2FA Etkinleştirildi',

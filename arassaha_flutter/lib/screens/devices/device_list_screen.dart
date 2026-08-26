@@ -144,8 +144,9 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
                             : [
                                 ActiveFilterChip(
                                   label: _deviceFilterLabel(_filter),
-                                  onRemove: () =>
-                                      setState(() => _filter = _DeviceFilter.all),
+                                  onRemove: () => setState(
+                                    () => _filter = _DeviceFilter.all,
+                                  ),
                                 ),
                               ],
                         onClearFilters: _filter == _DeviceFilter.all

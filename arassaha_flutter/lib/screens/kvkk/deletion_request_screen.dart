@@ -100,9 +100,7 @@ class _DeletionRequestScreenState extends State<DeletionRequestScreen> {
     } else {
       messenger.showSnackBar(
         SnackBar(
-          content: Text(
-            provider.submitErrorMessage ?? 'Talep oluşturulamadı.',
-          ),
+          content: Text(provider.submitErrorMessage ?? 'Talep oluşturulamadı.'),
         ),
       );
     }

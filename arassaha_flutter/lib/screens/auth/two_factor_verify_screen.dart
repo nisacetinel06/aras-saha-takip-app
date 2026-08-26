@@ -87,7 +87,9 @@ class _TwoFactorVerifyScreenState extends State<TwoFactorVerifyScreen> {
                   Text(
                     'Authenticator uygulamanızdaki 6 haneli kodu girin.',
                     textAlign: TextAlign.center,
-                    style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant),
+                    style: AppTextStyles.bodyMedium(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   TextField(
@@ -109,7 +111,11 @@ class _TwoFactorVerifyScreenState extends State<TwoFactorVerifyScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.error_outline, size: 16, color: scheme.error),
+                        Icon(
+                          Icons.error_outline,
+                          size: 16,
+                          color: scheme.error,
+                        ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
@@ -131,7 +137,9 @@ class _TwoFactorVerifyScreenState extends State<TwoFactorVerifyScreen> {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   TextButton(
-                    onPressed: () => setState(() => _showBackupCodeHint = !_showBackupCodeHint),
+                    onPressed: () => setState(
+                      () => _showBackupCodeHint = !_showBackupCodeHint,
+                    ),
                     child: const Text('Yedek kod mu kullanmak istiyorsunuz?'),
                   ),
                   if (_showBackupCodeHint)
@@ -141,7 +149,9 @@ class _TwoFactorVerifyScreenState extends State<TwoFactorVerifyScreen> {
                       'birini yukarıdaki alana girebilirsiniz. Her yedek kod '
                       'yalnızca BİR KEZ kullanılabilir.',
                       textAlign: TextAlign.center,
-                      style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                      style: AppTextStyles.caption(
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
                 ],
               ),

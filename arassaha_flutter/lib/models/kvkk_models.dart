@@ -31,7 +31,8 @@ class KvkkDataSummary {
       profilePhone: profile['phone'] as String?,
       profileEmail: profile['email'] as String?,
       hasPhoto: profile['has_photo'] as bool? ?? false,
-      submittedIsgReportsCount: json['submitted_isg_reports_count'] as int? ?? 0,
+      submittedIsgReportsCount:
+          json['submitted_isg_reports_count'] as int? ?? 0,
       assignedWorkOrdersCount: json['assigned_work_orders_count'] as int? ?? 0,
       uploadedPhotosCount: json['uploaded_photos_count'] as int? ?? 0,
     );
@@ -119,7 +120,11 @@ class KvkkRequestUser {
   final String name;
   final String sicilNo;
 
-  KvkkRequestUser({required this.id, required this.name, required this.sicilNo});
+  KvkkRequestUser({
+    required this.id,
+    required this.name,
+    required this.sicilNo,
+  });
 
   factory KvkkRequestUser.fromJson(Map<String, dynamic> json) {
     return KvkkRequestUser(

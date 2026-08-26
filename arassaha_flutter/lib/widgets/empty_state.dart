@@ -62,8 +62,7 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final hasActiveFilters =
-        activeFilters != null && activeFilters!.isNotEmpty;
+    final hasActiveFilters = activeFilters != null && activeFilters!.isNotEmpty;
 
     final content = Padding(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -75,8 +74,9 @@ class EmptyState extends StatelessWidget {
           Text(
             title,
             textAlign: TextAlign.center,
-            style: AppTextStyles.bodyMedium(color: scheme.onSurface)
-                .copyWith(fontSize: 16, fontWeight: FontWeight.w700),
+            style: AppTextStyles.bodyMedium(
+              color: scheme.onSurface,
+            ).copyWith(fontSize: 16, fontWeight: FontWeight.w700),
           ),
           if (subtitle != null) ...[
             const SizedBox(height: AppSpacing.xs + 2),
@@ -95,7 +95,8 @@ class EmptyState extends StatelessWidget {
               spacing: AppSpacing.xs,
               runSpacing: AppSpacing.xs,
               children: [
-                for (final filter in activeFilters!) _RemovableChip(filter: filter),
+                for (final filter in activeFilters!)
+                  _RemovableChip(filter: filter),
               ],
             ),
             if (onClearFilters != null) ...[

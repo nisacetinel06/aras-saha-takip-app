@@ -143,8 +143,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               label: 'Yeni Şifre',
               controller: _newController,
               obscure: _obscureNew,
-              onToggleObscure: () =>
-                  setState(() => _obscureNew = !_obscureNew),
+              onToggleObscure: () => setState(() => _obscureNew = !_obscureNew),
               errorText: _newPasswordError,
               helperText: 'En az 8 karakter',
             ),

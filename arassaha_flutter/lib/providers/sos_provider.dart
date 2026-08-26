@@ -14,7 +14,8 @@ import '../utils/error_mapper.dart';
 class SosProvider extends ChangeNotifier {
   final ApiService _apiService;
 
-  SosProvider({ApiService? apiService}) : _apiService = apiService ?? ApiService();
+  SosProvider({ApiService? apiService})
+    : _apiService = apiService ?? ApiService();
 
   List<SosAlert> _alerts = [];
   bool _isListLoading = false;

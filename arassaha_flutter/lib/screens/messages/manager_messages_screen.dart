@@ -92,8 +92,7 @@ class _ManagerMessagesScreenState extends State<ManagerMessagesScreen> {
               message: message,
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) =>
-                      ManagerMessageDetailScreen(message: message),
+                  builder: (_) => ManagerMessageDetailScreen(message: message),
                 ),
               ),
             ),
@@ -126,8 +125,9 @@ class _MessageTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   message.senderName,
-                  style: AppTextStyles.caption(color: scheme.onSurfaceVariant)
-                      .copyWith(fontWeight: FontWeight.w700),
+                  style: AppTextStyles.caption(
+                    color: scheme.onSurfaceVariant,
+                  ).copyWith(fontWeight: FontWeight.w700),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -174,9 +174,7 @@ class _MessageTile extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               message.content,
-              style: AppTextStyles.bodyMedium(
-                color: scheme.onSurfaceVariant,
-              ),
+              style: AppTextStyles.bodyMedium(color: scheme.onSurfaceVariant),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),

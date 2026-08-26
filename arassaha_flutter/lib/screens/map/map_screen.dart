@@ -397,7 +397,10 @@ class _ErrorBanner extends StatelessWidget {
                 ),
                 Text(
                   message,
-                  style: TextStyle(color: scheme.onErrorContainer, fontSize: 12),
+                  style: TextStyle(
+                    color: scheme.onErrorContainer,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),

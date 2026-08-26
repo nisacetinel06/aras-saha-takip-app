@@ -148,13 +148,13 @@ class _WorkOrderListScreenState extends State<WorkOrderListScreen> {
                         onClearFilters: activeFilters.isEmpty
                             ? null
                             : () => _clearAllFilters(provider),
-                        onPrimaryAction: activeFilters.isEmpty && auth.canCreateWorkOrders
+                        onPrimaryAction:
+                            activeFilters.isEmpty && auth.canCreateWorkOrders
                             ? () => Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const CreateWorkOrderScreen(),
-                                  ),
-                                )
+                                MaterialPageRoute(
+                                  builder: (_) => const CreateWorkOrderScreen(),
+                                ),
+                              )
                             : null,
                         primaryActionLabel: 'Yeni İş Emri Oluştur',
                       ),
@@ -293,4 +293,3 @@ class _FilterBar extends StatelessWidget {
     );
   }
 }
-

@@ -187,7 +187,9 @@ class _SendManagerMessageScreenState extends State<SendManagerMessageScreen> {
             const SizedBox(height: AppSpacing.sm),
             TextField(
               controller: _titleController,
-              decoration: const InputDecoration(hintText: 'Örn. Bakım Duyurusu'),
+              decoration: const InputDecoration(
+                hintText: 'Örn. Bakım Duyurusu',
+              ),
             ),
             const SizedBox(height: AppSpacing.lg),
 

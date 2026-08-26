@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:showcaseview/showcaseview.dart';
@@ -330,70 +332,101 @@ class _MainShellState extends State<MainShell> {
           ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Ana Sayfa',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.assignment_outlined),
-            selectedIcon: Icon(Icons.assignment),
-            label: 'İş Emirleri',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.smart_toy_outlined),
-            selectedIcon: Icon(Icons.smart_toy),
-            label: 'ArasAI',
-          ),
-          NavigationDestination(
-            // Turun son adımı: unselected `icon` sarmalanır (bkz. Showcase'e
-            // BİLEREK yalnızca `icon`, `selectedIcon` DEĞİL — tur Ana
-            // Sayfa'dayken başlar, Profil sekmesi henüz SEÇİLİ değildir,
-            // dolayısıyla ekranda görünen budur; ikisini de sarmalamak aynı
-            // GlobalKey'in aynı anda iki yerde mount olmasına yol açardı).
-            icon: Builder(
-              builder: (context) => Showcase(
-                key: _profileTabKey,
-                disableDefaultTargetGestures: true,
-                title: 'Profil',
-                description:
-                    'Buradan profilinizi görüntüleyebilir ve '
-                    'ayarlarınızı yönetebilirsiniz.',
-                tooltipBackgroundColor: CoachMarkStyle.background(context),
-                textColor: CoachMarkStyle.foreground(context),
-                tooltipBorderRadius: CoachMarkStyle.borderRadius,
-                titleTextStyle: CoachMarkStyle.title(context),
-                descTextStyle: CoachMarkStyle.description(context),
-                tooltipActionConfig: CoachMarkStyle.actionConfig,
-                tooltipPosition: TooltipPosition.top,
-                tooltipActions: CoachMarkStyle.homeTourFinalStepActions(
-                  context,
+      // Tasarım cilası: alt navigasyon çubuğu artık düz opak bir dolgu
+      // yerine buzlu-cam (frosted glass) efektiyle çiziliyor — referans
+      // alınan bir web navbar örneğindeki `backdrop-blur` + yarı saydam
+      // zemin + üst kenarlık fikrinin Flutter karşılığı (bkz. kullanıcının
+      // 21st.dev navbar isteği). `NavigationBar`'ın kendi arka planı/gölgesi
+      // KAPATILIR (`backgroundColor: transparent`, `elevation: 0`) — aksi
+      // halde bulanıklaştırma ARKASINDAKİ içerik değil, bu widget'ın KENDİ
+      // opak zemini görünürdü.
+      bottomNavigationBar: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainer.withValues(alpha: 0.82),
+              border: Border(
+                top: BorderSide(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outlineVariant.withValues(alpha: 0.4),
                 ),
-                child: myProfile != null
-                    ? UserAvatar(
-                        photoPath: myProfile.photoPath,
-                        initials: myProfile.initials,
-                        role: myProfile.role,
-                        radius: 12,
-                      )
-                    : const Icon(Icons.person_outline),
               ),
             ),
-            selectedIcon: myProfile != null
-                ? UserAvatar(
-                    photoPath: myProfile.photoPath,
-                    initials: myProfile.initials,
-                    role: myProfile.role,
-                    radius: 12,
-                  )
-                : const Icon(Icons.person),
-            label: 'Profil',
+            child: NavigationBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              selectedIndex: _index,
+              onDestinationSelected: (i) => setState(() => _index = i),
+              destinations: [
+                const NavigationDestination(
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home),
+                  label: 'Ana Sayfa',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.assignment_outlined),
+                  selectedIcon: Icon(Icons.assignment),
+                  label: 'İş Emirleri',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.smart_toy_outlined),
+                  selectedIcon: Icon(Icons.smart_toy),
+                  label: 'ArasAI',
+                ),
+                NavigationDestination(
+                  // Turun son adımı: unselected `icon` sarmalanır (bkz. Showcase'e
+                  // BİLEREK yalnızca `icon`, `selectedIcon` DEĞİL — tur Ana
+                  // Sayfa'dayken başlar, Profil sekmesi henüz SEÇİLİ değildir,
+                  // dolayısıyla ekranda görünen budur; ikisini de sarmalamak aynı
+                  // GlobalKey'in aynı anda iki yerde mount olmasına yol açardı).
+                  icon: Builder(
+                    builder: (context) => Showcase(
+                      key: _profileTabKey,
+                      disableDefaultTargetGestures: true,
+                      title: 'Profil',
+                      description:
+                          'Buradan profilinizi görüntüleyebilir ve '
+                          'ayarlarınızı yönetebilirsiniz.',
+                      tooltipBackgroundColor: CoachMarkStyle.background(
+                        context,
+                      ),
+                      textColor: CoachMarkStyle.foreground(context),
+                      tooltipBorderRadius: CoachMarkStyle.borderRadius,
+                      titleTextStyle: CoachMarkStyle.title(context),
+                      descTextStyle: CoachMarkStyle.description(context),
+                      tooltipActionConfig: CoachMarkStyle.actionConfig,
+                      tooltipPosition: TooltipPosition.top,
+                      tooltipActions: CoachMarkStyle.homeTourFinalStepActions(
+                        context,
+                      ),
+                      child: myProfile != null
+                          ? UserAvatar(
+                              photoPath: myProfile.photoPath,
+                              initials: myProfile.initials,
+                              role: myProfile.role,
+                              radius: 12,
+                            )
+                          : const Icon(Icons.person_outline),
+                    ),
+                  ),
+                  selectedIcon: myProfile != null
+                      ? UserAvatar(
+                          photoPath: myProfile.photoPath,
+                          initials: myProfile.initials,
+                          role: myProfile.role,
+                          radius: 12,
+                        )
+                      : const Icon(Icons.person),
+                  label: 'Profil',
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }

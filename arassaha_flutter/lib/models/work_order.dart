@@ -210,7 +210,9 @@ class WorkOrder {
           ? AssignedUser.fromJson(json['assigned_user'] as Map<String, dynamic>)
           : null,
       assignedByUser: json['assigned_by_user'] != null
-          ? AssignedUser.fromJson(json['assigned_by_user'] as Map<String, dynamic>)
+          ? AssignedUser.fromJson(
+              json['assigned_by_user'] as Map<String, dynamic>,
+            )
           : null,
       equipmentRef: json['equipment_ref'] as String? ?? '',
       equipmentId: json['equipment_id'] as int?,

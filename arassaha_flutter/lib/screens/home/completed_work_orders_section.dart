@@ -188,4 +188,3 @@ class _SectionBody extends StatelessWidget {
     );
   }
 }
-
