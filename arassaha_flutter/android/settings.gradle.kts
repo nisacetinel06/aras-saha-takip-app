@@ -21,6 +21,10 @@ plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "8.11.1" apply false
     id("org.jetbrains.kotlin.android") version "2.2.20" apply false
+    // Push Bildirim (FCM) — google-services.json'ı okuyup Firebase'i
+    // yapılandıran Gradle eklentisi (bkz. app/build.gradle.kts'te apply,
+    // app/google-services.json).
+    id("com.google.gms.google-services") version "4.4.2" apply false
 }
 
 include(":app")

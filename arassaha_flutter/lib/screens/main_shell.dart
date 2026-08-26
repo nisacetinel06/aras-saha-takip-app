@@ -9,6 +9,7 @@ import '../providers/user_provider.dart';
 import '../providers/work_order_list_provider.dart';
 import '../services/local_notification_service.dart';
 import '../services/onboarding_prefs_service.dart';
+import '../services/push_notification_service.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/app_navigation_drawer.dart';
 import '../widgets/app_top_bar.dart';
@@ -143,6 +144,17 @@ class _MainShellState extends State<MainShell> {
       // çağırır (bkz. settings_screen.dart).
       await LocalNotificationService.instance.requestPermission();
       if (!mounted) return;
+
+      // Push Bildirim (FCM) — AYNI çağrı noktası: MainShell yalnızca kimlik
+      // doğrulanmış kullanıcının gördüğü kabuk olduğu için, burada çağırmak
+      // "login sonrası" ile eşdeğerdir (hem interaktif login hem 2FA
+      // doğrulama hem de tryAutoLogin sonrası TEK bir yerden kapsanır).
+      // Bildirimler tercihi kapalı olsa bile FCM token'ı kaydedilir — bu
+      // tercih yalnızca polling+yerel bildirimi kapatır, SOS gibi kritik
+      // bildirimler için push HER ZAMAN etkin kalmalı.
+      await PushNotificationService.instance.initialize();
+      if (!mounted) return;
+
       final notificationsEnabled = context
           .read<SettingsProvider>()
           .notificationsEnabled;

@@ -301,4 +301,24 @@ router.post('/change-password', verifyToken, checkPasswordChangeRateLimit, (req,
   }
 });
 
+// POST /api/auth/register-fcm-token — Push Bildirim (FCM), bkz.
+// services/pushNotificationService.js, utils/notify.js. Giriş yapmış HERKES
+// kendi cihaz token'ını kaydeder/günceller. Body: { fcm_token: string|null }
+// — Flutter tarafı çıkış yaparken (bkz. AuthProvider.logout) `null` göndererek
+// çıkış yapılmış bir cihaza artık bildirim gitmemesini sağlar.
+router.post('/register-fcm-token', verifyToken, (req, res) => {
+  try {
+    const { fcm_token } = req.body;
+    if (fcm_token !== null && typeof fcm_token !== 'string') {
+      return res.status(400).json({ error: 'fcm_token alanı zorunludur.' });
+    }
+
+    db.prepare('UPDATE users SET fcm_token = ? WHERE id = ?').run(fcm_token, req.user.id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Bildirim token\'ı kaydedilirken bir hata oluştu.' });
+  }
+});
+
 module.exports = router;

@@ -73,11 +73,17 @@ dependencies:
   geolocator: ^14.0.2
 
   # Bildirim Sistemi (Modül 6) — cihazda GERÇEK bir OS bildirimi göstermek için.
-  # Bir staj projesi kapsamında Firebase Cloud Messaging (proje açma, sunucu
-  # anahtarı, native push kurulumu) gereksiz karmaşıklık katardığından, bunun
-  # yerine backend'in periyodik olarak (polling) yoklanmasıyla tetiklenen
-  # YEREL bir bildirim yaklaşımı kullanılıyor (bkz. services/local_notification_service.dart).
+  # Hem FCM'den gelen push bildirimlerini (uygulama ön plandayken) HEM DE
+  # polling yedek katmanının artışlarını göstermek için kullanılır (bkz.
+  # services/local_notification_service.dart, push_notification_service.dart).
   flutter_local_notifications: ^22.2.0
+
+  # Push Bildirim (FCM) — bkz. services/push_notification_service.dart,
+  # backend services/pushNotificationService.js. Uygulama arka plandayken/
+  # kapalıyken de anında bildirim teslimi için; polling (yukarısı) artık
+  # yedek katman (bkz. providers/notification_provider.dart dosya başı notu).
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.6
 
   # Ayarlar ve Çevrimdışı Mod (Modül 17) — bkz. services/cache_service.dart,
   # services/offline_queue_service.dart, providers/connectivity_provider.dart.

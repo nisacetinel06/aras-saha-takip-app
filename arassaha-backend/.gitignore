@@ -6,3 +6,8 @@ e2e_test.db
 test/manual_debug.db
 uploads/
 *_log.txt
+
+# Firebase Cloud Messaging (Push Bildirim) servis hesabı kimlik bilgisi —
+# JWT_SECRET ile AYNI ilke: asla Git'e commit edilmez (bkz.
+# services/pushNotificationService.js).
+firebase-service-account.json

@@ -685,6 +685,11 @@ const userColumnAdditions = {
   // ya da normalize edilmiş bir il listesi gerekmiyor, yönetici Kullanıcı
   // Düzenle ekranından elle girer (bkz. routes/users.js PATCH /:id).
   il: 'TEXT',
+  // Push Bildirim (FCM) — bkz. services/pushNotificationService.js,
+  // utils/notify.js. Basitlik için kullanıcı başına TEK bir token (bkz.
+  // routes/auth.js POST /register-fcm-token dokümantasyonu — birden fazla
+  // cihazdan giriş senaryosu şimdilik kapsam dışı).
+  fcm_token: 'TEXT',
 };
 for (const [column, type] of Object.entries(userColumnAdditions)) {
   if (!userColumns.some((col) => col.name === column)) {

@@ -1,21 +1,29 @@
 // Bildirim Sistemi (Modül 6) — ortak bildirim oluşturma fonksiyonu.
 //
-// Gerçek bir push (FCM vb.) altyapısı BİLİNÇLİ olarak kurulmadı: bu, bir staj
-// projesi kapsamında gereksiz karmaşıklık (Firebase projesi açma, sunucu
-// anahtarı yönetimi, native platform entegrasyonu) katardı. Bunun yerine bu
-// fonksiyon yalnızca `notifications` tablosuna bir kayıt düşer; Flutter
-// tarafı bunu periyodik olarak (30 sn) GET /api/notifications/unread-count
-// ile yoklar (polling) ve artış tespit ederse flutter_local_notifications
-// ile cihazda gerçek bir OS bildirimi gösterir (bkz. ARCHITECTURE.md).
+// `notifications` tablosuna bir kayıt düşer (Flutter tarafı bunu Bildirimler
+// ekranında ve periyodik polling ile GET /api/notifications/unread-count
+// üzerinden okur, bkz. ARCHITECTURE.md) VE ayrıca kullanıcının kayıtlı bir
+// FCM token'ı varsa gerçek bir push bildirimi gönderir (bkz.
+// services/pushNotificationService.js). Polling BİLEREK KALDIRILMADI —
+// push bildirimi başarısız olursa (token yok, cihaz kapalı, teslimat sorunu)
+// kullanıcı uygulamayı açtığında hâlâ unread-count ile eksik kalan
+// bildirimleri yakalar; iki sistem çelişkili değil, tamamlayıcıdır.
 //
-// Üç tetikleyici nokta bu fonksiyonu çağırır: iş emri atama (routes/workOrders.js),
-// İSG bildirimi inceleme (routes/isg.js) ve ekipman riskinin yükselmesi (routes/risk.js).
+// TÜM tetikleyici noktalar (iş emri atama, İSG bildirimi inceleme, ekipman
+// risk yükselişi, düşük stok, SOS bildirimi, yönetici mesajı — bkz.
+// routes/workOrders.js, isg.js, risk.js, anomaly.js, materials.js,
+// maintenance.js, sosAlerts.js, managerMessages.js) bu TEK fonksiyonu
+// çağırır; push bildirimi bu yüzden hiçbirine AYRI AYRI dokunulmadan
+// eklendi.
 const db = require('../database');
+const { sendPushNotification } = require('../services/pushNotificationService');
 
 const insertNotification = db.prepare(`
   INSERT INTO notifications (user_id, message, related_type, related_id, is_read, created_at)
   VALUES (@user_id, @message, @related_type, @related_id, 0, @created_at)
 `);
+
+const getFcmToken = db.prepare('SELECT fcm_token FROM users WHERE id = ?');
 
 /**
  * @param {number} userId - Bildirimin gideceği kullanıcı (users.id).
@@ -31,6 +39,20 @@ function createNotification(userId, message, relatedType, relatedId) {
     related_id: relatedId,
     created_at: new Date().toISOString(),
   });
+
+  // Push gönderimi kasıtlı olarak `await` EDİLMEZ (sendPushNotification
+  // kendi try/catch'i içinde hatasını zaten yutar/loglar, bkz. o dosya) —
+  // createNotification'ı çağıran TÜM route handler'lar senkron çalışıyor
+  // (better-sqlite3), bu fonksiyonu async yapıp her çağrı noktasını
+  // değiştirmek gereksiz bir kapsam genişlemesi olurdu.
+  const user = getFcmToken.get(userId);
+  if (user && user.fcm_token) {
+    const title = relatedType === 'sos_alert' ? '🚨 ACİL DURUM' : 'ArasSaha';
+    sendPushNotification(user.fcm_token, title, message, {
+      type: relatedType,
+      related_id: String(relatedId),
+    });
+  }
 }
 
 module.exports = { createNotification };

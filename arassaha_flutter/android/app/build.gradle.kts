@@ -3,6 +3,9 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // Push Bildirim (FCM) — google-services.json'ı bu modüle bağlar (bkz.
+    // settings.gradle.kts'teki plugin sürüm tanımı).
+    id("com.google.gms.google-services")
 }
 
 android {

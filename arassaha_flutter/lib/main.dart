@@ -1,3 +1,5 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -31,14 +33,29 @@ import 'screens/main_shell.dart';
 import 'services/cache_service.dart';
 import 'services/local_notification_service.dart';
 import 'services/offline_queue_service.dart';
+import 'services/push_notification_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/app_logo.dart';
+
+/// Push Bildirim (FCM) — bildirime dokunarak uygulama açıldığında ilgili
+/// ekrana yönlendirebilmek için (bkz. PushNotificationService._handleNotificationTap)
+/// BuildContext'i olmayan bir yerden (FCM callback'i) Navigator'a erişim
+/// gerekir. MaterialApp'in `navigatorKey`'ine bağlanır (bkz. aşağısı).
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   final binding = WidgetsFlutterBinding.ensureInitialized();
   // Kayıtlı tema tercihi yüklenene kadar native splash ekranda kalsın —
   // aksi halde bir anlık varsayılan (açık) tema "flash"ı görülebilir.
   FlutterNativeSplash.preserve(widgetsBinding: binding);
+
+  // Push Bildirim (FCM) — Firebase.initializeApp() VE
+  // FirebaseMessaging.onBackgroundMessage() kaydı runApp()'TAN ÖNCE
+  // yapılmalıdır; bu sıralama atlanırsa uygulama arka plandayken/kapalıyken
+  // gelen bildirimler ÇALIŞMAZ (bkz. push_notification_service.dart
+  // firebaseMessagingBackgroundHandler dokümantasyonu).
+  await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   final themeProvider = ThemeProvider();
   await themeProvider.load();
@@ -128,6 +145,7 @@ class _ArasSahaAppState extends State<ArasSahaApp> {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
           return MaterialApp(
+            navigatorKey: rootNavigatorKey,
             title: 'ArasSaha',
             debugShowCheckedModeBanner: false,
             themeMode: themeProvider.mode,

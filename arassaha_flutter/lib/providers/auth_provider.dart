@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/work_order.dart' show AssignedUser;
 import '../services/api_service.dart';
+import '../services/push_notification_service.dart';
 import '../services/secure_storage_service.dart';
 import '../utils/error_mapper.dart';
 import '../utils/role_helper.dart' as role_helper;
@@ -233,6 +234,13 @@ class AuthProvider extends ChangeNotifier {
   /// refresh_token'ı İPTAL ETTİRİR (bkz. ApiService.logout, routes/auth.js),
   /// ANCAK BUNDAN SONRA yerel oturumu temizler.
   Future<void> logout() async {
+    // Push Bildirim (FCM) — backend'deki kayıtlı token, oturum (VE dolayısıyla
+    // Authorization header'ı) hâlâ geçerliyken temizlenir; handleSessionExpired
+    // sonrası authToken null olduğu için bu istek artık kimliksiz kalırdı.
+    // PushNotificationService.clearRegisteredToken kendi hatasını zaten
+    // sessizce yutar (bkz. o metod) — çıkış akışını asla engellemez.
+    await PushNotificationService.instance.clearRegisteredToken();
+
     final storedRefreshToken = await _secureStorage.getRefreshToken();
     if (storedRefreshToken != null) {
       // ApiService.logout ağ hatasını zaten sessizce yutar (bkz. oradaki

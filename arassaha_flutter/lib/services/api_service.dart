@@ -583,6 +583,22 @@ class ApiService {
     }
   }
 
+  /// Push Bildirim (FCM) — bkz. routes/auth.js POST /register-fcm-token,
+  /// services/push_notification_service.dart. [token] `null` verilirse
+  /// (çıkış yaparken, bkz. AuthProvider.logout) backend'deki kayıtlı token
+  /// temizlenir — çıkış yapılmış bir cihaza artık bildirim gitmemesi için.
+  Future<void> registerFcmToken(String? token) async {
+    final uri = Uri.parse('$baseUrl/auth/register-fcm-token');
+    final response = await _post(uri, body: jsonEncode({'fcm_token': token}));
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        response.statusCode,
+        _extractError(response, 'Bildirim token\'ı kaydedilemedi.'),
+      );
+    }
+  }
+
   /// [sort]/[q]/[limit]/[offset] opsiyoneldir (bkz. routes/workOrders.js GET
   /// / dokümantasyonu) — "Tamamlanan İş Emirlerim" bölümü (Ana Sayfa,
   /// teknisyen) dışındaki hiçbir çağıran bunları göndermez, bu yüzden
