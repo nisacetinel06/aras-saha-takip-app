@@ -37,7 +37,9 @@ class UserActionLog {
       case 'aktiflestirildi':
         return 'Aktifleştirildi';
       case 'sifre_sifirlandi':
-        return 'Şifre sıfırlandı';
+        return 'Şifre sıfırlandı (yönetici tarafından)';
+      case 'sifre_degistirildi_kendisi':
+        return 'Şifresini kendisi değiştirdi';
       case 'rol_degistirildi':
         return 'Rolü değiştirildi';
       default:

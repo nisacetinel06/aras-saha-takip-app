@@ -26,6 +26,14 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
+  // "Şifremi Değiştir" — bkz. changePassword. Login akışının _isLoading/
+  // _errorMessage'ından BİLİNÇLİ olarak AYRI alanlar: aksi halde bu ekranda
+  // bir hata, farklı bir ekranda (örn. arka planda tekrar tetiklenen bir
+  // login denemesi) yanlışlıkla gösterilebilirdi.
+  bool _isChangingPassword = false;
+  String? _changePasswordErrorMessage;
+  bool _changePasswordErrorIsCurrentPasswordWrong = false;
+
   // İki Faktörlü Doğrulama (2FA) — bkz. routes/twoFactor.js. `login()`
   // 2FA etkin bir yönetici için TAM token çifti yerine bu kısa ömürlü (5 dk)
   // ara token'ı döndürdüğünde burada saklanır; giriş `verifyTwoFactor()`
@@ -55,6 +63,16 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _token != null && _currentUser != null;
+
+  bool get isChangingPassword => _isChangingPassword;
+  String? get changePasswordErrorMessage => _changePasswordErrorMessage;
+
+  /// true ise hata backend'in 401 (mevcut şifre hatalı) yanıtından geliyor
+  /// demektir — çağıran ekran (ChangePasswordScreen) bu durumda hatayı genel
+  /// bir SnackBar yerine "Mevcut Şifre" alanının ALTINDA göstermelidir
+  /// (bkz. PROMPT madde 3).
+  bool get changePasswordErrorIsCurrentPasswordWrong =>
+      _changePasswordErrorIsCurrentPasswordWrong;
 
   /// `login()` 2FA gerektiren bir yanıt döndürdüyse true olur —
   /// LoginScreen bunu görünce TwoFactorVerifyScreen'e yönlendirir.
@@ -155,6 +173,57 @@ class AuthProvider extends ChangeNotifier {
     _pendingTwoFactorToken = null;
     _errorMessage = null;
     notifyListeners();
+  }
+
+  /// "Şifremi Değiştir" — bkz. ApiService.changePassword, routes/auth.js
+  /// POST /change-password. Admin'in [resetUserPassword] akışından (Kullanıcı
+  /// Yönetimi) BİLİNÇLİ olarak AYRI: bu, kullanıcının KENDİ isteğiyle, kendi
+  /// bildiği mevcut şifreyle yaptığı bir değişikliktir.
+  ///
+  /// BİLİNÇLİ OLARAK burada [handleSessionExpired] ÇAĞRILMAZ: backend başarılı
+  /// bir değişiklikte bu kullanıcının TÜM refresh_token'larını (bu cihaz
+  /// DAHİL) zaten sunucu tarafında iptal etti, ama yerel oturumu BURADA hemen
+  /// temizlersek AuthGate ekranı ANINDA (kullanıcı "Şifreniz değiştirildi"
+  /// onayını görmeden) LoginScreen'e düşürebilir — ChangePasswordScreen bu
+  /// widget ağacının bir parçası olduğu için o an yarım kalmış/tuhaf bir geçiş
+  /// yaşanır. Bunun yerine ekran ÖNCE onay mesajını gösterir, kullanıcı
+  /// kapattıktan SONRA ayrıca [handleSessionExpired]'ı çağırır (bkz.
+  /// screens/settings/change_password_screen.dart) — sıralama tamamen
+  /// çağıran tarafın (UI) kontrolünde kalır.
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    _isChangingPassword = true;
+    _changePasswordErrorMessage = null;
+    _changePasswordErrorIsCurrentPasswordWrong = false;
+    notifyListeners();
+
+    try {
+      await _api.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      return true;
+    } catch (e) {
+      // Bu endpoint'in TÜM hata mesajları (bkz. routes/auth.js POST
+      // /change-password) zaten kullanıcıya gösterilebilir, Türkçe metinler
+      // — genel mapExceptionToUserMessage'ın "HER 401 = oturum süresi doldu"
+      // varsayımı burada YANLIŞ olurdu (bu 401 "mevcut şifre hatalı"
+      // anlamına gelir, bkz. ApiService.changePassword dokümantasyonu). Bu
+      // yüzden bir ApiException için backend'in kendi mesajı AYNEN
+      // kullanılır; ağ hatası gibi ApiException OLMAYAN durumlarda genel
+      // mapper geçerli kalır.
+      _changePasswordErrorIsCurrentPasswordWrong =
+          e is ApiException && e.statusCode == 401;
+      _changePasswordErrorMessage = e is ApiException
+          ? e.message
+          : mapExceptionToUserMessage(e);
+      return false;
+    } finally {
+      _isChangingPassword = false;
+      notifyListeners();
+    }
   }
 
   /// GERÇEK bir sunucu taraflı oturum sonlandırma — yalnızca yerel depolamayı

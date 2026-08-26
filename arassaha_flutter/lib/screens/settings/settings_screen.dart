@@ -20,6 +20,7 @@ import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/onboarding/home_tour_controller.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
+import 'change_password_screen.dart';
 import 'two_factor_setup_screen.dart';
 
 /// Ayarlar ve Çevrimdışı Mod (Modül 17) — Ayarlar ekranı.
@@ -54,14 +55,18 @@ class SettingsScreen extends StatelessWidget {
             const _SectionLabel('Bildirimler'),
             const _NotificationsSection(),
             const SizedBox(height: AppSpacing.lg),
-            // İki Faktörlü Doğrulama (2FA) — yalnızca yönetici rolü, bkz.
-            // routes/twoFactor.js. Diğer roller için bu bölüm hiç görünmez
-            // (teknisyen/dispeçer hesaplarında 2FA kavramı yok).
+            // Güvenlik — "Şifremi Değiştir" TÜM rollere açık (kendi bildiği
+            // mevcut şifreyle, bkz. change_password_screen.dart). İki
+            // Faktörlü Doğrulama (2FA) ise yalnızca yönetici rolü, bkz.
+            // routes/twoFactor.js — teknisyen/dispeçer hesaplarında 2FA
+            // kavramı yok, bu yüzden aynı bölüm İÇİNDE ayrıca koşullanır.
+            const _SectionLabel('Güvenlik'),
+            const _ChangePasswordSection(),
             if (isYonetici) ...[
-              const _SectionLabel('Güvenlik'),
+              const SizedBox(height: AppSpacing.sm),
               const _TwoFactorSettingsSection(),
-              const SizedBox(height: AppSpacing.lg),
             ],
+            const SizedBox(height: AppSpacing.lg),
             const _SectionLabel('Önbellek Yönetimi'),
             const _CacheSection(),
             const SizedBox(height: AppSpacing.lg),
@@ -75,6 +80,48 @@ class SettingsScreen extends StatelessWidget {
             const _AboutSection(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// "Şifremi Değiştir" girişi — bkz. change_password_screen.dart. Admin'in
+/// Kullanıcı Yönetimi panelindeki "Şifre Sıfırla" akışından (mevcut şifre
+/// istemez, bir KURTARMA aracıdır) BİLİNÇLİ olarak AYRI: bu, kullanıcının
+/// kendi bildiği mevcut şifresiyle yaptığı bir değişikliktir.
+class _ChangePasswordSection extends StatelessWidget {
+  const _ChangePasswordSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      child: Row(
+        children: [
+          Icon(Icons.password_outlined, color: scheme.onSurfaceVariant),
+          const SizedBox(width: AppSpacing.sm + 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Şifremi Değiştir'),
+                const SizedBox(height: 2),
+                Text(
+                  'Mevcut şifrenizi doğrulayıp yenisini belirleyin',
+                  style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          AppButton(
+            label: 'Değiştir',
+            variant: AppButtonVariant.secondary,
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
+            ),
+          ),
+        ],
       ),
     );
   }

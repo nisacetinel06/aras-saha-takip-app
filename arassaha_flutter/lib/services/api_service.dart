@@ -544,6 +544,45 @@ class ApiService {
     }
   }
 
+  /// POST /api/auth/change-password — giriş yapmış kullanıcı KENDİ şifresini
+  /// değiştirir. Admin'in [resetUserPassword]'ünden (PATCH /users/:id/reset-password)
+  /// BİLİNÇLİ olarak AYRI bir metot/endpoint — o bir KURTARMA akışıdır
+  /// (mevcut şifre istenmez), bu ise kullanıcının kendi bildiği mevcut
+  /// şifreyle yaptığı bir değişikliktir (bkz. routes/auth.js dosya başı
+  /// dokümantasyonu). Mevcut şifre hatalıysa backend 401 döner.
+  ///
+  /// BİLİNÇLİ OLARAK [_post] (ve dolayısıyla [_authenticated]) DEĞİL, ham
+  /// `http.post` kullanılır — `login()`'daki AYNI gerekçe: bu endpoint'in
+  /// 401'i "mevcut şifre hatalı" anlamına gelir, "oturumun süresi doldu"
+  /// DEĞİL. `_authenticated` üzerinden gitseydi, yanlış mevcut şifre girmiş
+  /// bir kullanıcı için 401 → sessiz refresh (BAŞARILI olur, çünkü access
+  /// token aslında geçerlidir) → istek TEKRAR gönderilir → yine 401 (şifre
+  /// hâlâ yanlış) → `onUnauthorized` tetiklenir → kullanıcı yanlışlıkla
+  /// TÜM UYGULAMADAN atılırdı. Ham çağrı bu yanlış tetiklemeyi önler; token
+  /// yine de `_headers(json: true)` ile elle eklenir (kullanıcı zaten giriş
+  /// yapmış olmalı).
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final uri = Uri.parse('$baseUrl/auth/change-password');
+    final response = await http.post(
+      uri,
+      headers: _headers(json: true),
+      body: jsonEncode({
+        'current_password': currentPassword,
+        'new_password': newPassword,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        response.statusCode,
+        _extractError(response, 'Şifre değiştirilemedi.'),
+      );
+    }
+  }
+
   /// [sort]/[q]/[limit]/[offset] opsiyoneldir (bkz. routes/workOrders.js GET
   /// / dokümantasyonu) — "Tamamlanan İş Emirlerim" bölümü (Ana Sayfa,
   /// teknisyen) dışındaki hiçbir çağıran bunları göndermez, bu yüzden
@@ -1161,10 +1200,11 @@ class ApiService {
     }
   }
 
-  /// PATCH /api/users/:id/reset-password — yalnızca yönetici. Teknisyen/
-  /// dispeçer kendi şifresini değiştiremediği için (profil salt-okunur),
-  /// şifresini unutan bir kullanıcının şifresi buradan yönetici tarafından
-  /// sıfırlanır.
+  /// PATCH /api/users/:id/reset-password — yalnızca yönetici. Bir kullanıcı
+  /// KENDİ mevcut şifresini biliyorsa [changePassword]'ü kullanır; bu metot
+  /// yalnızca şifresini TAMAMEN UNUTMUŞ (mevcut şifreyi bilemeyen) bir
+  /// kullanıcı için yöneticinin uyguladığı KURTARMA akışıdır — ikisi
+  /// KARIŞTIRILMAMALI (bkz. routes/auth.js dosya başı dokümantasyonu).
   Future<void> resetUserPassword(int id, String newPassword) async {
     try {
       final uri = Uri.parse('$baseUrl/users/$id/reset-password');

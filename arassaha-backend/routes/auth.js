@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const db = require('../database');
 const { verifyToken, JWT_SECRET } = require('../middleware/auth');
 const { checkLoginRateLimit } = require('../middleware/loginRateLimit');
+const { createAttemptRateLimiter } = require('../middleware/rateLimiting');
 const { generateAccessToken, issueTokenPair } = require('../utils/authToken');
 const {
   hashToken,
@@ -222,6 +223,81 @@ router.post('/logout', (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Çıkış yapılırken bir hata oluştu.' });
+  }
+});
+
+// "Şifremi Değiştir" deneme sınırlaması — routes/twoFactor.js'teki
+// checkTwoFactorRateLimit ile BİREBİR AYNI desen, yalnızca farklı bir
+// tabloda (password_change_attempts, bkz. database.js). Bu endpoint zaten
+// geçerli bir JWT gerektirdiği için login kadar kritik bir brute-force
+// riski taşımaz, ama "mevcut şifre" alanına karşı deneme sınırlaması
+// savunma derinliği açısından eklendi.
+const checkPasswordChangeRateLimit = createAttemptRateLimiter({
+  table: 'password_change_attempts',
+  identifierColumn: 'user_id',
+  getIdentifier: (req) => req.user?.id ?? null,
+});
+
+// POST /api/auth/change-password — giriş yapmış HERKES kendi şifresini
+// değiştirir. Admin'in PATCH /api/users/:id/reset-password'ünden BİLİNÇLİ
+// olarak AYRI bir endpoint, KARIŞTIRILMAMALI: reset-password bir KURTARMA
+// akışıdır (kullanıcı şifresini unutmuştur, mevcut şifreyi bilemez, bu
+// yüzden istenmez); bu endpoint ise kullanıcının KENDİ isteğiyle, kendi
+// bildiği şifreyle yaptığı bir değişikliktir — mevcut şifre doğrulaması
+// olmadan, kilidi açık bırakılmış bir cihaza kısa süreliğine erişen biri
+// kullanıcıyı sessizce hesaptan atabilirdi (bkz. dosya başı dokümantasyonu).
+router.post('/change-password', verifyToken, checkPasswordChangeRateLimit, (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+
+    if (!current_password || !new_password) {
+      return res.status(400).json({ error: 'Mevcut ve yeni şifre gerekli.' });
+    }
+    if (new_password.length < 8) {
+      return res.status(400).json({ error: 'Yeni şifre en az 8 karakter olmalı.' });
+    }
+    if (current_password === new_password) {
+      return res.status(400).json({ error: 'Yeni şifre mevcut şifreyle aynı olamaz.' });
+    }
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
+    }
+
+    const isCurrentPasswordCorrect = bcrypt.compareSync(current_password, user.password_hash);
+
+    // Deneme (başarılı/başarısız) HER ZAMAN kaydedilir — checkPasswordChangeRateLimit
+    // bir SONRAKİ istekte bu satırları sayar (bkz. routes/twoFactor.js AYNI ilke).
+    db.prepare(
+      'INSERT INTO password_change_attempts (user_id, ip_address, success, created_at) VALUES (?, ?, ?, ?)'
+    ).run(req.user.id, req.ip, isCurrentPasswordCorrect ? 1 : 0, new Date().toISOString());
+
+    if (!isCurrentPasswordCorrect) {
+      return res.status(401).json({ error: 'Mevcut şifre hatalı.' });
+    }
+
+    const newHash = bcrypt.hashSync(new_password, 10);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.user.id);
+
+    // Kullanıcı Yönetimi işlem geçmişiyle AYNI tablo/desen (bkz.
+    // routes/users.js logUserAction) — o anki ADI yazılır (isim sonradan
+    // değişse bile geçmiş kaydı doğru kalsın diye).
+    db.prepare(
+      'INSERT INTO user_action_logs (target_user_id, action_type, performed_by, created_at) VALUES (?, ?, ?, ?)'
+    ).run(req.user.id, 'sifre_degistirildi_kendisi', user.name, new Date().toISOString());
+
+    // Şifre değiştiğinde TÜM oturumlar (bu cihaz DAHİL) iptal edilir — bir
+    // saldırganın çalınmış bir refresh_token'ı hâlâ elinde tutuyor olması
+    // ihtimaline karşı. Flutter tarafı bu davranışa göre kullanıcıyı
+    // otomatik olarak Login ekranına düşürür (bkz.
+    // screens/settings/change_password_screen.dart).
+    revokeAllRefreshTokensForUser(req.user.id);
+
+    res.json({ message: 'Şifreniz başarıyla değiştirildi.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Şifre değiştirilirken bir hata oluştu.' });
   }
 });
 

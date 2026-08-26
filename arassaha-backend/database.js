@@ -525,6 +525,21 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users (id)
   );
 
+  -- "Şifremi Değiştir" (POST /auth/change-password) brute-force koruması —
+  -- two_factor_verify_attempts ile BİREBİR AYNI şema/desen (bkz.
+  -- middleware/rateLimiting.js createAttemptRateLimiter): kimlik (identifier)
+  -- burada da user_id'dir, çünkü bu endpoint zaten geçerli bir JWT gerektirir
+  -- (kullanıcının varlığı baştan bilinir, login_attempts'taki "var olmayan
+  -- sicil_no" enumeration kaygısı burada da uygulanabilir değildir).
+  CREATE TABLE IF NOT EXISTS password_change_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    ip_address TEXT NOT NULL,
+    success INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id)
+  );
+
   -- İki Parçalı Token Sistemi (Access + Refresh) — bkz. utils/refreshToken.js,
   -- routes/auth.js POST /refresh. Access token (kısa ömürlü, 15 dk) artık
   -- stateless JWT olarak KALIR — bu tablo SADECE refresh token'ları (uzun
