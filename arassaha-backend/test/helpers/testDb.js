@@ -26,6 +26,7 @@ const TABLES_CHILD_TO_PARENT = [
   'notifications',
   'manager_message_recipients',
   'manager_messages',
+  'sos_alerts',
   'chat_messages',
   'usage_logs',
   'isg_reports',

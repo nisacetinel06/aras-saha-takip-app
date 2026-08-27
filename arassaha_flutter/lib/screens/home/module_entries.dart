@@ -107,9 +107,12 @@ List<ModuleEntry> buildModuleEntries(
         screenBuilder: (_) => const MaintenanceRecommendationsScreen(),
       ),
     // Acil Durum (SOS) Modülü — bildirimi ALAN taraf (dispeçer/yönetici).
-    // Teknisyen/dispeçer bildirim GÖNDERİR ama bu ekranı görmez — Ana
-    // Sayfa'daki her zaman erişilebilir SosButton zaten yeterli (bkz.
-    // home_screen.dart), ayrıca bir hamburger menü girişine gerek yok.
+    // Teknisyen bu ekranı GÖRMEZ (TÜM bildirimleri listeler, teknisyene
+    // uygun değil) — Ana Sayfa'daki her zaman erişilebilir SosButton
+    // (bkz. home_screen.dart) bildirim GÖNDERMEK için zaten yeterli;
+    // teknisyen kendi gönderdiklerini Profil > "Gönderdiğim SOS
+    // Bildirimleri" altında ayrı, salt-okunur bir listede görür (bkz.
+    // screens/sos/my_sos_alerts_screen.dart, profile_screen.dart).
     if (auth.isYonetici || auth.isDispecer)
       ModuleEntry(
         icon: Icons.sos_outlined,

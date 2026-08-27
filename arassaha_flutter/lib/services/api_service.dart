@@ -2184,8 +2184,10 @@ class ApiService {
     }
   }
 
-  /// GET /api/sos-alerts — SADECE dispeçer/yönetici, tüm bildirimleri
-  /// (aktif + geçmiş) en yeniden en eskiye listeler.
+  /// GET /api/sos-alerts — giriş yapmış herkes çağırabilir, ama görünürlük
+  /// backend'de role göre ayrılır: teknisyen SADECE KENDİ gönderdiği
+  /// bildirimleri (bkz. screens/sos/my_sos_alerts_screen.dart), dispeçer/
+  /// yönetici TÜM bildirimleri (aktif + geçmiş) en yeniden en eskiye alır.
   Future<List<SosAlert>> getSosAlerts() async {
     try {
       final uri = Uri.parse('$baseUrl/sos-alerts');

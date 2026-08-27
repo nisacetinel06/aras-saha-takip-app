@@ -7,9 +7,12 @@ import '../utils/error_mapper.dart';
 ///
 /// [triggerSosAlert]/[addNote] teknisyen tarafından (bkz.
 /// screens/sos/sos_confirm_screen.dart, sos_sent_screen.dart) — backend
-/// requireRole UYGULAMAZ, herkes acil durum bildirebilir. [fetchActiveAlerts]/
-/// [acknowledgeAlert]/[closeAlert] SADECE dispeçer/yönetici ekranlarından
-/// çağrılır (bkz. screens/sos/sos_alerts_screen.dart) — backend
+/// requireRole UYGULAMAZ, herkes acil durum bildirebilir. [fetchActiveAlerts]
+/// hem dispeçer/yönetici ekranından (sos_alerts_screen.dart — TÜM bildirimler)
+/// hem de teknisyen ekranından (my_sos_alerts_screen.dart — SADECE KENDİ
+/// bildirimleri) çağrılır; hangi alt kümenin döndüğü backend'de role göre
+/// belirlenir (bkz. routes/sosAlerts.js GET /). [acknowledgeAlert]/[closeAlert]
+/// YALNIZCA dispeçer/yönetici ekranından çağrılır — backend
 /// requireRole('dispecer', 'yonetici') ile zaten korunuyor.
 class SosProvider extends ChangeNotifier {
   final ApiService _apiService;

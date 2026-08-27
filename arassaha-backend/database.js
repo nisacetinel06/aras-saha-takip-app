@@ -610,6 +610,19 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_sos_alerts_created_at ON sos_alerts (created_at);
 `);
 
+// Migrasyon: "sık tekrarlanan SOS" bayrağı (bkz. routes/sosAlerts.js POST /).
+// BİLEREK bir ENGELLEME mekanizması DEĞİL — aynı kullanıcıdan kısa sürede
+// birden çok SOS gelirse bu bildirimlerin HİÇBİRİ reddedilmez/geciktirilmez,
+// yalnızca işaretlenir; dispeçer/yönetici gerçek bir kriz mi yoksa
+// arıza/kötüye kullanım mı olduğunu değerlendirirken ekstra bağlam alır.
+// Hayati bir özellikte (acil yardım çağrısı) "önce engelle, sonra sorgula"
+// yaklaşımı YANLIŞ taraf olurdu — bkz. login rate limit'in AKSİNE burada
+// sert bir kilit KURULMAMASININ gerekçesi.
+const sosAlertColumns = db.prepare('PRAGMA table_info(sos_alerts)').all();
+if (!sosAlertColumns.some((col) => col.name === 'is_frequent_pattern')) {
+  db.exec('ALTER TABLE sos_alerts ADD COLUMN is_frequent_pattern INTEGER DEFAULT 0');
+}
+
 // refresh_tokens PERFORMANS — POST /refresh'in HER çağrısı token_hash'e göre
 // bir SELECT yapar (en sık/en kritik sorgu deseni); yeniden kullanım
 // tespitinde bir kullanıcının TÜM token'larını user_id'ye göre toplu iptal

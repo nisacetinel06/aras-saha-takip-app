@@ -22,10 +22,12 @@ enum SosAlertStatus {
   }
 }
 
-/// GET /api/sos-alerts yanıtındaki tek bir satır — SADECE dispeçer/yönetici
-/// görür. `reporterName`/`reporterPhone`, backend'in JOIN ile eklediği, dar
-/// bir güvenlik istisnasıdır (bkz. routes/sosAlerts.js LIST_FIELDS notu) —
-/// "ilgili teknisyeni doğrudan aramak" ihtiyacı için.
+/// GET /api/sos-alerts yanıtındaki tek bir satır — teknisyen SADECE KENDİ
+/// bildirimlerini, dispeçer/yönetici TÜM bildirimleri görür (bkz.
+/// routes/sosAlerts.js GET /). `reporterName`/`reporterPhone`, backend'in
+/// JOIN ile eklediği, dar bir güvenlik istisnasıdır (bkz. routes/sosAlerts.js
+/// LIST_FIELDS notu) — "ilgili teknisyeni doğrudan aramak" ihtiyacı için;
+/// teknisyen bu alanları yalnızca KENDİ adı/telefonu olarak görür.
 class SosAlert {
   final int id;
   final double lat;

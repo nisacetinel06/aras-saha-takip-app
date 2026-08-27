@@ -5,6 +5,17 @@
 //    çağırdığında 403 almalı (RBAC).
 // 2) Bir kullanıcı kendisine gönderilmemiş bir mesajın id'sini tahmin ederek
 //    PATCH /:id/read çağırırsa 404 almalı (SEC-02 tarzı IDOR kontrolü).
+//
+// TEST-14 doğrulama notu: routes/managerMessages.js kod incelemesinde bu
+// modülün RBAC/sahiplik yüzeyinin TAMAMI (yazma: requireRole('yonetici');
+// okuma: recipient_user_id sahipliği; /sent ve /:id/read-status: yalnızca
+// GÖNDEREN yönetici) zaten uygulanmış bulundu — bu dosya o davranışı
+// doğrulayan regresyon suite'idir. Coverage: routes/managerMessages.js
+// %90+ satır, RBAC/sahiplik dallarının tamamı kapsanmış (kapsanmayan
+// satırlar yalnızca 500 catch blokları). Ayrı bir managerMessagesRbac.test.js
+// dosyası AÇILMADI — aynı senaryoları burada tekrar etmek gereksiz
+// duplikasyon olurdu; bunun yerine tespit edilen tek boşluk (dispeçerin
+// /sent'e erişememesi) aşağıya eklendi.
 const { describe, it, beforeEach } = require('node:test');
 const assert = require('node:assert');
 const request = require('supertest');
@@ -283,6 +294,17 @@ describe('GET /api/manager-messages/sent (yönetici görünümü)', () => {
 
   it('KRİTİK RBAC: teknisyen /sent çağırdığında 403 döner', async () => {
     const token = getTestToken('teknisyen');
+    const response = await request(app).get('/api/manager-messages/sent').set('Authorization', `Bearer ${token}`);
+    assert.strictEqual(response.status, 403);
+  });
+
+  // TEST-14 bulgusu: /sent yalnızca teknisyen için test ediliyordu — modül
+  // tasarımında dispeçer de (yönetici DIŞINDA herkes gibi) mesaj GÖNDEREMEZ,
+  // dolayısıyla kendi gönderdiği mesajları listeleyen bu endpoint'e de erişimi
+  // olmamalı. requireRole('yonetici') zaten tek başına bunu garanti ediyor
+  // ama ayrı bir rol için ayrı bir regresyon testi olmadan bu örtük kalıyordu.
+  it('KRİTİK RBAC: dispeçer /sent çağırdığında 403 döner', async () => {
+    const token = getTestToken('dispecer');
     const response = await request(app).get('/api/manager-messages/sent').set('Authorization', `Bearer ${token}`);
     assert.strictEqual(response.status, 403);
   });

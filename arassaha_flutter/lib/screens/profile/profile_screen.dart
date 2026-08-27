@@ -13,6 +13,7 @@ import '../../widgets/user_avatar.dart';
 import '../admin/user_management_list_screen.dart';
 import '../kvkk/my_data_screen.dart';
 import '../settings/settings_screen.dart';
+import '../sos/my_sos_alerts_screen.dart';
 
 /// Profil ekranı (Modül 8) — YALNIZCA GÖRÜNTÜLEME. Kullanıcı kendi özlük
 /// bilgilerini (fotoğraf, telefon, e-posta) burada DÜZENLEYEMEZ; bu bilgiler
@@ -146,6 +147,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
+          if (auth.isTeknisyen) ...[
+            SizedBox(
+              width: double.infinity,
+              child: AppButton(
+                label: 'Gönderdiğim SOS Bildirimleri',
+                icon: Icons.sos_outlined,
+                variant: AppButtonVariant.secondary,
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const MySosAlertsScreen()),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           if (auth.isYonetici) ...[
             SizedBox(
               width: double.infinity,

@@ -16,9 +16,12 @@ const router = express.Router();
 // zaman, konum, telefon" bilgisini birlikte alabilmesi için triggered_by
 // kullanıcısının ad+telefonu JOIN ile eklenir. Bu, routes/users.js'teki genel
 // PICKER_FIELDS'in (telefon İÇERMEYEN) BİLİNÇLİ DIŞINDA, dar bir güvenlik
-// istisnasıdır — yalnızca requireRole ile zaten üst düzey erişimi olan
-// dispeçer/yönetici görür, ve yalnızca gerçek bir acil durum bildirimine
-// bağlı olarak ("ilgili teknisyeni doğrudan aramak" ihtiyacı için).
+// istisnasıdır — yalnızca gerçek bir acil durum bildirimine bağlı olarak
+// ("ilgili teknisyeni doğrudan aramak" ihtiyacı için). GET / artık teknisyene
+// de açık olsa da (bkz. aşağıdaki handler), teknisyen bu alanları YALNIZCA
+// KENDİ bildirimlerinde (dolayısıyla kendi adı/telefonunda) görür — başka bir
+// kullanıcının telefon numarasına ASLA erişemez; dispeçer/yönetici ise zaten
+// üst düzey erişimiyle TÜM bildirimlerdeki bu alanları görür.
 const LIST_FIELDS = `
   sa.id, sa.lat, sa.lng, sa.note, sa.status, sa.created_at,
   sa.acknowledged_by_user_id, sa.acknowledged_at,
@@ -44,6 +47,31 @@ router.post('/', (req, res) => {
     )
     .run(req.user.id, lat, lng, created_at);
 
+  // Sık tekrarlanan SOS FARKINDALIĞI — ENGELLEME DEĞİL. Aynı kullanıcıdan
+  // son 10 dakikada (bu bildirim DAHİL) 5'ten fazla SOS geldiyse yalnızca
+  // is_frequent_pattern=1 işaretlenir ve dispeçer/yöneticiye giden bildirim
+  // mesajına bir uyarı notu eklenir — bildirim HER ZAMAN, koşulsuz olarak
+  // gönderilir. Gerçek bir acil durumda kullanıcı art arda birkaç kez SOS
+  // göndermek zorunda kalabilir (ilk bildirim onaylanmadı, durum kötüleşti
+  // vb.); bunu bir rate limit ile reddetmek hayati bir özellikte YANLIŞ
+  // taraf olurdu (bkz. database.js sos_alerts is_frequent_pattern migrasyon
+  // yorumu, login rate limit'in BİLEREK AKSİ).
+  // ISO 8601 string'ler ('...T...Z') SQLite'ın datetime('now', ...) çıktısıyla
+  // ('YYYY-MM-DD HH:MM:SS', boşluklu) DOĞRUDAN string karşılaştırılamaz — 'T'
+  // karakteri (0x54) boşluktan (0x20) BÜYÜK olduğu için `created_at >
+  // datetime('now', '-10 minutes')` her zaman true dönerdi (aynı gün içindeki
+  // TÜM kayıtlar "son 10 dakika" sayılırdı, saat farkı hiç etkilemezdi).
+  // Bunun yerine eşik de aynı ISO formatında hesaplanıp string-string
+  // karşılaştırılır.
+  const tenMinutesAgoIso = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const recentCount = db
+    .prepare(`SELECT COUNT(*) AS count FROM sos_alerts WHERE triggered_by_user_id = ? AND created_at > ?`)
+    .get(req.user.id, tenMinutesAgoIso).count;
+  const isFrequentPattern = recentCount > 5;
+  if (isFrequentPattern) {
+    db.prepare('UPDATE sos_alerts SET is_frequent_pattern = 1 WHERE id = ?').run(result.lastInsertRowid);
+  }
+
   // Bildirim Sistemi (Modül 6'nın altyapısı) — yeniden kullanılıyor, yeni bir
   // bildirim altyapısı KURULMUYOR (bkz. utils/notify.js). TÜM aktif
   // dispeçer/yönetici'ye anında bildirim oluşturulur.
@@ -51,16 +79,14 @@ router.post('/', (req, res) => {
   const managers = db
     .prepare(`SELECT id FROM users WHERE role IN ('dispecer', 'yonetici') AND is_active = 1`)
     .all();
+  const alertMessage = isFrequentPattern
+    ? `🚨 ACİL DURUM: ${reporter ? reporter.name : 'Bir çalışan'} yardım istiyor! ⚠️ Bu kullanıcıdan son 10 dakikada birden fazla SOS bildirimi geldi`
+    : `🚨 ACİL DURUM: ${reporter ? reporter.name : 'Bir çalışan'} yardım istiyor!`;
   for (const manager of managers) {
-    createNotification(
-      manager.id,
-      `🚨 ACİL DURUM: ${reporter ? reporter.name : 'Bir çalışan'} yardım istiyor!`,
-      'sos_alert',
-      result.lastInsertRowid
-    );
+    createNotification(manager.id, alertMessage, 'sos_alert', result.lastInsertRowid);
   }
 
-  res.status(201).json({ id: result.lastInsertRowid, created_at });
+  res.status(201).json({ id: result.lastInsertRowid, created_at, is_frequent_pattern: isFrequentPattern });
 });
 
 // PATCH /api/sos-alerts/:id/note — SADECE bildirimi oluşturan kullanıcı,
@@ -95,20 +121,36 @@ router.patch('/:id/note', (req, res) => {
   }
 });
 
-// GET /api/sos-alerts — SADECE dispeçer/yönetici. Tüm bildirimleri (en
-// yeniden en eskiye) listeler; veri seti küçük olduğu için aktif/kapatıldı
-// ayrımı istemci tarafında filtrelenir (bkz. screens/map/map_screen.dart
-// AYNI "küçük veri seti -> istemci tarafı filtre" ilkesi).
-router.get('/', requireRole('dispecer', 'yonetici'), (req, res) => {
+// GET /api/sos-alerts — giriş yapmış HERKES, ama görünürlük role göre ayrılır:
+// teknisyen SADECE KENDİ gönderdiği bildirimleri görür (gönderdiği SOS'un
+// dispeçer/yönetici tarafından görülüp görülmediğini/onaylanıp onaylanmadığını
+// takip edebilsin diye), dispeçer/yönetici TÜM bildirimleri görür (önceki
+// davranış korunur). Modül 1'deki iş emri görünürlük deseniyle (routes/
+// workOrders.js GET / — teknisyen yalnızca kendi işlerini görür) BİREBİR
+// TUTARLI, bkz. SEC-02 IDOR dersi. Veri seti küçük olduğu için aktif/kapatıldı
+// ayrımı istemci tarafında filtrelenir (bkz. screens/map/map_screen.dart AYNI
+// "küçük veri seti -> istemci tarafı filtre" ilkesi).
+router.get('/', (req, res) => {
   try {
-    const rows = db
-      .prepare(
-        `SELECT ${LIST_FIELDS} FROM sos_alerts sa
-         JOIN users u ON u.id = sa.triggered_by_user_id
-         ORDER BY sa.created_at DESC
-         LIMIT 200`
-      )
-      .all();
+    const isOwnView = req.user.role === 'teknisyen';
+    const rows = isOwnView
+      ? db
+          .prepare(
+            `SELECT ${LIST_FIELDS} FROM sos_alerts sa
+             JOIN users u ON u.id = sa.triggered_by_user_id
+             WHERE sa.triggered_by_user_id = ?
+             ORDER BY sa.created_at DESC
+             LIMIT 200`
+          )
+          .all(req.user.id)
+      : db
+          .prepare(
+            `SELECT ${LIST_FIELDS} FROM sos_alerts sa
+             JOIN users u ON u.id = sa.triggered_by_user_id
+             ORDER BY sa.created_at DESC
+             LIMIT 200`
+          )
+          .all();
     res.json(rows);
   } catch (err) {
     console.error(err);
