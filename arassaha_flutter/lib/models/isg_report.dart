@@ -126,12 +126,19 @@ class IsgReport {
 
   /// Görüntü Tabanlı Hasar Tespiti (Modül 15) — backend'in arassaha-ml
   /// servisine POST /classify-image ile gönderdiği fotoğrafın sonucu.
-  /// Üçü de mümkün: true (hasar tespit edildi), false (belirgin hasar
-  /// görülmedi), null (CV servisi kapalıydı/hata döndü — hiç rozet gösterilmez,
-  /// bkz. isg_report_detail_screen.dart). `cvDamageProbability`, `cvIsDamaged`
-  /// null ise de null'dur (backend'de ikisi birlikte yazılır/null kalır).
+  /// cvIsDamaged'ın null olmasının İKİ farklı nedeni olabilir (bkz.
+  /// isg_report_detail_screen.dart'taki ayrım):
+  ///   - cvDamageProbability DE null -> CV servisi hiç çalışmadı/ulaşılamadı.
+  ///   - cvDamageProbability DOLU -> model çalıştı ama belirsiz kaldı
+  ///     (bkz. arassaha-ml/app.py DAMAGE_UNCERTAIN_LOW/HIGH, TEST-20).
   final bool? cvIsDamaged;
   final double? cvDamageProbability;
+
+  /// TEST-20: Gerçek Saha Fotoğraflarından Geri Bildirim Döngüsü — bir
+  /// yönetici/dispeçerin GERÇEKTE gördüğü (bkz. routes/isg.js
+  /// PATCH /:id/verify-damage). null: henüz doğrulanmadı. Modelin KENDİ
+  /// tahmini (cvIsDamaged) İLE KARIŞTIRILMAMALI.
+  final bool? humanVerifiedDamage;
 
   IsgReport({
     required this.id,
@@ -148,6 +155,7 @@ class IsgReport {
     required this.reviewedAt,
     required this.cvIsDamaged,
     required this.cvDamageProbability,
+    required this.humanVerifiedDamage,
   });
 
   factory IsgReport.fromJson(Map<String, dynamic> json) {
@@ -172,6 +180,45 @@ class IsgReport {
           ? null
           : (json['cv_is_damaged'] as num) == 1,
       cvDamageProbability: (json['cv_damage_probability'] as num?)?.toDouble(),
+      humanVerifiedDamage: json['human_verified_damage'] == null
+          ? null
+          : (json['human_verified_damage'] as num) == 1,
+    );
+  }
+}
+
+/// TEST-20: Gerçek Saha Fotoğraflarından Geri Bildirim Döngüsü —
+/// GET /api/ml/damage-model-performance yanıtı (bkz.
+/// arassaha_flutter/lib/models/equipment_risk.dart RiskModelPerformance ile
+/// AYNI ilke, ayrı bir model — Modül 9 Değil Modül 15). Modelin cv_is_damaged
+/// tahmini ile insanın human_verified_damage doğrulamasının ne sıklıkla
+/// UYUŞTUĞUNU gösteren, Kaggle test seti metriklerinden BAĞIMSIZ, dürüst bir
+/// gerçek-dünya özeti.
+class DamageModelPerformance {
+  final int totalVerified;
+  final int comparablePredictions;
+  final int agreementCount;
+  final double? agreementRatePercent;
+  final bool hasEnoughData;
+  final int minRequiredForReliableSummary;
+
+  DamageModelPerformance({
+    required this.totalVerified,
+    required this.comparablePredictions,
+    required this.agreementCount,
+    required this.agreementRatePercent,
+    required this.hasEnoughData,
+    required this.minRequiredForReliableSummary,
+  });
+
+  factory DamageModelPerformance.fromJson(Map<String, dynamic> json) {
+    return DamageModelPerformance(
+      totalVerified: json['total_verified'] as int,
+      comparablePredictions: json['comparable_predictions'] as int,
+      agreementCount: json['agreement_count'] as int,
+      agreementRatePercent: (json['agreement_rate_percent'] as num?)?.toDouble(),
+      hasEnoughData: json['has_enough_data'] as bool,
+      minRequiredForReliableSummary: json['min_required_for_reliable_summary'] as int,
     );
   }
 }

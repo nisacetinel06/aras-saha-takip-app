@@ -61,9 +61,42 @@ def load_split(split: str, shuffle: bool):
 
 def count_images(directory: Path) -> dict:
     return {
-        label: len(list((directory / label).glob("*.jpg")))
+        label: len(list((directory / label).glob("*.jpg")) + list((directory / label).glob("*.png")))
         for label in ("hasarli", "hasarsiz")
     }
+
+
+# TEST-20: GERÇEK DÜNYA doğrulama seti — bkz. build_real_world_validation_set.py
+# dosya başı notu. Kaggle veri setinden TAMAMEN AYRI, Wikimedia Commons'tan
+# indirilmiş CC lisanslı görseller. EĞİTİME/fine-tuning'e HİÇ KATILMAZ —
+# yalnızca aşağıdaki değerlendirme adımında, modelin ağırlıkları tamamen
+# sabitlenmiş hâldeyken kullanılır.
+REAL_WORLD_DIR = DATASET_DIR / "real_world_validation"
+
+
+def load_real_world_validation():
+    """Klasör hiç oluşturulmadıysa (build_real_world_validation_set.py hiç
+    çalıştırılmadıysa) veya içi boşsa None döner — bu durumda ana eğitim
+    akışı ETKİLENMEZ, yalnızca bu ek değerlendirme adımı atlanır."""
+    if not REAL_WORLD_DIR.exists():
+        return None, None
+    counts = count_images(REAL_WORLD_DIR)
+    if counts["hasarli"] + counts["hasarsiz"] == 0:
+        return None, None
+
+    ds = tf.keras.utils.image_dataset_from_directory(
+        REAL_WORLD_DIR,
+        image_size=IMG_SIZE,
+        batch_size=BATCH_SIZE,
+        label_mode="binary",
+        shuffle=False,
+        seed=SEED,
+    )
+    class_names = ds.class_names
+    assert class_names == ["hasarli", "hasarsiz"], (
+        f"Beklenmeyen klasör/sınıf sırası: {class_names} — bkz. load_split() AYNI notu."
+    )
+    return ds.map(lambda x, y: (x, 1.0 - y)), counts
 
 
 print("Veri setleri yükleniyor...")
@@ -87,12 +120,26 @@ test_ds = test_ds.cache().prefetch(AUTOTUNE)
 # %40/%60 ile ciddi dengesiz olmasa da (bkz. organize_dataset.py çıktısı),
 # ~10K görsellik bir veri setinde ezberlemeyi (overfitting) azaltmak için
 # genel bir iyi pratik.
+#
+# TEST-20 GÜNCELLEMESİ — DOMAIN SHIFT'i azaltmak için sıkılaştırıldı: Kaggle
+# veri seti nispeten "temiz" koşullarda çekilmiş (iyi ışık, net odak, düz
+# açı); ArasSaha'nın sahadaki gerçek kullanıcıları telefonla, değişken ışıkta
+# (gölge/parlama), eğik açıdan, bazen bulanık fotoğraf çekecek. Önceki
+# parametreler bu farkı simüle etmek için YETERSİZDİ:
+#   RandomRotation  0.15 -> AYNI (zaten agresif, arttırılmadı)
+#   RandomZoom      0.15 -> 0.2  (kameraya yakın/uzak çekim farkı)
+#   RandomBrightness 0.15 -> 0.3 (gölge/parlak güneş ışığı farkı çok daha geniş)
+#   RandomContrast  YOK  -> 0.3 (EKLENDİ — bulutlu/güneşli gün kontrast farkı)
+#   GaussianNoise   YOK  -> 0.05 (EKLENDİ — telefon kamerası sensör gürültüsü/
+#                                  hafif bulanıklığın kabaca bir yaklaşıklaması)
 data_augmentation = tf.keras.Sequential(
     [
         tf.keras.layers.RandomFlip("horizontal"),
         tf.keras.layers.RandomRotation(0.15),
-        tf.keras.layers.RandomZoom(0.15),
-        tf.keras.layers.RandomBrightness(0.15),
+        tf.keras.layers.RandomZoom(0.2),
+        tf.keras.layers.RandomBrightness(0.3),
+        tf.keras.layers.RandomContrast(0.3),
+        tf.keras.layers.GaussianNoise(0.05),
     ],
     name="augmentation",
 )
@@ -202,6 +249,59 @@ print(f"Precision: {precision:.4f}")
 print(f"Recall:    {recall:.4f}")
 print(f"F1-score:  {f1:.4f}")
 
+# --- TEST-20: GERÇEK DÜNYA doğrulama seti değerlendirmesi ---
+# Kaggle test setinden TAMAMEN AYRI — model bu görselleri EĞİTİM sırasında
+# hiç görmedi (bkz. REAL_WORLD_DIR notu). Amaç: domain shift'in (Kaggle'ın
+# "temiz" koşulları vs. gerçek sahadaki değişken ışık/açı/kalite) ne kadar
+# ciddi olduğunu DÜRÜSTÇE ölçmek — bu sayı Kaggle test setinden DAHA DÜŞÜK
+# çıkarsa bu bir hata DEĞİL, beklenen ve raporlanması gereken bir bulgudur.
+real_world_ds, real_world_counts = load_real_world_validation()
+real_world_metrics = None
+if real_world_ds is None:
+    print(
+        "\n=== Gerçek dünya doğrulama seti ===\n"
+        "Atlandı — dataset/real_world_validation/ hiç oluşturulmamış ya da boş. "
+        "Önce 'python build_real_world_validation_set.py' çalıştırılmalı."
+    )
+else:
+    print(f"\n=== Gerçek dünya doğrulama seti değerlendirmesi ({real_world_counts}) ===")
+    rw_true_list, rw_prob_list = [], []
+    for images, labels in real_world_ds:
+        preds = model.predict(images, verbose=0).flatten()
+        rw_true_list.extend(labels.numpy().flatten().tolist())
+        rw_prob_list.extend(preds.tolist())
+
+    rw_true = np.array(rw_true_list)
+    rw_prob = np.array(rw_prob_list)
+    rw_pred = (rw_prob >= 0.5).astype(int)
+
+    rw_accuracy = accuracy_score(rw_true, rw_pred)
+    rw_precision = precision_score(rw_true, rw_pred, zero_division=0)
+    rw_recall = recall_score(rw_true, rw_pred, zero_division=0)
+    rw_f1 = f1_score(rw_true, rw_pred, zero_division=0)
+
+    print(f"Accuracy:  {rw_accuracy:.4f}  (Kaggle test seti: {accuracy:.4f}, fark: {rw_accuracy - accuracy:+.4f})")
+    print(f"Precision: {rw_precision:.4f}  (Kaggle test seti: {precision:.4f})")
+    print(f"Recall:    {rw_recall:.4f}  (Kaggle test seti: {recall:.4f})")
+    print(f"F1-score:  {rw_f1:.4f}  (Kaggle test seti: {f1:.4f})")
+
+    real_world_metrics = {
+        "n_images": int(len(rw_true)),
+        "split_counts": real_world_counts,
+        "accuracy": round(float(rw_accuracy), 4),
+        "precision": round(float(rw_precision), 4),
+        "recall": round(float(rw_recall), 4),
+        "f1_score": round(float(rw_f1), 4),
+        "accuracy_diff_vs_kaggle_test": round(float(rw_accuracy - accuracy), 4),
+        "source": "Wikimedia Commons (CC0/CC-BY/CC-BY-SA) — bkz. build_real_world_validation_set.py, "
+        "dataset/real_world_validation/attribution.json",
+        "note": (
+            "Bu görseller EĞİTİME KATILMADI, yalnızca değerlendirme için kullanıldı. "
+            "Negatif bir fark (Kaggle'a göre düşük performans), domain shift'in gerçek "
+            "boyutunun dürüst bir göstergesidir — gizlenmedi, burada raporlanıyor."
+        ),
+    }
+
 # --- Confusion matrix (matplotlib ile — seaborn bağımlılığı eklemeye gerek yok) ---
 cm = confusion_matrix(y_true, y_pred)
 fig, ax = plt.subplots(figsize=(5, 4))
@@ -278,6 +378,7 @@ metadata = {
         "n_test_images": int(len(y_true)),
         "n_misclassified": len(misclassified),
     },
+    "real_world_validation_metrics": real_world_metrics,
     "label_convention": "sigmoid çıktısı: 1.0 = hasarlı olasılığı, 0.0 = hasarsız olasılığı",
 }
 with open(MODELS_DIR / "damage_model_metadata.json", "w", encoding="utf-8") as f:

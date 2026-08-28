@@ -463,14 +463,20 @@ class _RiskBadge extends StatelessWidget {
         return AppColors.warning(context);
       case RiskLevel.yuksek:
         return AppColors.danger(context);
+      // TEST-19: bkz. RiskLevel.belirsiz dosya başı notu (models/equipment_risk.dart).
+      case RiskLevel.belirsiz:
+        return AppColors.textSecondary(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final color = _color(context);
+    final isUncertain = level == RiskLevel.belirsiz;
     return Tooltip(
-      message: '${level.label}: $score',
+      message: isUncertain
+          ? 'Belirsiz — yeterli/güvenilir veri yok'
+          : '${level.label}: $score',
       child: Container(
         width: 32,
         height: 32,
@@ -491,7 +497,7 @@ class _RiskBadge extends StatelessWidget {
           ],
         ),
         child: Text(
-          '$score',
+          isUncertain ? '?' : '$score',
           style: TextStyle(
             color: accessibleOnColor(color),
             fontSize: 11,

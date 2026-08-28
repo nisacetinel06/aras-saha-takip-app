@@ -217,6 +217,15 @@ router.post('/logout', (req, res) => {
     const record = findRefreshTokenByHash(tokenHash);
     if (record && record.revoked === 0) {
       revokeRefreshToken(record.id);
+      // Savunma derinliği: normal akışta Flutter tarafı zaten çıkıştan ÖNCE
+      // POST /register-fcm-token'a null göndererek bunu temizler (bkz.
+      // AuthProvider.logout, yukarıdaki dosya başı yorumu) — ama bu endpoint
+      // (kasıtlı olarak) verifyToken kullanmadığı için o adımın atlanıp
+      // atlanmadığını bilemez. record.user_id zaten doğrulanmış (hash'i DB'de
+      // bulunan) bir refresh_token'dan geldiği için burada da güvenle
+      // kullanılabilir — çıkışı tamamlanan bir kullanıcıya artık push
+      // bildirimi gitmemesini sunucu tarafında da garanti eder.
+      db.prepare('UPDATE users SET fcm_token = NULL WHERE id = ?').run(record.user_id);
     }
 
     res.json({ success: true });
@@ -311,6 +320,14 @@ router.post('/register-fcm-token', verifyToken, (req, res) => {
     const { fcm_token } = req.body;
     if (fcm_token !== null && typeof fcm_token !== 'string') {
       return res.status(400).json({ error: 'fcm_token alanı zorunludur.' });
+    }
+    if (fcm_token === '') {
+      return res.status(400).json({ error: 'fcm_token alanı boş olamaz.' });
+    }
+    // Gerçek FCM token'ları birkaç yüz karakter civarındadır — 500, makul
+    // bir üst sınır (bkz. TEST-16 fcmTokenSecurity.test.js).
+    if (typeof fcm_token === 'string' && fcm_token.length > 500) {
+      return res.status(400).json({ error: 'fcm_token alanı çok uzun.' });
     }
 
     db.prepare('UPDATE users SET fcm_token = ? WHERE id = ?').run(fcm_token, req.user.id);

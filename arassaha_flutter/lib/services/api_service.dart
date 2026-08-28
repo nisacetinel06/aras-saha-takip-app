@@ -1634,6 +1634,29 @@ class ApiService {
     }
   }
 
+  /// TEST-19: GET /api/ml/risk-model-performance (yalnızca yönetici) —
+  /// risk_prediction_outcomes'ta GERÇEKTEN biriken tahmin/sonuç çiftlerinden
+  /// hesaplanan, sentetik test seti metriklerinden BAĞIMSIZ dürüst bir özet.
+  Future<RiskModelPerformance> getRiskModelPerformance() async {
+    try {
+      final uri = Uri.parse('$baseUrl/ml/risk-model-performance');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Risk modeli performans özeti alınamadı.'),
+        );
+      }
+
+      return RiskModelPerformance.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
   // --- Kayıp-Kaçak / Anormal Tüketim Tespiti — Modül 11 ---
   // DÜRÜSTLÜK NOTU: Bu skorları üreten IsolationForest modeli, ArasSaha'nın
   // henüz gerçek bir AMI/akıllı sayaç okuma sistemi olmaması nedeniyle
@@ -1892,6 +1915,53 @@ class ApiService {
       // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
       // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
       // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
+      rethrow;
+    }
+  }
+
+  /// TEST-20: Gerçek Saha Fotoğraflarından Geri Bildirim Döngüsü — yönetici/
+  /// dispeçer bir İSG bildirimini incelerken fotoğrafta GERÇEKTE hasar olup
+  /// olmadığını işaretler (bkz. routes/isg.js PATCH /:id/verify-damage).
+  Future<IsgReport> verifyIsgReportDamage(int id, bool actualDamage) async {
+    try {
+      final uri = Uri.parse('$baseUrl/isg-reports/$id/verify-damage');
+      final response = await _patch(
+        uri,
+        body: jsonEncode({'actual_damage': actualDamage}),
+      );
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Hasar doğrulaması kaydedilemedi.'),
+        );
+      }
+
+      return IsgReport.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
+  /// TEST-20: GET /api/ml/damage-model-performance (yalnızca yönetici).
+  Future<DamageModelPerformance> getDamageModelPerformance() async {
+    try {
+      final uri = Uri.parse('$baseUrl/ml/damage-model-performance');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Hasar tespiti model performans özeti alınamadı.'),
+        );
+      }
+
+      return DamageModelPerformance.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
       rethrow;
     }
   }

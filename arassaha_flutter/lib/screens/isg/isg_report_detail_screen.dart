@@ -83,6 +83,26 @@ class _IsgReportDetailScreenState extends State<IsgReportDetailScreen> {
     if (success) _noteController.clear();
   }
 
+  /// TEST-20: "Fotoğrafta gerçekten hasar var mıydı?" hızlı Evet/Hayır —
+  /// _updateStatus ile AYNI desen (provider çağrısı + SnackBar geri bildirimi).
+  Future<void> _verifyDamage(bool actualDamage) async {
+    final provider = context.read<IsgProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    final success = await provider.verifyDamage(widget.reportId, actualDamage);
+
+    if (!mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? 'Doğrulamanız kaydedildi, teşekkürler.'
+              : (provider.detailErrorMessage ?? 'Kaydedilemedi.'),
+        ),
+      ),
+    );
+  }
+
   String _formatDateTime(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year} '
         '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
@@ -148,13 +168,37 @@ class _IsgReportDetailScreenState extends State<IsgReportDetailScreen> {
                     children: [
                       _PhotoPreview(photoPath: report.photoPath),
                       // Görüntü Tabanlı Hasar Tespiti (Modül 15) — cvIsDamaged
-                      // null ise (CV servisi kapalıydı/hata döndü) HİÇBİR
-                      // rozet gösterilmez, bkz. models/isg_report.dart.
+                      // null olmasının İKİ FARKLI nedeni olabilir, bunlar
+                      // BİRBİRİNE KARIŞTIRILMAMALI:
+                      //   1) cvDamageProbability DE null -> CV servisi hiç
+                      //      çalışmadı/ulaşılamadı (bkz. utils/damageDetection.js
+                      //      NULL_RESULT) -> hiçbir şey gösterilmez.
+                      //   2) cvDamageProbability DOLU ama cvIsDamaged null ->
+                      //      model GERÇEKTEN çalıştı ama belirsiz bölgede kaldı
+                      //      (bkz. arassaha-ml/app.py DAMAGE_UNCERTAIN_LOW/HIGH)
+                      //      -> nötr bir "belirsiz" notu gösterilir. Kesin bir
+                      //      hasarlı/hasarsız rozeti göstermek burada YANLIŞ bir
+                      //      kesinlik hissi verirdi.
                       if (report.cvIsDamaged != null) ...[
                         const SizedBox(height: AppSpacing.sm + 2),
                         _DamageBadge(
                           isDamaged: report.cvIsDamaged!,
                           probability: report.cvDamageProbability,
+                        ),
+                      ] else if (report.cvDamageProbability != null) ...[
+                        const SizedBox(height: AppSpacing.sm + 2),
+                        const _DamageUncertainNote(),
+                      ],
+                      // TEST-20: Gerçek Saha Fotoğraflarından Geri Bildirim
+                      // Döngüsü — yalnızca gerçekten bir fotoğraf varsa
+                      // sorulur (fotoğrafsız bir bildirimde "hasar var mıydı"
+                      // sorusu anlamsız).
+                      if (report.photoPath != null &&
+                          report.photoPath!.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        _DamageVerificationSection(
+                          report: report,
+                          onVerify: _verifyDamage,
                         ),
                       ],
                     ],
@@ -329,6 +373,160 @@ class _DamageBadge extends StatelessWidget {
           visualDensity: VisualDensity.compact,
           constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
           padding: EdgeInsets.zero,
+        ),
+      ],
+    );
+  }
+}
+
+/// TEST-20: Modelin belirsiz kaldığı (bkz. arassaha-ml/app.py
+/// DAMAGE_UNCERTAIN_LOW/HIGH) durumlarda gösterilen NÖTR not — _DamageBadge
+/// ile AYNI görsel dil (pill + ikon + (i) bilgi butonu) ama renk BİLEREK
+/// success/danger DEĞİL, textSecondary: ne "hasarlı" ne "hasarsız" demiyoruz,
+/// yanlış bir kesinlik hissi vermek hiç tahmin vermemekten daha kötü.
+class _DamageUncertainNote extends StatelessWidget {
+  const _DamageUncertainNote();
+
+  void _showInfo(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Otomatik Görüntü Analizi'),
+        content: const Text(
+          'MobileNetV2 tabanlı görüntü sınıflandırma modeli bu fotoğraf için '
+          'yeterince emin olamadı (hasarlı/hasarsız arasında belirsiz kaldı) '
+          've KASITLI olarak kesin bir tahmin vermedi — lütfen fotoğrafı '
+          'kendiniz değerlendirin.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Tamam'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = AppColors.textSecondary(context);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: isDark ? 0.28 : 0.15),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(color: color.withValues(alpha: 0.6)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.help_outline, size: 15, color: color),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    'Otomatik değerlendirme belirsiz, lütfen fotoğrafı inceleyin',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: color,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        IconButton(
+          onPressed: () => _showInfo(context),
+          icon: Icon(Icons.info_outline, size: 16, color: color),
+          tooltip: 'Bu analiz hakkında',
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          padding: EdgeInsets.zero,
+        ),
+      ],
+    );
+  }
+}
+
+/// TEST-20: Gerçek Saha Fotoğraflarından Geri Bildirim Döngüsü — bir
+/// yöneticinin/dispeçerin zaten yapması gereken incelemenin (bkz.
+/// _StatusUpdateSection) DOĞAL bir eki: fotoğrafta GERÇEKTE hasar olup
+/// olmadığını hızlıca (iki buton) işaretler. Bu, modelin cv_is_damaged
+/// tahmininden TAMAMEN BAĞIMSIZ bir alandır (bkz. isg_reports.human_verified_damage)
+/// — zamanla arassaha-ml/export_real_feedback_data.py ile modelin gerçek
+/// saha koşullarında yeniden eğitilmesini sağlayacak veriyi biriktirir.
+/// Zaten doğrulanmışsa (humanVerifiedDamage != null) butonlar yerine küçük
+/// bir onay notu gösterilir — aynı soru tekrar tekrar sorulmaz.
+class _DamageVerificationSection extends StatelessWidget {
+  final IsgReport report;
+  final ValueChanged<bool> onVerify;
+  const _DamageVerificationSection({required this.report, required this.onVerify});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isVerifying = context.watch<IsgProvider>().isVerifyingDamage;
+
+    if (report.humanVerifiedDamage != null) {
+      return Row(
+        children: [
+          Icon(
+            Icons.check_circle_outline,
+            size: 16,
+            color: AppColors.textSecondary(context),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              report.humanVerifiedDamage!
+                  ? 'Doğrulandı: fotoğrafta gerçekten hasar vardı.'
+                  : 'Doğrulandı: fotoğrafta hasar yoktu.',
+              style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Fotoğrafta gerçekten hasar var mıydı?',
+          style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Row(
+          children: [
+            Expanded(
+              child: AppButton(
+                label: 'Evet',
+                icon: Icons.check,
+                variant: AppButtonVariant.secondary,
+                isLoading: isVerifying,
+                onPressed: isVerifying ? null : () => onVerify(true),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: AppButton(
+                label: 'Hayır',
+                icon: Icons.close,
+                variant: AppButtonVariant.secondary,
+                isLoading: isVerifying,
+                onPressed: isVerifying ? null : () => onVerify(false),
+              ),
+            ),
+          ],
         ),
       ],
     );

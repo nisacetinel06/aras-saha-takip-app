@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../models/equipment.dart';
 import '../../models/equipment_risk.dart';
+import '../../models/isg_report.dart' show DamageModelPerformance;
 import '../../models/material.dart' show formatMaterialQuantity;
 import '../../models/report.dart';
 import '../../providers/equipment_provider.dart';
@@ -276,6 +277,8 @@ class _RegionalTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ReportsProvider>();
+    final riskModelPerformance = provider.riskModelPerformance;
+    final damageModelPerformance = provider.damageModelPerformance;
 
     return RefreshIndicator(
       onRefresh: () => provider.fetchRegionalTabData(force: true),
@@ -305,6 +308,204 @@ class _RegionalTab extends StatelessWidget {
             isEmpty: provider.faultByRegion.isEmpty,
             emptyMessage: 'Gösterilecek arıza kaydı yok.',
             child: _FaultByRegionChart(data: provider.faultByRegion),
+          ),
+          _ReportSection(
+            title: 'Risk Modeli Performansı',
+            isLoading: provider.isLoadingRiskModelPerformance,
+            errorMessage: provider.riskModelPerformanceErrorMessage,
+            onRetry: () => provider.fetchRiskModelPerformance(force: true),
+            isEmpty:
+                riskModelPerformance == null ||
+                !riskModelPerformance.hasEnoughData,
+            emptyMessage: riskModelPerformance == null
+                ? 'Henüz yeterli veri birikmedi.'
+                : 'Henüz yeterli veri birikmedi — güvenilir bir performans '
+                      'özeti için en az ${riskModelPerformance.minRequiredForReliableSummary} '
+                      'sonuçlanmış tahmin gerekiyor (şu an: '
+                      '${riskModelPerformance.resolvedPredictions}).',
+            // NOT: `child`, _ReportSection'ın isEmpty=true dalında hiç
+            // KULLANILMASA bile Dart bu constructor argümanını HER ZAMAN
+            // (widget ağacı kurulurken) değerlendirir — bu yüzden burada
+            // `riskModelPerformance!` ile zorla unwrap ETMEK yerine null-safe
+            // bir dal kullanılır (null iken zaten isEmpty=true olduğundan bu
+            // SizedBox hiçbir zaman gerçekten render edilmez).
+            child: riskModelPerformance != null
+                ? _RiskModelPerformanceCard(performance: riskModelPerformance)
+                : const SizedBox.shrink(),
+          ),
+          _ReportSection(
+            title: 'Hasar Tespiti Modeli Performansı',
+            isLoading: provider.isLoadingDamageModelPerformance,
+            errorMessage: provider.damageModelPerformanceErrorMessage,
+            onRetry: () => provider.fetchDamageModelPerformance(force: true),
+            isEmpty:
+                damageModelPerformance == null ||
+                !damageModelPerformance.hasEnoughData,
+            emptyMessage: damageModelPerformance == null
+                ? 'Henüz yeterli doğrulama birikmedi.'
+                : 'Henüz yeterli doğrulama birikmedi — güvenilir bir performans '
+                      'özeti için en az ${damageModelPerformance.minRequiredForReliableSummary} '
+                      'doğrulanmış İSG fotoğrafı gerekiyor (şu an: '
+                      '${damageModelPerformance.comparablePredictions}).',
+            child: damageModelPerformance != null
+                ? _DamageModelPerformanceCard(performance: damageModelPerformance)
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// TEST-19: Gerçek Geri Bildirim Döngüsü'nün dürüst performans özeti —
+/// arassaha-ml/models/model_metadata.json'daki SENTETİK test seti
+/// metriklerinden BAĞIMSIZ, backend'in risk_prediction_outcomes tablosunda
+/// GERÇEKTEN biriken tahmin/sonuç çiftlerinden hesaplanan oranları gösterir
+/// (bkz. routes/risk.js GET /api/ml/risk-model-performance).
+class _RiskModelPerformanceCard extends StatelessWidget {
+  final RiskModelPerformance performance;
+  const _RiskModelPerformanceCard({required this.performance});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${performance.resolvedPredictions} sonuçlanmış tahmin '
+            '(${performance.pendingPredictions} hâlâ beklemede) üzerinden — '
+            'sentetik test seti değil, ArasSaha\'nın kendi gerçek kullanım geçmişi.',
+            style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _RiskPerformanceRow(
+            label: 'Yüksek risk dediklerimiz',
+            detail: 'gerçekten arızalandı',
+            total: performance.highRisk.total,
+            outcomeCount: performance.highRisk.faulted,
+            ratePercent: performance.highRisk.ratePercent,
+            color: riskLevelColor(context, RiskLevel.yuksek),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _RiskPerformanceRow(
+            label: 'Orta risk dediklerimiz',
+            detail: 'gerçekten arızalandı',
+            total: performance.mediumRisk.total,
+            outcomeCount: performance.mediumRisk.faulted,
+            ratePercent: performance.mediumRisk.ratePercent,
+            color: riskLevelColor(context, RiskLevel.orta),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _RiskPerformanceRow(
+            label: 'Düşük risk dediklerimiz',
+            detail: 'arızalanmadı',
+            total: performance.lowRisk.total,
+            outcomeCount: performance.lowRisk.notFaulted,
+            ratePercent: performance.lowRisk.ratePercent,
+            color: riskLevelColor(context, RiskLevel.dusuk),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RiskPerformanceRow extends StatelessWidget {
+  final String label;
+  final String detail;
+  final int total;
+  final int? outcomeCount;
+  final double? ratePercent;
+  final Color color;
+
+  const _RiskPerformanceRow({
+    required this.label,
+    required this.detail,
+    required this.total,
+    required this.outcomeCount,
+    required this.ratePercent,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    // total=0: bu bucket'ta hiç sonuçlanmış tahmin yok — sahte bir "%0"
+    // göstermek yerine dürüstçe "veri yok" denir.
+    final rateText = total == 0
+        ? 'veri yok'
+        : '%${ratePercent!.toStringAsFixed(0)} ($outcomeCount/$total)';
+
+    return Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Text(
+            '$label $detail',
+            style: AppTextStyles.bodyMedium(color: scheme.onSurface),
+          ),
+        ),
+        Text(
+          rateText,
+          style: AppTextStyles.bodyMedium(
+            color: scheme.onSurface,
+          ).copyWith(fontWeight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
+}
+
+/// TEST-20: Gerçek Saha Fotoğraflarından Geri Bildirim Döngüsü'nün dürüst
+/// performans özeti (Modül 15) — arassaha-ml/models/damage_model_metadata.json'daki
+/// Kaggle test seti metriklerinden BAĞIMSIZ, yöneticilerin routes/isg.js
+/// PATCH /:id/verify-damage ile GERÇEKTEN doğruladığı fotoğraflardan
+/// hesaplanan uyuşma oranını gösterir.
+class _DamageModelPerformanceCard extends StatelessWidget {
+  final DamageModelPerformance performance;
+  const _DamageModelPerformanceCard({required this.performance});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final rate = performance.agreementRatePercent;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${performance.comparablePredictions} karşılaştırılabilir doğrulama '
+            '(model tahmini + insan doğrulaması ikisi de mevcut) üzerinden — '
+            'Kaggle test seti değil, ArasSaha\'nın kendi İSG fotoğrafları.',
+            style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Icon(Icons.image_search, size: 18, color: scheme.onSurface),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  'Model saha fotoğraflarında doğru tahmin yaptı',
+                  style: AppTextStyles.bodyMedium(color: scheme.onSurface),
+                ),
+              ),
+              Text(
+                rate != null
+                    ? '%${rate.toStringAsFixed(0)} (${performance.agreementCount}/${performance.comparablePredictions})'
+                    : 'veri yok',
+                style: AppTextStyles.bodyMedium(
+                  color: scheme.onSurface,
+                ).copyWith(fontWeight: FontWeight.w700),
+              ),
+            ],
           ),
         ],
       ),

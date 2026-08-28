@@ -24,6 +24,40 @@ yerine ArasSaha'nın gerçek `work_orders`/`equipment` geçmişinden türetilmi�
 bir CSV vermek ve `train_model.py`'yi bununla yeniden çalıştırmaktır — model
 mimarisi, feature seti ve servis kodu değişmeden kalır.
 
+### TEST-19 Güncellemesi — daha gerçekçi sentetik veri + gerçek geri bildirim döngüsü altyapısı
+
+**Bu görevde yapılan iyileştirmeler, yukarıdaki sentetik veri sınırını
+ORTADAN KALDIRMIYOR** — hâlâ gerçek bir arıza geçmişi yerine kural tabanlı
+üretilmiş veriyle eğitiliyoruz. Yapılan iki şey, dürüstçe söylemek gerekirse:
+
+1. **Daha gerçekçi bir sentetik TEMEL kuruldu** (bkz. `generate_training_data.py`):
+   yaş × bakım aralığı arasında doğrusal olmayan bir etkileşim terimi,
+   ekipman tipine göre AYRI risk ağırlık setleri (önceden yalnızca sabit bir
+   bias farkı vardı), belirgin biçimde artırılmış etiket gürültüsü
+   (`NOISE_STD`) ve mevsimsel yük dalgalanmasının etikete gerçekten
+   yansıtılması eklendi. `train_model.py`'a da 5-fold cross-validation,
+   hiperparametre araması (RandomizedSearchCV) ve kalibrasyon kontrolü
+   (`calibration_curve` + gerekirse `CalibratedClassifierCV`) eklendi — bu,
+   modelin sentetik veri ÜZERİNDE daha güvenilir/tutarlı ölçülmesini sağlar,
+   ama ölçülen şey hâlâ sentetik veridir.
+2. **Zamanla GERÇEK veriye geçişin altyapısı hazırlandı**, henüz DEVREYE
+   ALINMADI: `arassaha-backend`'deki `risk_prediction_outcomes` tablosu artık
+   her risk tahminini ve (varsa) o ekipmanın GERÇEKTEN arızalanıp
+   arızalanmadığını otomatik olarak biriktiriyor (bkz.
+   `arassaha-backend/routes/risk.js`, `README.md` "Gerçek Geri Bildirim
+   Döngüsü"). `train_model.py`'daki `retrain_with_real_outcomes()` fonksiyonu
+   bu gerçek sonuçları sentetik veriyle karıştırıp (gerçek kayıtlara daha
+   yüksek örnek ağırlığı vererek) yeniden eğitim yapabilecek şekilde YAZILDI
+   ama `__main__` bloğunda ÇAĞRILMIYOR — ArasSaha birkaç ay gerçek kullanımda
+   kaldıktan sonra (en az `MIN_REAL_OUTCOMES_FOR_RETRAIN=50` sonuçlanmış
+   tahmin birikince) bu altyapı devreye alınabilir.
+
+Özetle: bugün hâlâ sentetik veriyle eğitilen bir modelimiz var, ama (a) bu
+sentetik veri öncekinden daha gerçekçi bir sinyal taşıyor ve (b) gerçek
+veriye kademeli geçiş için gereken borular (tahmin/sonuç kaydı, yeniden
+eğitim fonksiyonu) artık yerinde — eksik olan tek şey, o boruları
+DOLDURACAK zamanın kendisi.
+
 ## Kurulum
 
 ```bash
@@ -203,3 +237,47 @@ kendi sahasından toplanmış gerçek arıza fotoğrafları değil. Model
 eğitimi/servis/entegrasyon süreci gerçektir; gerçek üretimde bu model,
 ArasSaha'nın gerçek İSG/iş emri fotoğraflarıyla (zamanla biriktikçe) yeniden
 eğitilmelidir — mimari/entegrasyon hiçbir değişiklik gerektirmez.
+
+### TEST-20 Güncellemesi — domain shift'i azaltma + gerçek geri bildirim döngüsü
+
+**Bu iyileştirmeler domain shift sorununu ANINDA ÇÖZMÜYOR** — Kaggle veri
+setiyle eğitilen bir model, ilk uygulamada gerçek saha fotoğraflarında hâlâ
+kusurlu olabilir; bu BEKLENEN bir durumdur, panik nedeni değildir. Yapılanlar:
+
+1. **Daha agresif veri artırma** (`train_damage_model.py`): RandomZoom
+   0.15→0.2, RandomBrightness 0.15→0.3, RandomContrast (YENİ, 0.3),
+   GaussianNoise (YENİ, 0.05) — amaç, Kaggle'ın nispeten temiz çekim
+   koşullarına değil, telefonla değişken ışık/açı/kalitede çekilmiş gerçek
+   saha fotoğraflarına dayanıklılık.
+2. **Gerçek dünya doğrulama seti** (`build_real_world_validation_set.py`):
+   Wikimedia Commons'tan (CC0/CC-BY/CC-BY-SA, atıfları
+   `dataset/real_world_validation/attribution.json`'da) indirilen görseller
+   — EĞİTİME KATILMAZ, yalnızca `train_damage_model.py`'nin sonundaki ek bir
+   değerlendirme adımında kullanılır. **Dürüst not:** hedef 20-30 görseldi;
+   Wikimedia'nın API'si aktif rate-limiting uyguladı (429 yanıtlarında
+   "contact noc@wikimedia.org to discuss a less disruptive approach" diyerek
+   AÇIKÇA yavaşlamamızı istedi) — bu isteğe saygı göstermek için ısrarcı
+   olunmadı, sonuçta **15 görsel** (10 hasarlı, 5 hasarsız) toplanabildi.
+   Daha fazlası istenirse `build_real_world_validation_set.py` tekrar
+   çalıştırılabilir (kaldığı yerden devam eder, zaten indirilenleri
+   tekrar indirmez).
+3. **Belirsizlikte "emin değilim" deme** (`app.py` `/classify-image`):
+   `damage_probability` 0.35-0.65 arasındaysa (dahil) `is_damaged: null` +
+   `confidence_note` döner — Flutter tarafı bu durumda rozet YERİNE nötr bir
+   uyarı gösterir (bkz. `isg_report_detail_screen.dart`).
+4. **Gerçek geri bildirim döngüsü** (asıl uzun vadeli çözüm): yöneticiler
+   İSG bildirimlerini incelerken artık "fotoğrafta gerçekten hasar var
+   mıydı?" sorusuna hızlıca Evet/Hayır ile cevap veriyor (bkz.
+   `arassaha-backend/routes/isg.js` `PATCH /:id/verify-damage`,
+   `isg_reports.human_verified_damage`). `export_real_feedback_data.py`, bu
+   doğrulanmış GERÇEK fotoğrafları `dataset/train/hasarli|hasarsiz`'e
+   Kaggle verisinin **üzerine** ekler (silmez/değiştirmez). Yeterli miktar
+   (50+) birikince `train_damage_model.py` bu karışık veri setiyle yeniden
+   çalıştırılabilir — model zamanla hem Kaggle'ın çeşitliliğinden hem
+   GERÇEK ArasSaha saha koşullarından öğrenmiş olacak.
+
+Özetle: bu değişiklikler (a) modeli Kaggle dışı görsellere karşı daha
+dayanıklı hale getirmeye çalışıyor, (b) gerçekten emin olmadığı durumlarda
+bunu itiraf ediyor, ve (c) zamanla gerçek veriye geçişin altyapısını
+kuruyor — ama domain shift'in kendisi, yeterli gerçek veri birikene kadar
+(muhtemelen aylar) tam olarak çözülmüş SAYILMAMALIDIR.

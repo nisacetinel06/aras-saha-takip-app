@@ -234,6 +234,11 @@ Color riskLevelColor(BuildContext context, RiskLevel level) {
       return AppColors.warning(context);
     case RiskLevel.yuksek:
       return AppColors.danger(context);
+    // TEST-19: belirsiz — success/warning/danger'ın HİÇBİRİ değil, KASITLI
+    // olarak nötr (bkz. RiskLevel.belirsiz dosya başı notu): renkli bir rozet
+    // sahte bir kesinlik hissi verirdi.
+    case RiskLevel.belirsiz:
+      return AppColors.textSecondary(context);
   }
 }
 

@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import '../models/equipment_risk.dart' show RiskModelPerformance;
+import '../models/isg_report.dart' show DamageModelPerformance;
 import '../models/report.dart';
 import '../services/api_service.dart';
 import '../utils/error_mapper.dart';
@@ -40,6 +42,28 @@ class ReportsProvider extends ChangeNotifier {
   List<RegionFaultCount> get faultByRegion => _faultByRegion;
   bool get isLoadingFaultByRegion => _isLoadingFaultByRegion;
   String? get faultByRegionErrorMessage => _faultByRegionErrorMessage;
+
+  // --- Sekme 1c: Risk Modeli Performansı (TEST-19) ---
+  RiskModelPerformance? _riskModelPerformance;
+  bool _isLoadingRiskModelPerformance = false;
+  String? _riskModelPerformanceErrorMessage;
+  bool _riskModelPerformanceLoaded = false;
+
+  RiskModelPerformance? get riskModelPerformance => _riskModelPerformance;
+  bool get isLoadingRiskModelPerformance => _isLoadingRiskModelPerformance;
+  String? get riskModelPerformanceErrorMessage =>
+      _riskModelPerformanceErrorMessage;
+
+  // --- Sekme 1d: Hasar Tespiti Modeli Performansı (TEST-20) ---
+  DamageModelPerformance? _damageModelPerformance;
+  bool _isLoadingDamageModelPerformance = false;
+  String? _damageModelPerformanceErrorMessage;
+  bool _damageModelPerformanceLoaded = false;
+
+  DamageModelPerformance? get damageModelPerformance => _damageModelPerformance;
+  bool get isLoadingDamageModelPerformance => _isLoadingDamageModelPerformance;
+  String? get damageModelPerformanceErrorMessage =>
+      _damageModelPerformanceErrorMessage;
 
   // --- Sekme 2a: Aylık Arıza Trendi ---
   List<MonthlyFaultCount> _faultTrend = [];
@@ -185,13 +209,50 @@ class ReportsProvider extends ChangeNotifier {
     }
   }
 
-  /// Sekme 1'in ikisi (harita + çubuk grafik) ekran ilk açıldığında birlikte
-  /// çekilir — aynı sekmenin iki bölümü olduğu için ayrı ayrı "lazy" davranmaya
-  /// gerek yok (kullanıcı sekmeye girdiği an ikisi de görünür).
+  Future<void> fetchRiskModelPerformance({bool force = false}) async {
+    if (_riskModelPerformanceLoaded && !force) return;
+    _isLoadingRiskModelPerformance = true;
+    _riskModelPerformanceErrorMessage = null;
+    notifyListeners();
+
+    try {
+      _riskModelPerformance = await _apiService.getRiskModelPerformance();
+      _riskModelPerformanceLoaded = true;
+    } catch (e) {
+      _riskModelPerformanceErrorMessage = mapExceptionToUserMessage(e);
+    } finally {
+      _isLoadingRiskModelPerformance = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchDamageModelPerformance({bool force = false}) async {
+    if (_damageModelPerformanceLoaded && !force) return;
+    _isLoadingDamageModelPerformance = true;
+    _damageModelPerformanceErrorMessage = null;
+    notifyListeners();
+
+    try {
+      _damageModelPerformance = await _apiService.getDamageModelPerformance();
+      _damageModelPerformanceLoaded = true;
+    } catch (e) {
+      _damageModelPerformanceErrorMessage = mapExceptionToUserMessage(e);
+    } finally {
+      _isLoadingDamageModelPerformance = false;
+      notifyListeners();
+    }
+  }
+
+  /// Sekme 1'in dördü (harita + çubuk grafik + risk model performansı +
+  /// hasar tespiti model performansı) ekran ilk açıldığında birlikte
+  /// çekilir — aynı sekmenin bölümleri olduğu için ayrı ayrı "lazy"
+  /// davranmaya gerek yok (kullanıcı sekmeye girdiği an dördü de görünür).
   Future<void> fetchRegionalTabData({bool force = false}) {
     return Future.wait([
       fetchRegionalRiskSummary(force: force),
       fetchFaultByRegion(force: force),
+      fetchRiskModelPerformance(force: force),
+      fetchDamageModelPerformance(force: force),
     ]);
   }
 

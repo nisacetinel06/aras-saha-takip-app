@@ -10,6 +10,7 @@ const validateImageContent = require('../middleware/validateImageContent');
 const { createNotification } = require('../utils/notify');
 const { classifyImageForDamage } = require('../utils/damageDetection');
 const { assertWorkOrderAccessible } = require('../utils/workOrderAccess');
+const { recordFaultOutcomeIfPredicted } = require('./risk');
 
 const router = express.Router();
 
@@ -315,6 +316,13 @@ router.post('/', requireRole('dispecer', 'yonetici'), (req, res) => {
       });
 
     const created = db.prepare(`${SELECT_WORK_ORDER_WITH_USER} WHERE wo.id = ?`).get(info.lastInsertRowid);
+
+    // TEST-19: Gerçek Geri Bildirim Döngüsü — bu ekipman için son 90 gün
+    // içinde SONUÇLANMAMIŞ bir risk tahmini varsa, YENİ arıza iş emrinin
+    // kendisi bu tahminin "arızalandı" (doğru çıktı) olarak otomatik
+    // işaretlenmesini tetikler (bkz. routes/risk.js). Tamamen otomatik —
+    // burada kimse elle bir şey işaretlemiyor.
+    recordFaultOutcomeIfPredicted(equipmentId, info.lastInsertRowid);
 
     // Bildirim Sistemi (Modül 6) — atanan teknisyene yeni iş emrini bildir.
     createNotification(

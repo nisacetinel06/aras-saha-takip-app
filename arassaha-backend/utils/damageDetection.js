@@ -46,8 +46,16 @@ async function classifyImageForDamage(fileBuffer, filename, mimetype) {
     }
 
     const result = await response.json();
+    // TEST-20: result.is_damaged artık ÜÇ durumlu (true/false/null) — ML
+    // servisi belirsiz bir olasılık aralığında (bkz. arassaha-ml/app.py
+    // DAMAGE_UNCERTAIN_LOW/HIGH) null döner. `result.is_damaged ? 1 : 0`
+    // burada YANLIŞ olurdu: JavaScript'te null FALSY olduğu için "belirsiz"
+    // sessizce "hasarsız" (0) olarak kaydedilir, tam da önlemeye çalıştığımız
+    // sahte kesinlik hatasına düşerdi. NULL zaten bu sütunun (bkz.
+    // NULL_RESULT yukarısı) "CV bilgisi yok/güvenilir değil" anlamına gelen
+    // kabul edilmiş değeri olduğu için ayrıca bir şema değişikliği gerekmedi.
     return {
-      cv_is_damaged: result.is_damaged ? 1 : 0,
+      cv_is_damaged: result.is_damaged === null ? null : (result.is_damaged ? 1 : 0),
       cv_damage_probability: result.damage_probability,
     };
   } catch (err) {

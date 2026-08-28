@@ -27,6 +27,8 @@ class IsgProvider extends ChangeNotifier {
 
   bool _isUpdatingStatus = false;
 
+  bool _isVerifyingDamage = false;
+
   List<IsgReport> get reports => _reports;
   bool get isListLoading => _isListLoading;
   String? get listErrorMessage => _listErrorMessage;
@@ -40,6 +42,7 @@ class IsgProvider extends ChangeNotifier {
   String? get submitErrorMessage => _submitErrorMessage;
 
   bool get isUpdatingStatus => _isUpdatingStatus;
+  bool get isVerifyingDamage => _isVerifyingDamage;
 
   Future<void> fetchReports() async {
     _isListLoading = true;
@@ -135,6 +138,29 @@ class IsgProvider extends ChangeNotifier {
       return false;
     } finally {
       _isUpdatingStatus = false;
+      notifyListeners();
+    }
+  }
+
+  /// TEST-20: Gerçek Saha Fotoğraflarından Geri Bildirim Döngüsü — bkz.
+  /// isg_report_detail_screen.dart "Fotoğrafta gerçekten hasar var mıydı?"
+  /// hızlı Evet/Hayır butonları. updateReportStatus ile AYNI desen
+  /// (_selectedReport + listedeki karşılığı birlikte güncellenir).
+  Future<bool> verifyDamage(int id, bool actualDamage) async {
+    _isVerifyingDamage = true;
+    _detailErrorMessage = null;
+    notifyListeners();
+
+    try {
+      _selectedReport = await _apiService.verifyIsgReportDamage(id, actualDamage);
+      final index = _reports.indexWhere((r) => r.id == id);
+      if (index != -1) _reports[index] = _selectedReport!;
+      return true;
+    } catch (e) {
+      _detailErrorMessage = mapExceptionToUserMessage(e);
+      return false;
+    } finally {
+      _isVerifyingDamage = false;
       notifyListeners();
     }
   }

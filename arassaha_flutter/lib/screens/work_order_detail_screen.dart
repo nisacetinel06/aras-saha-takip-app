@@ -463,6 +463,8 @@ String _riskAdjective(RiskLevel level) {
       return 'orta';
     case RiskLevel.yuksek:
       return 'yüksek';
+    case RiskLevel.belirsiz:
+      return 'belirsiz';
   }
 }
 
@@ -506,7 +508,13 @@ class _RiskContextNoteState extends State<_RiskContextNote> {
     final scheme = Theme.of(context).colorScheme;
 
     final String text;
-    if (risk.riskLevel == RiskLevel.dusuk) {
+    if (risk.riskLevel == RiskLevel.belirsiz) {
+      // TEST-19: sayısal skor BİLEREK gösterilmez — model bu ekipman için
+      // kararsız kaldığında bir sayı vermek yanıltıcı bir kesinlik hissi
+      // verirdi (bkz. RiskLevel.belirsiz dosya başı notu).
+      text =
+          'Bu ekipman için risk tahmini şu an belirsiz — güvenilir bir bakım önerisi üretilemiyor.';
+    } else if (risk.riskLevel == RiskLevel.dusuk) {
       text =
           'Bu ekipmanın risk skoru düşük (${risk.riskScore}) — kestirimci bakım önerisi bulunmuyor.';
     } else if (hasRecommendation) {

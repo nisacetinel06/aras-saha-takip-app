@@ -120,6 +120,66 @@ const upsertRiskScore = db.prepare(`
     computed_at = excluded.computed_at
 `);
 
+// TEST-19: Gerçek Geri Bildirim Döngüsü (bkz. database.js risk_prediction_outcomes,
+// README.md "Gerçek Geri Bildirim Döngüsü"). equipment_risk_scores'un aksine
+// bu tabloya YENİ bir satır EKLENİR (geçmiş biriktirir) — amaç, "o anda
+// verilen tahmin sonradan doğru çıktı mı" sorusunu zamanla takip etmek.
+const insertPredictionOutcome = db.prepare(`
+  INSERT INTO risk_prediction_outcomes (equipment_id, predicted_risk_score, predicted_at)
+  VALUES (@equipment_id, @predicted_risk_score, @predicted_at)
+`);
+
+const findRecentUnresolvedPrediction = db.prepare(`
+  SELECT id FROM risk_prediction_outcomes
+  WHERE equipment_id = ? AND actual_fault_occurred IS NULL AND predicted_at > datetime('now', '-1 day')
+  LIMIT 1
+`);
+
+// server.js her başlangıçta VE yönetici "yeniden hesapla" butonuna her
+// bastığında refreshAllRiskScores()'u çağırır — bu koruma olmasa, aynı gün
+// içindeki her tetikleme aynı ekipman için YENİ bir "sonuçlanmamış tahmin"
+// satırı açar ve GET /api/ml/risk-model-performance istatistiklerinin
+// paydası anlamsızca şişerdi. Son 24 saat içinde zaten sonuçlanmamış bir
+// kayıt varsa yeni bir satır AÇILMAZ — o günün "resmi" tahmini olarak
+// mevcut satır kalır.
+function recordPredictionOutcome(equipmentId, riskScore, predictedAt) {
+  if (findRecentUnresolvedPrediction.get(equipmentId)) return;
+
+  insertPredictionOutcome.run({
+    equipment_id: equipmentId,
+    predicted_risk_score: riskScore,
+    predicted_at: predictedAt,
+  });
+}
+
+// POST /api/workorders (routes/workOrders.js) tarafından çağrılır: yeni bir
+// arıza iş emri belirli bir equipment_id'ye bağlıysa, o ekipman için son 90
+// gün içinde SONUÇLANMAMIŞ (actual_fault_occurred IS NULL) bir risk tahmini
+// var mı kontrol edilir — varsa "arızalandı" (1) olarak işaretlenir.
+// TAMAMEN OTOMATİK: kimse elle bir şey işaretlemez, sistem "yüksek risk
+// dediğimiz ekipman gerçekten arızalandı mı" sorusunu kendi kendine takip
+// eder. Birden fazla sonuçlanmamış tahmin birikmiş olsa bile (24 saatlik
+// korumaya rağmen farklı günlerde tekrar tekrar hesaplanmışsa) yalnızca EN
+// SON tahmin eşleştirilir; daha eskiler jobs/riskOutcomeExpiry.js tarafından
+// (90 gün dolunca) ayrıca "arızalanmadı" olarak kapatılır.
+function recordFaultOutcomeIfPredicted(equipmentId, workOrderId) {
+  const recentPrediction = db
+    .prepare(
+      `SELECT * FROM risk_prediction_outcomes
+       WHERE equipment_id = ? AND actual_fault_occurred IS NULL AND predicted_at > datetime('now', '-90 days')
+       ORDER BY predicted_at DESC LIMIT 1`
+    )
+    .get(equipmentId);
+
+  if (!recentPrediction) return null;
+
+  db.prepare(
+    'UPDATE risk_prediction_outcomes SET actual_fault_occurred = 1, fault_work_order_id = ?, outcome_recorded_at = ? WHERE id = ?'
+  ).run(workOrderId, new Date().toISOString(), recentPrediction.id);
+
+  return recentPrediction.id;
+}
+
 // Bildirim Sistemi (Modül 6) — bir ekipmanın riski İLK KEZ 'yuksek' seviyeye
 // geçtiğinde tüm yöneticilere bildirim gönderir. "İlk kez" şartı (eski değer
 // zaten 'yuksek' değilse) kasıtlıdır: aksi halde her yeniden hesaplamada
@@ -152,6 +212,8 @@ async function computeAndSaveRisk(equipment) {
     risk_level: prediction.risk_level,
     computed_at,
   });
+
+  recordPredictionOutcome(equipment.id, prediction.risk_score, computed_at);
 
   notifyManagersIfRiskBecameHigh(equipment, previous?.risk_level, prediction.risk_level);
 
@@ -259,8 +321,134 @@ router.get('/dashboard/risky-equipment', requireRole('yonetici'), (req, res) => 
   }
 });
 
+// GET /api/ml/risk-model-performance — yalnızca yönetici.
+//
+// TEST-19: Gerçek Geri Bildirim Döngüsü'nün "dürüst metrik" ayağı. Modelin
+// arassaha-ml/models/model_metadata.json'daki test_accuracy/test_f1 gibi
+// sayıları SENTETİK test setinde ölçülmüştür (bkz. o dosyanın DÜRÜSTLÜK
+// NOTU) — bu endpoint bunun yerine risk_prediction_outcomes'ta GERÇEKTEN
+// biriken tahmin/sonuç çiftlerinden hesaplanan, iyimser OLMAYAN bir özet
+// döner. Bucket'lar predicted_risk_score'tan türetilir (arassaha-ml/app.py
+// risk_level_for ile AYNI eşikler: <=33 dusuk, 34-66 orta, >66 yuksek) —
+// "belirsiz" (düşük model güveni) düzeyi, yalnızca skordan geri
+// hesaplanamadığı için (bkz. app.py'deki confidence tabanlı ayrı mantık) bu
+// özete dahil DEĞİLDİR; bu bilinen/kabul edilmiş bir basitleştirmedir.
+const MIN_RESOLVED_FOR_RELIABLE_SUMMARY = 20;
+
+function riskBucketForScore(score) {
+  if (score <= 33) return 'dusuk';
+  if (score <= 66) return 'orta';
+  return 'yuksek';
+}
+
+router.get('/ml/risk-model-performance', requireRole('yonetici'), (req, res) => {
+  try {
+    const totalPredictions = db.prepare('SELECT COUNT(*) AS c FROM risk_prediction_outcomes').get().c;
+    const resolvedRows = db
+      .prepare(
+        `SELECT predicted_risk_score, actual_fault_occurred
+         FROM risk_prediction_outcomes
+         WHERE actual_fault_occurred IS NOT NULL`
+      )
+      .all();
+
+    const buckets = {
+      dusuk: { total: 0, faulted: 0, not_faulted: 0 },
+      orta: { total: 0, faulted: 0, not_faulted: 0 },
+      yuksek: { total: 0, faulted: 0, not_faulted: 0 },
+    };
+    for (const row of resolvedRows) {
+      const bucket = buckets[riskBucketForScore(row.predicted_risk_score)];
+      bucket.total += 1;
+      if (row.actual_fault_occurred === 1) bucket.faulted += 1;
+      else bucket.not_faulted += 1;
+    }
+
+    const rate = (numerator, denominator) => (denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : null);
+
+    const resolvedCount = resolvedRows.length;
+    const hasEnoughData = resolvedCount >= MIN_RESOLVED_FOR_RELIABLE_SUMMARY;
+
+    res.json({
+      total_predictions: totalPredictions,
+      resolved_predictions: resolvedCount,
+      pending_predictions: totalPredictions - resolvedCount,
+      has_enough_data: hasEnoughData,
+      min_required_for_reliable_summary: MIN_RESOLVED_FOR_RELIABLE_SUMMARY,
+      // "Yüksek risk dediğimiz ekipmanların %X'i GERÇEKTEN arızalandı"
+      high_risk: {
+        total: buckets.yuksek.total,
+        faulted: buckets.yuksek.faulted,
+        fault_rate_percent: rate(buckets.yuksek.faulted, buckets.yuksek.total),
+      },
+      medium_risk: {
+        total: buckets.orta.total,
+        faulted: buckets.orta.faulted,
+        fault_rate_percent: rate(buckets.orta.faulted, buckets.orta.total),
+      },
+      // "Düşük risk dediğimiz ekipmanların %Y'si arızalanmadı"
+      low_risk: {
+        total: buckets.dusuk.total,
+        not_faulted: buckets.dusuk.not_faulted,
+        no_fault_rate_percent: rate(buckets.dusuk.not_faulted, buckets.dusuk.total),
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Model performans özeti alınırken bir hata oluştu.' });
+  }
+});
+
+// GET /api/ml/damage-model-performance — yalnızca yönetici.
+//
+// TEST-20: Görüntü Tabanlı Hasar Tespiti (Modül 15) için GET
+// /api/ml/risk-model-performance (yukarısı) ile AYNI ilke — burada BU
+// dosyanın konusu (Modül 9, risk) DEĞİL, ama Modül 9/11'in "gerçek dünya
+// performansı" meta-endpoint'leri zaten bu router'da toplandığı için (bkz.
+// yukarıdaki risk-model-performance) aynı yerde tutuldu. Modelin cv_is_damaged
+// tahmini ile insanın human_verified_damage doğrulamasının (bkz. routes/isg.js
+// PATCH /:id/verify-damage) ne sıklıkla UYUŞTUĞUNU hesaplar — "model saha
+// fotoğraflarında %X oranında doğru tahmin yaptı" gibi dürüst bir özet,
+// arassaha-ml/models/damage_model_metadata.json'daki Kaggle test seti
+// metriklerinden BAĞIMSIZ. Yalnızca hem model tahmini (cv_is_damaged IS NOT
+// NULL — model belirsiz kalmadıysa) hem de insan doğrulaması
+// (human_verified_damage IS NOT NULL) olan kayıtlar sayılır.
+const MIN_VERIFIED_FOR_RELIABLE_SUMMARY = 20;
+
+router.get('/ml/damage-model-performance', requireRole('yonetici'), (req, res) => {
+  try {
+    const rows = db
+      .prepare(
+        `SELECT cv_is_damaged, human_verified_damage FROM isg_reports
+         WHERE cv_is_damaged IS NOT NULL AND human_verified_damage IS NOT NULL`
+      )
+      .all();
+
+    const totalVerified = db
+      .prepare('SELECT COUNT(*) AS c FROM isg_reports WHERE human_verified_damage IS NOT NULL')
+      .get().c;
+    const agreementCount = rows.filter((r) => r.cv_is_damaged === r.human_verified_damage).length;
+    const comparableCount = rows.length;
+    const hasEnoughData = comparableCount >= MIN_VERIFIED_FOR_RELIABLE_SUMMARY;
+
+    res.json({
+      total_verified: totalVerified,
+      comparable_predictions: comparableCount,
+      agreement_count: agreementCount,
+      agreement_rate_percent:
+        comparableCount > 0 ? Math.round((agreementCount / comparableCount) * 1000) / 10 : null,
+      has_enough_data: hasEnoughData,
+      min_required_for_reliable_summary: MIN_VERIFIED_FOR_RELIABLE_SUMMARY,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Model performans özeti alınırken bir hata oluştu.' });
+  }
+});
+
 module.exports = router;
 module.exports.refreshAllRiskScores = refreshAllRiskScores;
+module.exports.recordFaultOutcomeIfPredicted = recordFaultOutcomeIfPredicted;
 // Modül 12 (Kestirimci Bakım Planlama) öneri gerekçesi metninde ("son
 // bakımdan bu yana X ay geçmiş") AYNI hesaplamayı tekrar yazmak yerine
 // burada zaten var olanı yeniden kullanır — bkz. routes/maintenance.js.

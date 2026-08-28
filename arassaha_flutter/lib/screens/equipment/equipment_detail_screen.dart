@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:showcaseview/showcaseview.dart';
 import '../../models/equipment.dart';
+import '../../models/equipment_risk.dart' show RiskLevel;
 import '../../models/meter_anomaly.dart';
 import '../../providers/anomaly_provider.dart';
 import '../../providers/equipment_provider.dart';
@@ -574,7 +575,9 @@ class _RiskAnalysisSection extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             child: Text(
-              '${risk.riskScore}',
+              // TEST-19: belirsiz durumda sayısal skor GÖSTERİLMEZ (bkz.
+              // RiskLevel.belirsiz dosya başı notu, models/equipment_risk.dart).
+              risk.riskLevel == RiskLevel.belirsiz ? '?' : '${risk.riskScore}',
               style: TextStyle(
                 color: accessibleOnColor(color),
                 fontSize: 22,

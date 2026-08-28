@@ -174,7 +174,23 @@ class RiskResponse(BaseModel):
     risk_level: str
 
 
-def risk_level_for(score: int) -> str:
+# TEST-19: Modül 10'daki (classify_text, bkz. MIN_CONFIDENCE) "düşük güvende
+# kesin bir etiket gösterme" disiplininin Risk Tahmini'ne (Modül 9) taşınmış
+# hali. predict_proba'nın EN YÜKSEK sınıfa verdiği olasılık (ikili
+# sınıflandırmada max(p, 1-p), her zaman >= 0.5) bu eşiğin altındaysa model
+# "arızalanır" ile "arızalanmaz" arasında GERÇEKTEN kararsızdır (örn. p=0.48
+# -> max=0.52) — bu durumda kesin bir "yuksek/orta/dusuk" etiketi, sahte bir
+# kesinlik hissi verir. risk_score (sayısal tahmin) YİNE DE dönülür (metin
+# sınıflandırmasındaki kategorik tahminin aksine, sürekli bir olasılık tahmini
+# belirsiz olsa bile bilgi taşımaya devam eder) — yalnızca KATEGORİK etiket
+# "belirsiz" olur, Flutter tarafı bunu nötr bir gösterge ile ayrı ele alır
+# (bkz. arassaha_flutter/lib/widgets/risk_badge.dart).
+RISK_UNCERTAIN_THRESHOLD = 0.6
+
+
+def risk_level_for(score: int, max_class_probability: float) -> str:
+    if max_class_probability < RISK_UNCERTAIN_THRESHOLD:
+        return "belirsiz"
     if score <= 33:
         return "dusuk"
     if score <= 66:
@@ -208,8 +224,9 @@ def predict(features: EquipmentFeatures):
     # [0][1] = will_fail=1 olma olasılığı.
     probability = model.predict_proba(row)[0][1]
     risk_score = max(0, min(100, round(probability * 100)))
+    max_class_probability = max(probability, 1 - probability)
 
-    return RiskResponse(risk_score=risk_score, risk_level=risk_level_for(risk_score))
+    return RiskResponse(risk_score=risk_score, risk_level=risk_level_for(risk_score, max_class_probability))
 
 
 # --- Modül 10: Arıza Açıklaması Otomatik Sınıflandırma ---
@@ -356,10 +373,23 @@ def detect_anomaly(features: ConsumptionFeatures):
 # eğitilmesi gerekir (bkz. train_damage_model.py başındaki not).
 
 
+# TEST-20: Modül 10'daki (classify_text, bkz. MIN_CONFIDENCE) "düşük güvende
+# kesin bir etiket gösterme" disiplininin Görüntü Tabanlı Hasar Tespiti'ne
+# (Modül 15) taşınmış hali. sigmoid çıktısı 0.5'e YAKIN olduğunda ("hasarlı"
+# ile "hasarsız" arasında model gerçekten kararsız kaldığında) kesin bir
+# True/False yerine None (belirsiz) döner — yanlış bir kesinlik hissi vermek,
+# hiç tahmin vermemekten DAHA KÖTÜdür (bkz. Flutter tarafı:
+# isg_report_detail_screen.dart, is_damaged==null durumunda rozet YERİNE nötr
+# bir "lütfen manuel değerlendirin" notu gösterir).
+DAMAGE_UNCERTAIN_LOW = 0.35
+DAMAGE_UNCERTAIN_HIGH = 0.65
+
+
 class ImageClassificationResponse(BaseModel):
-    is_damaged: bool
+    is_damaged: bool | None
     damage_probability: float
     model_type: str
+    confidence_note: str | None = None
 
 
 @app.post("/classify-image", response_model=ImageClassificationResponse)
@@ -387,6 +417,14 @@ async def classify_image(file: UploadFile = File(...)):
     # Eğitimde etiketler TERS ÇEVRİLMİŞTİ (bkz. train_damage_model.py load_split):
     # sigmoid çıktısı burada zaten 1.0=hasarlı, 0.0=hasarsız anlamına gelir.
     probability = float(_damage_model.predict(batch, verbose=0)[0][0])
+
+    if DAMAGE_UNCERTAIN_LOW <= probability <= DAMAGE_UNCERTAIN_HIGH:
+        return ImageClassificationResponse(
+            is_damaged=None,
+            damage_probability=round(probability, 4),
+            model_type="MobileNetV2 (transfer learning + fine-tuning)",
+            confidence_note="Model bu görsel için yeterince emin değil, lütfen manuel değerlendirin.",
+        )
 
     return ImageClassificationResponse(
         is_damaged=probability >= 0.5,

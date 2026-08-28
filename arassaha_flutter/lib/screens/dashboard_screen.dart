@@ -510,6 +510,9 @@ class _RiskyEquipmentSection extends StatelessWidget {
         return AppColors.warning(context);
       case RiskLevel.yuksek:
         return AppColors.danger(context);
+      // TEST-19: bkz. RiskLevel.belirsiz dosya başı notu (models/equipment_risk.dart).
+      case RiskLevel.belirsiz:
+        return AppColors.textSecondary(context);
     }
   }
 
@@ -577,7 +580,10 @@ class _RiskyEquipmentTile extends StatelessWidget {
         backgroundColor: color,
         radius: 18,
         child: Text(
-          '${item.riskScore}',
+          // TEST-19: belirsiz durumda sayısal skor GÖSTERİLMEZ — bir sayı
+          // göstermek, model gerçekte kararsızken sahte bir kesinlik hissi
+          // verirdi (bkz. RiskLevel.belirsiz dosya başı notu).
+          item.riskLevel == RiskLevel.belirsiz ? '?' : '${item.riskScore}',
           style: TextStyle(
             color: accessibleOnColor(color),
             fontSize: 12,

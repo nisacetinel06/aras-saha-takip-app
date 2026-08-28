@@ -13,6 +13,7 @@
 const cron = require('node-cron');
 const { findOrphanFiles } = require('./orphanFilePurge');
 const { purgeExpiredFiles } = require('./retentionPurge');
+const { expireStalePredictions } = require('./riskOutcomeExpiry');
 
 function runPurgeJobs() {
   console.log('[PURGE JOB] Orphan dosya taraması başlıyor...');
@@ -34,12 +35,28 @@ function runPurgeJobs() {
   }
 }
 
+// TEST-19: Gerçek Geri Bildirim Döngüsü'nün 90 günlük "sonuçlanmamış tahmini
+// kapat" ayağı (bkz. jobs/riskOutcomeExpiry.js) — dosya temizliğinden AYRI
+// bir kaygı olduğu için runPurgeJobs()'a KARIŞTIRILMADI, ama AYNI sessiz
+// saatte, AYNI "her adım kendi try/catch'i" disipliniyle çalışır.
+function runRiskOutcomeExpiryJob() {
+  console.log('[RISK OUTCOME JOB] 90 günü aşmış, sonuçlanmamış risk tahminleri taranıyor...');
+  try {
+    const expired = expireStalePredictions({ dryRun: false });
+    console.log(`[RISK OUTCOME JOB] ${expired.length} tahmin "arızalanmadı" (0) olarak kapatıldı.`);
+  } catch (err) {
+    console.error('[RISK OUTCOME JOB] Risk tahmini süresi dolumu taraması başarısız oldu:', err);
+  }
+}
+
 // Her gün gece 03:00 (sunucu saatiyle) — trafiğin en düşük olduğu saat,
 // riskRouter/anomalyRouter'ın başlangıç yenilemeleriyle AYNI "sessiz saatte
 // çalış" ilkesi.
 function startScheduledPurgeJobs() {
   cron.schedule('0 3 * * *', runPurgeJobs);
+  cron.schedule('0 3 * * *', runRiskOutcomeExpiryJob);
   console.log('[PURGE JOB] Zamanlanmış dosya temizliği kuruldu (her gün 03:00).');
+  console.log('[RISK OUTCOME JOB] Zamanlanmış risk tahmini süresi dolumu taraması kuruldu (her gün 03:00).');
 }
 
-module.exports = { startScheduledPurgeJobs, runPurgeJobs };
+module.exports = { startScheduledPurgeJobs, runPurgeJobs, runRiskOutcomeExpiryJob };

@@ -216,6 +216,38 @@ db.exec(`
     FOREIGN KEY (equipment_id) REFERENCES equipment (id)
   );
 
+  -- TEST-19: Gerçek Geri Bildirim Döngüsü (bkz. routes/risk.js, jobs/
+  -- riskOutcomeExpiry.js, arassaha-ml/train_model.py retrain_with_real_outcomes).
+  -- equipment_risk_scores'un AKSİNE (equipment_id UNIQUE, yalnızca EN GÜNCEL
+  -- skoru tutar) bu tablo APPEND-ONLY bir GEÇMİŞ günlüğüdür — her risk
+  -- hesaplaması (equipment_id UNIQUE DEĞİL) kendi satırını alır, çünkü asıl
+  -- amaç "o ANDA verilen tahmin GERÇEKTEN doğru çıktı mı" sorusunu zamanla
+  -- takip etmektir. actual_fault_occurred'ün üç durumu vardır:
+  --   NULL -> tahmin henüz "sonuçlanmadı" (ne arıza oldu ne de 90 gün doldu)
+  --   1    -> equipment_id'ye bağlı YENİ bir arıza iş emri açıldı (bkz.
+  --           routes/workOrders.js POST /, otomatik eşleştirme)
+  --   0    -> predicted_at'ten bu yana 90 gün geçti ve HİÇ arıza olmadı (bkz.
+  --           jobs/riskOutcomeExpiry.js) — bu, modelin "yanlış alarm" verdiği
+  --           durumları da yakalamak için KASITLI olarak kaydedilir.
+  CREATE TABLE IF NOT EXISTS risk_prediction_outcomes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    equipment_id INTEGER NOT NULL,
+    predicted_risk_score INTEGER NOT NULL,
+    predicted_at TEXT NOT NULL,
+    actual_fault_occurred INTEGER,
+    fault_work_order_id INTEGER,
+    outcome_recorded_at TEXT,
+    FOREIGN KEY (equipment_id) REFERENCES equipment (id),
+    FOREIGN KEY (fault_work_order_id) REFERENCES work_orders (id)
+  );
+
+  -- routes/risk.js'teki "bu ekipman için son 90 gün içindeki, henüz
+  -- sonuçlanmamış en son tahmin" sorgusu (equipment_id + actual_fault_occurred
+  -- IS NULL + predicted_at ORDER BY DESC) tam olarak bu bileşik indeksin
+  -- kapsadığı erişim örüntüsüdür.
+  CREATE INDEX IF NOT EXISTS idx_risk_prediction_outcomes_equipment_pending
+    ON risk_prediction_outcomes (equipment_id, actual_fault_occurred, predicted_at);
+
   -- Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) — bkz. routes/anomaly.js
   -- ve arassaha-ml/. Her sayaç (equipment_type='sayac') ekipmanının son 12
   -- aylık HAM aylık tüketim geçmişini tutar; diğer ekipman tipleri için
@@ -768,6 +800,19 @@ for (const [column, type] of Object.entries(cvColumnAdditions)) {
   if (!workOrderPhotoColumns.some((col) => col.name === column)) {
     db.exec(`ALTER TABLE work_order_photos ADD COLUMN ${column} ${type}`);
   }
+}
+
+// Migrasyon: Gerçek Saha Fotoğraflarından Geri Bildirim Döngüsü (TEST-20) —
+// bkz. routes/isg.js PATCH /:id/verify-damage, arassaha-ml/export_real_feedback_data.py.
+// NULL: yönetici/dispeçer henüz doğrulamadı (varsayılan/çoğunluk durum).
+// 0: yönetici "hasarsız" dedi. 1: yönetici "hasarlı" dedi. cv_is_damaged
+// (modelin KENDİ tahmini) ile KARIŞTIRILMAMALI — bu sütun modelin DEĞİL,
+// bir İNSANIN gerçekte ne gördüğünü kaydeder; ikisinin karşılaştırılması
+// (GET /api/ml/damage-model-performance) modelin gerçek sahadaki isabetini
+// ölçer.
+const isgReportColumnsAfterCv = db.prepare('PRAGMA table_info(isg_reports)').all();
+if (!isgReportColumnsAfterCv.some((col) => col.name === 'human_verified_damage')) {
+  db.exec('ALTER TABLE isg_reports ADD COLUMN human_verified_damage INTEGER');
 }
 
 // Migrasyon: KVKK Uyum Modülü (bkz. routes/kvkk.js) — 'tum_kisisel_verilerimi_sil'

@@ -56,6 +56,86 @@ test/
   integration/            -- supertest ile uçtan uca endpoint testleri
 ```
 
+### Kritik Yol Tablosu
+
+> **Durum notu (TEST-17):** Bu tablo daha önce hiç bu dosyada yer almamıştı —
+> "TEST-13/14/15/16" etiketleri repoda yalnızca ilgili test dosyalarının
+> başına yazılan inline yorumlardı (bkz. `test/integration/sosAlerts.test.js`,
+> `test/integration/auth.test.js`), gerçek bir README tablosuna hiç
+> dönüştürülmemişlerdi. TEST-17 kapsamında bu ilk kez oluşturuldu: TEST-13
+> sonrası eklenen tüm modüller tek tek denetlendi (git geçmişi + test
+> dosyaları üzerinden), test dosyası olup tabloya girmemiş olanlar buraya
+> eklendi. Trello kart numaraları elimizde olmayanlar için test dosyasının
+> adı referans olarak kullanıldı — gerçek kart numarasını biliyorsanız bu
+> tabloyu güncelleyin.
+
+| Kritik Alan | İlgili Dosya(lar) | Hangi Test Kapsadı |
+|---|---|---|
+| Authentication | `middleware/auth.js`, `routes/auth.js` | TEST-03, TEST-06 |
+| RBAC | `middleware/auth.js`, tüm route dosyaları | TEST-03, SEC-01 |
+| WorkOrder Visibility | `routes/workOrders.js` | SEC-02 |
+| Stock Transaction | `routes/materials.js` | TEST-07 |
+| Idempotency | `routes/workOrders.js` | TEST-08 |
+| Input Validation | `routes/users.js`, `routes/workOrders.js`, `routes/materials.js`, `routes/isg.js` | TEST-09 |
+| Dashboard/Bildirim/Rapor Erişimi | `routes/dashboard.js`, `routes/notifications.js`, `routes/reports.js` | TEST-10 |
+| Dosya Yükleme Güvenliği (temel) | `middleware/multer` kullanımı, `utils/fileTypeValidator.js` | SEC-03 |
+| Hata İşleyici Bilgi İfşası | `middleware/errorHandler.js`, `utils/asyncHandler.js` | SEC-05 — `errorHandling.test.js` |
+| Login Brute-Force Koruması | `middleware/loginRateLimit.js`, `middleware/rateLimiting.js` | `loginRateLimit.test.js` |
+| 2FA (TOTP) | `routes/twoFactor.js` | `twoFactor.test.js` |
+| Refresh Token Rotasyonu | `utils/refreshToken.js`, `routes/auth.js` (`/refresh`, `/logout`) | `refreshToken.test.js` |
+| KVKK Anonimleştirme/Silme | `routes/kvkk.js` | `kvkk.test.js` |
+| Orphan Dosya Temizleme | `jobs/orphanFilePurge.js` | `orphanFilePurge.test.js` |
+| Retention Purge Job (saklama süresi sonu temizlik) | `jobs/retentionPurge.js` | `retentionPurge.test.js` |
+| Purge Admin Endpoint | `jobs/purgeLog.js`, ilgili admin route'u | `purgeAdminEndpoint.test.js` |
+| Dosya Yükleme İçerik Doğrulama Sıkılaştırma (uzantı normalizasyonu, statik rota) | `middleware/validateImageContent.js`, `routes/uploads.js` | `uploadsSecurity.test.js`, `fileUploadSecurity.test.js` |
+| RBAC Boşlukları + Atayan Yönetici | `routes/workOrders.js`, `utils/workOrderAccess.js` | `workOrderAssignedBy.test.js` |
+| Profil Fotoğrafı Yetkilendirme Denetimi | `routes/users.js` (`POST /:id/photo`) | `profilePhotoAuthorization.test.js` |
+| Denetim Kaydı (Audit Log) | `routes/auditLog.js`, `services/auditLogAggregator.js` | `auditLog.test.js`, `auditLogAggregator.test.js` |
+| Malzeme — Atanmamış İş Emrine Kayıt (Hesap Verebilirlik) | `routes/materials.js` | `materialOffAssignment.test.js` |
+| Mesajlaşma RBAC/Sahiplik | `routes/managerMessages.js` | TEST-14 |
+| SOS Güvenlik/Sahiplik | `routes/sosAlerts.js` | TEST-15 |
+| FCM Token Güvenliği | `routes/auth.js` (`register-fcm-token`) | TEST-16 |
+| **Kendi Şifreni Değiştirme** | `routes/auth.js` (`POST /change-password`) | ❌ **TEST YOK** — ayrı bir kart açılmalı (bkz. aşağıdaki "Bilinen Kısıtlar" notu) |
+| Gerçek Geri Bildirim Döngüsü (Risk Tahmini Sonuç Takibi) | `routes/risk.js`, `jobs/riskOutcomeExpiry.js`, `database.js` (`risk_prediction_outcomes`) | TEST-19 — `riskPredictionOutcomes.test.js` |
+| Gerçek Geri Bildirim Döngüsü (Hasar Tespiti İnsan Doğrulaması) | `routes/isg.js` (`PATCH /:id/verify-damage`), `routes/risk.js` (`GET /ml/damage-model-performance`), `database.js` (`isg_reports.human_verified_damage`) | TEST-20 — `damageFeedbackLoop.test.js` |
+
+Bu tabloyu güncel tutma kuralı için bkz. [CONTRIBUTING.md](CONTRIBUTING.md)
+"Kritik Yol Tablosu Güncelleme Kuralı".
+
+## Gerçek Geri Bildirim Döngüsü (Modül 9 — Risk Tahmini)
+
+Arıza Risk Tahmini (bkz. `arassaha-ml/README.md` "Dürüstlük Notu") sentetik
+veriyle eğitilmiş bir modelden geliyor — bu döngü, zamanla GERÇEK arıza
+sonuçlarını biriktirip modelin gerçek dünyada ne kadar isabetli olduğunu
+ölçmenin (ve ileride yeniden eğitmenin) altyapısını kurar. Tamamen otomatik,
+kimse elle bir şey işaretlemez:
+
+1. **Tahmin kaydı** — bir ekipmanın risk skoru her hesaplandığında
+   (`routes/risk.js` `computeAndSaveRisk`), `risk_prediction_outcomes`
+   tablosuna `actual_fault_occurred = NULL` ("henüz sonuçlanmadı") ile yeni
+   bir satır eklenir. Aynı ekipman için 24 saat içinde zaten sonuçlanmamış
+   bir kayıt varsa tekrar açılmaz (gereksiz yineleme koruması).
+2. **Otomatik "arızalandı" eşleştirmesi** — `POST /api/workorders` ile yeni
+   bir arıza iş emri açıldığında, o ekipman için son 90 gün içindeki
+   sonuçlanmamış tahmin otomatik olarak `actual_fault_occurred = 1` yapılır
+   (`recordFaultOutcomeIfPredicted`).
+3. **90 gün sonra "arızalanmadı" işaretleme** — `jobs/riskOutcomeExpiry.js`,
+   `jobs/orphanFilePurge.js`/`retentionPurge.js` ile AYNI node-cron deseniyle
+   (her gün 03:00, bkz. `jobs/scheduler.js`) 90 günü aşmış ve hâlâ
+   sonuçlanmamış tahminleri `actual_fault_occurred = 0` yapar — bu, modelin
+   YANLIŞ ALARM verdiği durumları da yakalar, yalnızca isabetli tahminleri
+   değil.
+4. **Dürüst performans özeti** — `GET /api/ml/risk-model-performance`
+   (yalnızca yönetici) bu tablodan GERÇEK isabet oranlarını hesaplar
+   ("yüksek risk dediklerimizin %X'i gerçekten arızalandı" gibi) — en az 20
+   sonuçlanmış tahmin birikmeden `has_enough_data: false` döner, Flutter
+   tarafı (Raporlar > Bölgesel Görünüm > "Risk Modeli Performansı") bu
+   durumda dürüst bir "henüz yeterli veri yok" mesajı gösterir.
+
+Bkz. `arassaha-ml/train_model.py` `retrain_with_real_outcomes()` — bu
+tabloda yeterli (50+) gerçek sonuç birikince modelin gerçek veriyle yeniden
+eğitilmesi için yazılmış ama henüz devreye alınmamış bir altyapı.
+
 ### CI/CD Gate — testler production deploy'unu engeller
 
 > **Kararın evrimi:** İlk kurulumda (bkz. proje geçmişi) test suite'ini
@@ -138,6 +218,34 @@ karar olur — bu bir "ileride tekrar gözden geçirilecek" notu olarak burada
 bırakılıyor.
 
 ## Bilinen Kısıtlar / Gelecek İyileştirmeler
+
+### TEST-17 bulgusu: iki kritik dosyada satır coverage'ı %70 eşiğinin altında
+
+`npm run test:coverage` çalıştırıldığında (bkz. yukarıdaki "Kritik Yol
+Tablosu"), tablodaki dosyaların neredeyse tamamı %80+ satır coverage'a sahip
+— ama iki kritik dosya %70 eşiğinin ALTINDA kaldı, bu görev kapsamında
+düzeltilmedi ama görünür kılınıyor:
+
+- **`routes/notifications.js` — %60.98 satır, %60.00 fonksiyon** (kapsanmayan
+  satırlar: 28-30, 43-45, 50-68, 73-79). "Dashboard/Bildirim/Rapor Erişimi"
+  (TEST-10) kapsamında `notificationsEndpoints.test.js` yalnızca `GET
+  /api/notifications`'ı test ediyor — dosyadaki diğer endpoint'ler (ör.
+  okundu işaretleme) test edilmemiş görünüyor.
+- **`routes/users.js` — %68.86 satır** (kapsanmayan satırlar: 37-38, 76-88,
+  97-98, 101-103, 114-129, 153-155, ... 432-441, 457-466, 478-479, 496-498).
+  `usersValidation.test.js` ve `profilePhotoAuthorization.test.js` mevcut ama
+  `GET /me/supervisor`, `PATCH /:id/reactivate`, `DELETE /:id` gibi
+  endpoint'lerin bir kısmı kapsam dışı kalmış görünüyor.
+
+Ayrıca `routes/auth.js` genel olarak %79.47 ile eşiğin üzerinde olsa da,
+içindeki `POST /change-password` endpoint'i (satır 259-310) **tamamen**
+kapsam dışı — bkz. [CONTRIBUTING.md](CONTRIBUTING.md)'deki ilgili not ve
+yukarıdaki tablodaki "Kendi Şifreni Değiştirme" satırı.
+
+**Öneri:** Bu üç bulgu (notifications.js, users.js'in kapsanmayan kısımları,
+change-password'un hiç test edilmemesi) ayrı görev kartları olarak ele
+alınmalı — bu görevin kapsamı yalnızca bunları görünür kılmaktı, düzeltmek
+değildi.
 
 ### İki Faktörlü Doğrulama (2FA) — `totp_secret` düz metin saklanıyor
 

@@ -21,6 +21,7 @@ const TABLES_CHILD_TO_PARENT = [
   'material_stock_movements',
   'work_order_materials',
   'maintenance_recommendations',
+  'risk_prediction_outcomes',
   'work_orders',
   'user_action_logs',
   'notifications',

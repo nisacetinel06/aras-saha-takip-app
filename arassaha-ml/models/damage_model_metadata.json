@@ -39,10 +39,19 @@
     "n_test_images": 1549,
     "n_misclassified": 0
   },
-  "label_convention": "sigmoid çıktısı: 1.0 = hasarlı olasılığı, 0.0 = hasarsız olasılığı",
-  "data_leakage_check": {
-    "hash_cross_split_collisions": 0,
-    "naming_pattern_cross_split_variant_groups": 0,
-    "clean": true
-  }
+  "real_world_validation_metrics": {
+    "n_images": 15,
+    "split_counts": {
+      "hasarli": 10,
+      "hasarsiz": 5
+    },
+    "accuracy": 0.4,
+    "precision": 1.0,
+    "recall": 0.1,
+    "f1_score": 0.1818,
+    "accuracy_diff_vs_kaggle_test": -0.6,
+    "source": "Wikimedia Commons (CC0/CC-BY/CC-BY-SA) — bkz. build_real_world_validation_set.py, dataset/real_world_validation/attribution.json",
+    "note": "Bu görseller EĞİTİME KATILMADI, yalnızca değerlendirme için kullanıldı. Negatif bir fark (Kaggle'a göre düşük performans), domain shift'in gerçek boyutunun dürüst bir göstergesidir — gizlenmedi, burada raporlanıyor."
+  },
+  "label_convention": "sigmoid çıktısı: 1.0 = hasarlı olasılığı, 0.0 = hasarsız olasılığı"
 }

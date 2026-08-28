@@ -26,6 +26,13 @@ String _urgencyLabel(RiskLevel level) {
       return 'Orta Öncelik';
     case RiskLevel.yuksek:
       return 'Yüksek Öncelik';
+    // urgencyLevel backend'de routes/maintenance.js deriveUrgencyRule'den
+    // gelir (Modül 9'un predict_proba güven eşiğinden BAĞIMSIZ, deterministik
+    // bir kural motoru) — 'belirsiz' buradan HİÇBİR ZAMAN gelmez, yalnızca
+    // RiskLevel enum'ının PAYLAŞILDIĞI için (bkz. models/equipment_risk.dart)
+    // derleme zamanı bütünlüğü için eklendi.
+    case RiskLevel.belirsiz:
+      return 'Belirsiz';
   }
 }
 

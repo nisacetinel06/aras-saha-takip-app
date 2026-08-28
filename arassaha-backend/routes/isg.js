@@ -252,6 +252,43 @@ router.patch('/:id/status', requireRole('dispecer', 'yonetici'), (req, res) => {
   }
 });
 
+// PATCH /api/isg-reports/:id/verify-damage — yalnızca dispeçer/yönetici.
+//
+// TEST-20: Gerçek Saha Fotoğraflarından Geri Bildirim Döngüsü — bir yönetici
+// bildirimi incelerken (mevcut "İncelendi/Çözüldü" akışının YANINDA, EK bir
+// iş yükü değil), fotoğrafta GERÇEKTE hasar olup olmadığını işaretler. Bu,
+// modelin KENDİ tahmininden (cv_is_damaged) TAMAMEN BAĞIMSIZ bir alandır —
+// ikisi arasındaki fark, GET /api/ml/damage-model-performance'ın modelin
+// gerçek sahada ne kadar isabetli olduğunu ölçmesini sağlar. Body:
+// { "actual_damage": true|false } — bir insanın GERÇEKTE gördüğü, modelin
+// tahmini DEĞİL.
+router.patch('/:id/verify-damage', requireRole('dispecer', 'yonetici'), (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Geçersiz bildirim id değeri.' });
+    }
+
+    const { actual_damage } = req.body;
+    if (typeof actual_damage !== 'boolean') {
+      return res.status(400).json({ error: 'actual_damage alanı (true/false) zorunludur.' });
+    }
+
+    const existing = db.prepare('SELECT id FROM isg_reports WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'İSG bildirimi bulunamadı.' });
+    }
+
+    db.prepare('UPDATE isg_reports SET human_verified_damage = ? WHERE id = ?').run(actual_damage ? 1 : 0, id);
+
+    const updated = db.prepare(`${SELECT_ISG_WITH_USER} WHERE r.id = ?`).get(id);
+    res.json(mapIsgRow(updated));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Hasar doğrulaması kaydedilirken bir hata oluştu.' });
+  }
+});
+
 module.exports = router;
 // AI Asistan (Modül 16) — bkz. routes/workOrders.js'teki aynı desen.
 module.exports.VALID_CATEGORIES = VALID_CATEGORIES;
