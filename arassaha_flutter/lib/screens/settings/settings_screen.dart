@@ -20,6 +20,7 @@ import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/onboarding/home_tour_controller.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
+import '../help/help_center_screen.dart';
 import 'change_password_screen.dart';
 import 'two_factor_setup_screen.dart';
 
@@ -73,8 +74,15 @@ class SettingsScreen extends StatelessWidget {
             const _SectionLabel('Bekleyen İşlemler'),
             const _PendingActionsSection(),
             const SizedBox(height: AppSpacing.lg),
-            const _SectionLabel('Uygulama Turu'),
+            // "Yardım" — Ana Sayfa Turu'nu yeniden tetikleme ve Yardım
+            // Merkezi/SSS BİLEREK aynı bölümde, yan yana: ikisi de aynı
+            // kullanıcı ihtiyacına ("bu özellik ne işe yarıyor?") hizmet
+            // eder, biri tek seferlik anlatım, diğeri kalıcı başvuru kaynağı
+            // (bkz. help_center_screen.dart dosya başı notu).
+            const _SectionLabel('Yardım'),
             const _AppTourSection(),
+            const SizedBox(height: AppSpacing.sm),
+            const _HelpCenterSection(),
             const SizedBox(height: AppSpacing.lg),
             const _SectionLabel('Hakkında'),
             const _AboutSection(),
@@ -631,6 +639,47 @@ class _AppTourSection extends StatelessWidget {
             label: 'Turu Tekrar Göster',
             variant: AppButtonVariant.secondary,
             onPressed: () => _restart(context),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Yardım Merkezi / SSS girişi — bkz. help_center_screen.dart. "Ana Sayfa
+/// Turu"nun hemen altında, aynı "Yardım" bölümünde: biri turu tekrar
+/// oynatır (tek seferlik anlatım), diğeri kalıcı bir başvuru kaynağıdır.
+class _HelpCenterSection extends StatelessWidget {
+  const _HelpCenterSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      child: Row(
+        children: [
+          Icon(Icons.help_outline, color: scheme.onSurfaceVariant),
+          const SizedBox(width: AppSpacing.sm + 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Yardım Merkezi / SSS'),
+                const SizedBox(height: 2),
+                Text(
+                  'Sık sorulan sorularda arama yapın',
+                  style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          AppButton(
+            label: 'Aç',
+            variant: AppButtonVariant.secondary,
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const HelpCenterScreen()),
+            ),
           ),
         ],
       ),
