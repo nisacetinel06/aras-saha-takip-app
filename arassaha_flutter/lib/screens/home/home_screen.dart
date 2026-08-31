@@ -9,6 +9,7 @@ import '../../providers/completed_work_orders_provider.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../providers/maintenance_provider.dart';
 import '../../providers/manager_message_provider.dart';
+import '../../providers/qr_generation_provider.dart';
 import '../../providers/sos_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../services/analytics_service.dart';
@@ -25,6 +26,7 @@ import '../../widgets/sos_button.dart';
 import '../../widgets/user_avatar.dart';
 import '../admin/user_edit_screen.dart';
 import '../dashboard_screen.dart';
+import '../equipment/qr_generation_screen.dart';
 import '../equipment/qr_scanner_screen.dart';
 import '../isg/isg_report_form_screen.dart';
 import '../maintenance/maintenance_recommendations_screen.dart';
@@ -145,6 +147,12 @@ class _HomeScreenState extends State<HomeScreen> {
       if (auth.isYonetici || auth.isDispecer) {
         context.read<SosProvider>().fetchActiveAlerts();
       }
+      // "QR Kod Üret" Çabuk Erişim kartındaki basılmamış-etiket rozeti için
+      // — yalnızca yönetici bu kartı görür (bkz. build), diğer roller bu
+      // isteği hiç atmaz.
+      if (auth.isYonetici) {
+        context.read<QrGenerationProvider>().fetchUnprintedCount();
+      }
     });
   }
 
@@ -156,6 +164,8 @@ class _HomeScreenState extends State<HomeScreen> {
         .watch<ManagerMessageProvider>()
         .unreadCount;
     final sosActiveCount = context.watch<SosProvider>().activeCount;
+    final unprintedQrCount =
+        context.watch<QrGenerationProvider>().unprintedCount ?? 0;
     final auth = context.watch<AuthProvider>();
     final myProfile = context.watch<UserProvider>().myProfile;
     final pendingMaintenanceCount = auth.isYonetici
@@ -213,6 +223,10 @@ class _HomeScreenState extends State<HomeScreen> {
     void goToSosAlerts() => Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const SosAlertsScreen()));
+
+    void goToQrGeneration() => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const QrGenerationScreen()));
 
     // Hızlı İşlemler: kullanıcının doğrudan bir eylem BAŞLATACAĞI girişler
     // (bir şey oluşturma/gönderme) — role göre SABİT liste.
@@ -283,6 +297,13 @@ class _HomeScreenState extends State<HomeScreen> {
           title: 'Bakım Planlama',
           subtitle: 'Kestirimci bakım önerileri',
           onTap: goToMaintenance,
+        ),
+        _AccessData(
+          icon: Icons.qr_code_2,
+          title: 'QR Kod Üret',
+          subtitle: 'Basılmamış ekipman etiketleri',
+          badgeCount: unprintedQrCount,
+          onTap: goToQrGeneration,
         ),
         _AccessData(
           icon: Icons.smart_toy_outlined,

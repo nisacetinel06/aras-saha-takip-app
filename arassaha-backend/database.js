@@ -745,8 +745,18 @@ for (const [column, type] of Object.entries(userColumnAdditions)) {
 // Migrasyon: Konum Tutarlılığı (il/ilçe/mahalle yapısal alanları) — hem
 // equipment hem work_orders için sonradan eklendi (bkz. utils/location.js).
 // Eskiden bu tablolarda yalnızca serbest metin location_name vardı.
+//
+// qr_printed_at (QR Kod Üretimi modülü): NULL = bu ekipmanın fiziksel QR
+// etiketi hiç basılmadı, dolu = en son ne zaman basıldığı. `equipment.qr_code`
+// zaten her zaman vardır (ekipman oluşturulurken üretilir) — bu alan onun
+// GERÇEKTEN yazdırılıp sahaya yapıştırıldığını AYRI olarak takip eder.
 const equipmentColumns = db.prepare('PRAGMA table_info(equipment)').all();
-const equipmentColumnAdditions = { il: 'TEXT', ilce: 'TEXT', mahalle: 'TEXT' };
+const equipmentColumnAdditions = {
+  il: 'TEXT',
+  ilce: 'TEXT',
+  mahalle: 'TEXT',
+  qr_printed_at: 'TEXT',
+};
 for (const [column, type] of Object.entries(equipmentColumnAdditions)) {
   if (!equipmentColumns.some((col) => col.name === column)) {
     db.exec(`ALTER TABLE equipment ADD COLUMN ${column} ${type}`);

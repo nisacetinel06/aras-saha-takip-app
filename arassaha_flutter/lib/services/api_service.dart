@@ -1449,6 +1449,10 @@ class ApiService {
     String? statusFilter,
     String? ilFilter,
     String? search,
+    // QR Kod Üretimi modülü — 'false' (henüz basılmamış) veya 'true' (en az
+    // bir kez basılmış). Diğer filtrelerle (type/il) AND ile birleşir, bkz.
+    // backend routes/equipment.js GET / dosya başı notu.
+    bool? qrPrintedFilter,
   }) async {
     try {
       final uri = Uri.parse('$baseUrl/equipment').replace(
@@ -1458,6 +1462,7 @@ class ApiService {
           if (ilFilter != null) 'il': ilFilter,
           if (search != null && search.trim().isNotEmpty)
             'search': search.trim(),
+          if (qrPrintedFilter != null) 'qr_printed': qrPrintedFilter.toString(),
         },
       );
       final response = await _get(uri);
@@ -1480,6 +1485,36 @@ class ApiService {
       // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
       // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
       // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
+      rethrow;
+    }
+  }
+
+  /// QR Kod Üretimi modülü — seçilen ekipmanların `qr_printed_at` alanını şu
+  /// anki zamana günceller (yalnızca yönetici). PDF paylaşım/yazdırma
+  /// diyaloğu başarıyla kapandıktan SONRA çağrılır (bkz.
+  /// providers/qr_generation_provider.dart markAsPrinted).
+  Future<List<Equipment>> markEquipmentQrPrinted(
+    List<int> equipmentIds,
+  ) async {
+    try {
+      final uri = Uri.parse('$baseUrl/equipment/mark-qr-printed');
+      final response = await _patch(
+        uri,
+        body: jsonEncode({'equipment_ids': equipmentIds}),
+      );
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'QR basıldı işaretlemesi yapılamadı.'),
+        );
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => Equipment.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
       rethrow;
     }
   }

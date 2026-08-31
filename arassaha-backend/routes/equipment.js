@@ -8,6 +8,7 @@
 const express = require('express');
 const db = require('../database');
 const { VALID_ILLER } = require('../utils/location');
+const { requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -38,9 +39,26 @@ const SELECT_EQUIPMENT_WITH_RISK = `
 // akışları için — qr_code, il, ilce, mahalle alanlarında LIKE araması yapar
 // ve sonucu SEARCH_RESULT_LIMIT ile sınırlar. Diğer filtrelerle (type/status/
 // il) birlikte de kullanılabilir; hepsi AND ile birleşir.
+//
+// `qr_printed`: QR Kod Üretimi modülü için eklendi (Modül 4'ün mevcut
+// listeleme endpoint'inin bir filtre uzantısı, ayrı bir endpoint DEĞİL).
+// 'false' -> henüz fiziksel etiketi basılmamış (qr_printed_at IS NULL),
+// 'true' -> en az bir kez basılmış. Diğer değerler yok sayılır.
+//
+// Bu filtre yalnızca YÖNETİCİ için anlamlıdır (etiket basma fiziksel bir
+// saha operasyonu, diğer roller için bir aksiyon değil) — bu yüzden BURADA,
+// endpoint'in geri kalanını (type/status/il/search, TÜM rollere açık) hiç
+// etkilemeden, yalnızca `qr_printed` GERÇEKTEN gönderildiyse rol kontrolü
+// yapılır. `router.use(requireRole(...))` gibi tüm route'u kapatan bir
+// yaklaşım burada YANLIŞ olurdu — GET /api/equipment, QR tarama/İş Emri
+// Oluştur gibi TÜM rollerin kullandığı ortak bir listeleme endpoint'idir.
 router.get('/', (req, res) => {
   try {
-    const { type, status, il, search } = req.query;
+    const { type, status, il, search, qr_printed } = req.query;
+
+    if (qr_printed !== undefined && req.user.role !== 'yonetici') {
+      return res.status(403).json({ error: 'Bu işlem için yetkiniz yok.' });
+    }
 
     if (type && !VALID_TYPES.includes(type)) {
       return res.status(400).json({
@@ -71,6 +89,11 @@ router.get('/', (req, res) => {
     if (il) {
       conditions.push('e.il = ?');
       params.push(il);
+    }
+    if (qr_printed === 'false') {
+      conditions.push('e.qr_printed_at IS NULL');
+    } else if (qr_printed === 'true') {
+      conditions.push('e.qr_printed_at IS NOT NULL');
     }
     if (search && search.trim()) {
       conditions.push('(e.qr_code LIKE ? OR e.il LIKE ? OR e.ilce LIKE ? OR e.mahalle LIKE ?)');
@@ -158,6 +181,50 @@ router.get('/:id/history', (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Ekipman geçmişi alınırken bir hata oluştu.' });
+  }
+});
+
+// PATCH /api/equipment/mark-qr-printed
+// Body: { equipment_ids: [1, 2, 3] } — seçilen ekipmanların qr_printed_at
+// alanını ŞU ANKİ zamana günceller. QR Kod Üretimi modülünde, PDF paylaşım/
+// yazdırma diyaloğu başarıyla kapandıktan SONRA Flutter tarafından çağrılır
+// — yalnızca yönetici (etiket basma fiziksel bir saha operasyonu, çoğu rol
+// için anlamlı bir aksiyon değil).
+//
+// DİKKAT: sabit `/mark-qr-printed` yolu, altındaki `router.get('/:id')` ile
+// ÇAKIŞMAZ çünkü Express, farklı HTTP metodlarını (GET vs PATCH) ayrı ayrı
+// eşleştirir — ama okunabilirlik için parametreli route'lardan ÖNCE durması
+// tercih edildi.
+router.patch('/mark-qr-printed', requireRole('yonetici'), (req, res) => {
+  try {
+    const { equipment_ids } = req.body;
+
+    if (!Array.isArray(equipment_ids) || equipment_ids.length === 0) {
+      return res.status(400).json({ error: 'equipment_ids boş olmayan bir dizi olmalı.' });
+    }
+    const ids = equipment_ids.map(Number);
+    if (ids.some((id) => !Number.isInteger(id))) {
+      return res.status(400).json({ error: 'equipment_ids yalnızca tam sayı id içermeli.' });
+    }
+
+    const placeholders = ids.map(() => '?').join(', ');
+    const existingCount = db
+      .prepare(`SELECT COUNT(*) AS count FROM equipment WHERE id IN (${placeholders})`)
+      .get(...ids).count;
+    if (existingCount !== ids.length) {
+      return res.status(404).json({ error: 'Seçilen ekipmanlardan biri veya birden fazlası bulunamadı.' });
+    }
+
+    const now = new Date().toISOString();
+    db.prepare(`UPDATE equipment SET qr_printed_at = ? WHERE id IN (${placeholders})`).run(now, ...ids);
+
+    const updated = db
+      .prepare(`${SELECT_EQUIPMENT_WITH_RISK} WHERE e.id IN (${placeholders})`)
+      .all(...ids);
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'QR basıldı işaretlemesi yapılırken bir hata oluştu.' });
   }
 });
 

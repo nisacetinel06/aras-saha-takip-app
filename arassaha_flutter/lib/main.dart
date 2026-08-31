@@ -20,6 +20,7 @@ import 'providers/manager_message_provider.dart';
 import 'providers/map_provider.dart';
 import 'providers/material_provider.dart';
 import 'providers/notification_provider.dart';
+import 'providers/qr_generation_provider.dart';
 import 'providers/reports_provider.dart';
 import 'providers/risk_provider.dart';
 import 'providers/settings_provider.dart';
@@ -118,6 +119,7 @@ class _ArasSahaAppState extends State<ArasSahaApp> {
         ChangeNotifierProvider(create: (_) => MapProvider()),
         ChangeNotifierProvider(create: (_) => DeviceProvider()),
         ChangeNotifierProvider(create: (_) => EquipmentProvider()),
+        ChangeNotifierProvider(create: (_) => QrGenerationProvider()),
         ChangeNotifierProvider(create: (_) => RiskProvider()),
         ChangeNotifierProvider(create: (_) => AnomalyProvider()),
         ChangeNotifierProvider(create: (_) => IsgProvider()),

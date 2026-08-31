@@ -148,6 +148,12 @@ class Equipment {
   final int? riskScore;
   final RiskLevel? riskLevel;
 
+  /// QR Kod Üretimi modülü — bu ekipmanın fiziksel QR etiketinin en son ne
+  /// zaman basıldığı. `qrCode` (yukarısı) her zaman vardır (ekipman
+  /// oluşturulurken üretilir) — bu alan onun GERÇEKTEN yazdırılıp sahaya
+  /// yapıştırıldığını AYRI olarak takip eder. Null = hiç basılmadı.
+  final DateTime? qrPrintedAt;
+
   Equipment({
     required this.id,
     required this.qrCode,
@@ -166,6 +172,7 @@ class Equipment {
     required this.createdAt,
     this.riskScore,
     this.riskLevel,
+    this.qrPrintedAt,
   });
 
   factory Equipment.fromJson(Map<String, dynamic> json) {
@@ -193,6 +200,9 @@ class Equipment {
       riskLevel: json['risk_level'] != null
           ? RiskLevel.fromJson(json['risk_level'] as String)
           : null,
+      qrPrintedAt: json['qr_printed_at'] != null
+          ? DateTime.parse(json['qr_printed_at'] as String)
+          : null,
     );
   }
 
@@ -218,6 +228,7 @@ class Equipment {
       'created_at': createdAt.toIso8601String(),
       'risk_score': riskScore,
       'risk_level': riskLevel?.name,
+      'qr_printed_at': qrPrintedAt?.toIso8601String(),
     };
   }
 }

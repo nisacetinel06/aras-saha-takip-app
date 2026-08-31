@@ -103,6 +103,14 @@ dependencies:
   qr_flutter: ^4.1.0
   showcaseview: ^5.1.0
 
+  # QR Kod Üretimi modülü — ekran önizlemesinde qr_flutter (yukarısı)
+  # kullanılır; PDF çıktısında ise `pdf` paketinin kendi BarcodeWidget'ı QR
+  # üretir (ikisi farklı görsel motor, ama aynı QR verisini/içeriğini
+  # render eder, bkz. qr_pdf_service.dart). `printing`, üretilen PDF'i
+  # işletim sisteminin kendi paylaşım/yazdırma arayüzüyle paylaşmak için.
+  pdf: ^3.11.3
+  printing: ^5.13.4
+
   # Modül 4 (QR tarama) kamera izni akışı — Modül 5'teki (İSG, konum izni)
   # geolocator ile AYNI "isPermanentlyDenied -> ayarlara yönlendir" ayrımı
   # için. BİLİNÇLİ olarak ^13.0.1 DEĞİL: bu sürüm permission_handler_android

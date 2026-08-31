@@ -123,6 +123,23 @@ function monthsAgoIsoDate(months) {
 // database.js) — bu kayıtlar silinip yeniden oluşturulunca (yeni id'lerle)
 // eski bildirim satırları YANLIŞ/var olmayan kayıtlara işaret eder hale
 // gelir; bu yüzden diğerleriyle birlikte temizlenir.
+// login_attempts/refresh_tokens/usage_logs — sonraki modüllerde eklendi
+// (2FA, oturum yenileme, ArasAI kullanım logu) ama bu script'in temizleme
+// listesine hiç eklenmemişlerdi; DB bir süre kullanıldıktan sonra bu
+// tablolarda satır birikince `DELETE FROM users` (aşağısı) FOREIGN KEY
+// constraint failed ile patlıyordu. test/helpers/testDb.js'teki
+// TABLES_CHILD_TO_PARENT listesiyle TUTARLI olacak şekilde eklendi.
+db.exec('DELETE FROM login_attempts');
+db.exec('DELETE FROM refresh_tokens');
+db.exec('DELETE FROM usage_logs');
+db.exec('DELETE FROM data_deletion_requests');
+db.exec('DELETE FROM totp_backup_codes');
+db.exec('DELETE FROM two_factor_verify_attempts');
+db.exec('DELETE FROM manager_message_recipients');
+db.exec('DELETE FROM manager_messages');
+db.exec('DELETE FROM sos_alerts');
+db.exec('DELETE FROM chat_messages');
+db.exec('DELETE FROM processed_client_actions');
 db.exec('DELETE FROM notifications');
 db.exec('DELETE FROM user_action_logs');
 db.exec('DELETE FROM device_action_logs');
@@ -132,6 +149,11 @@ db.exec('DELETE FROM work_order_photos');
 // aşağıda silinip yeni id'lerle yeniden oluşturulacağı için (bkz. aşağıdaki
 // yorumlarla aynı gerekçe), bu tablo o ikisinden ÖNCE temizlenmeli.
 db.exec('DELETE FROM work_order_materials');
+// maintenance_recommendations/risk_prediction_outcomes, work_orders/equipment'a
+// FK'lidir (Modül 9/12) — ikisi de aşağıda silinip yeniden oluşturulacağı
+// için, o ikisinden ÖNCE temizlenmeli (AYNI gerekçe, yukarısı).
+db.exec('DELETE FROM maintenance_recommendations');
+db.exec('DELETE FROM risk_prediction_outcomes');
 db.exec('DELETE FROM work_orders');
 db.exec('DELETE FROM equipment_risk_scores');
 // meter_consumption/meter_anomaly_scores (Modül 11) equipment_id'ye FK'lidir —
@@ -147,6 +169,17 @@ db.exec('DELETE FROM isg_reports');
 // yine de tekrar çalıştırılabilirlik için (script başındaki genel ilke)
 // diğerleriyle birlikte temizlenir.
 db.exec('DELETE FROM materials');
+// password_change_attempts (rate limiting modülü) — eklendi, aynı FK
+// gerekçesi (yukarısı) ile users'tan ÖNCE temizlenmeli.
+db.exec('DELETE FROM password_change_attempts');
+// users.supervisor_id KENDİ tablosuna (self-referencing) FK'lidir — tek bir
+// `DELETE FROM users` ifadesi TÜM satırları siler ama SQLite bunu satır
+// satır işlerken, henüz silinmemiş bir satırın supervisor_id'si silinmekte
+// olan başka bir satırı gösteriyorsa (hiyerarşi: teknisyen->dispeçer->yönetici)
+// FOREIGN KEY constraint failed verir — tablo sonunda tamamen boşalacak
+// olsa bile. Önce tüm supervisor_id'leri NULL'a çekip bağı koparmak,
+// silmeyi güvenli hale getirir.
+db.exec('UPDATE users SET supervisor_id = NULL');
 db.exec('DELETE FROM users');
 db.exec(
   "DELETE FROM sqlite_sequence WHERE name IN ('work_orders', 'work_order_photos', 'work_order_materials', 'users', 'managed_devices', 'device_action_logs', 'equipment', 'isg_reports', 'equipment_risk_scores', 'user_action_logs', 'notifications', 'meter_consumption', 'meter_anomaly_scores', 'materials')"
