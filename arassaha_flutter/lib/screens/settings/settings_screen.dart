@@ -17,6 +17,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/app_logo.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/onboarding/home_tour_controller.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
@@ -687,45 +688,73 @@ class _HelpCenterSection extends StatelessWidget {
   }
 }
 
+/// "Hakkında" — tamamen statik, hiçbir API çağrısı yapmaz. Sürüm numarası
+/// pubspec.yaml'daki `version:` alanından build zamanında üretilen platform
+/// paket bilgisinden (PackageInfo) okunur — elle sabit yazılmaz, bu yüzden
+/// `version:` her değiştirilip yeniden build alındığında bu ekran de OTOMATİK
+/// günceller.
 class _AboutSection extends StatelessWidget {
   const _AboutSection();
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+
     return AppCard(
-      child: Row(
-        children: [
-          Icon(Icons.info_outline, color: scheme.onSurfaceVariant),
-          const SizedBox(width: AppSpacing.sm + 4),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'ArasSaha — Aras EDAŞ Staj Projesi',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+      child: FutureBuilder<PackageInfo>(
+        future: PackageInfo.fromPlatform(),
+        builder: (context, snapshot) {
+          final info = snapshot.data;
+          // buildNumber (pubspec.yaml'daki version:'ın "+" sonrası kısmı)
+          // sürüm numarasına parantez içinde eklenir — örn. "1.2.0 (14)".
+          final versionText = info != null
+              ? '${info.version} (${info.buildNumber})'
+              : null;
+
+          return Column(
+            children: [
+              const Center(child: AppLogo(height: 44)),
+              const SizedBox(height: AppSpacing.sm + 4),
+              Text(
+                'ArasSaha',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.headingMedium(color: scheme.onSurface),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                versionText != null
+                    ? 'Sürüm $versionText'
+                    : 'Sürüm bilgisi alınıyor...',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Aras Elektrik Dağıtım A.Ş. — Saha Operasyon Uygulaması '
+                '(Staj Projesi)',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.caption(color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              // Flutter'ın yerleşik lisans sayfası — kullanılan TÜM paketlerin
+              // (pubspec.yaml) lisanslarını derleme zamanında otomatik
+              // toplayıp listeler, burada elle içerik yazmaya gerek yok.
+              SizedBox(
+                width: double.infinity,
+                child: AppButton(
+                  label: 'Açık Kaynak Lisansları',
+                  icon: Icons.description_outlined,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: () => showLicensePage(
+                    context: context,
+                    applicationName: 'ArasSaha',
+                    applicationVersion: versionText,
+                  ),
                 ),
-                const SizedBox(height: 4),
-                FutureBuilder<PackageInfo>(
-                  future: PackageInfo.fromPlatform(),
-                  builder: (context, snapshot) {
-                    final info = snapshot.data;
-                    final text = info != null
-                        ? 'Sürüm ${info.version} (${info.buildNumber})'
-                        : 'Sürüm bilgisi alınıyor...';
-                    return Text(
-                      text,
-                      style: AppTextStyles.caption(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
