@@ -18,8 +18,8 @@ const { logPurgeAction } = require('./purgeLog');
 
 const UPLOADS_ROOT = path.resolve(__dirname, '..', 'uploads');
 
-// routes/uploads.js'teki KLASÖR WHITELIST'İYLE birebir aynı üç klasör.
-const UPLOAD_FOLDERS = ['isg', 'workorders', 'profiles'];
+// routes/uploads.js'teki KLASÖR WHITELIST'İYLE birebir aynı dört klasör.
+const UPLOAD_FOLDERS = ['isg', 'workorders', 'profiles', 'feedback'];
 
 // Bu süreden daha YENİ dosyalar asla silinmez. Sebep: bir dosya yüklemesi
 // iki adımdan oluşur — (1) dosya diske yazılır (multer), (2) DB satırı
@@ -31,23 +31,26 @@ const UPLOAD_FOLDERS = ['isg', 'workorders', 'profiles'];
 const GRACE_PERIOD_HOURS = 24;
 
 // Her klasörün HANGİ tabloya/sütuna karşılık geldiği — bkz. dosya başı
-// GÜVENLİK NOTU. Üç klasör de routes/uploads.js'teki whitelist'le,
-// routes/kvkk.js'teki anonimleştirme akışıyla ve routes/users.js /
-// routes/isg.js / routes/workOrders.js'teki gerçek yükleme
-// endpoint'leriyle TUTARLIDIR:
+// GÜVENLİK NOTU. Dört klasör de routes/uploads.js'teki whitelist'le,
+// routes/kvkk.js'teki anonimleştirme akışıyla (feedback HARİÇ — bkz.
+// routes/feedback.js dosya başı notu, bu modül KVKK akışına henüz dahil
+// edilmedi) ve routes/users.js / routes/isg.js / routes/workOrders.js /
+// routes/feedback.js'teki gerçek yükleme endpoint'leriyle TUTARLIDIR:
 //   - isg        -> isg_reports.photo_path       (bkz. routes/isg.js POST /)
 //   - workorders -> work_order_photos.photo_path (bkz. routes/workOrders.js POST /:id/photos)
 //   - profiles   -> users.photo_path              (bkz. routes/users.js POST /:id/photo)
+//   - feedback   -> feedback_items.photo_path     (bkz. routes/feedback.js POST /)
 const FOLDER_QUERIES = {
   isg: 'SELECT photo_path FROM isg_reports WHERE photo_path IS NOT NULL',
   workorders: 'SELECT photo_path FROM work_order_photos WHERE photo_path IS NOT NULL',
   profiles: 'SELECT photo_path FROM users WHERE photo_path IS NOT NULL',
+  feedback: 'SELECT photo_path FROM feedback_items WHERE photo_path IS NOT NULL',
 };
 
 /**
  * Verilen klasördeki dosyalara referans veren TÜM DB kayıtlarının dosya
  * adlarını (yalnızca basename, "/uploads/<klasör>/" öneki olmadan) döner.
- * @param {'isg'|'workorders'|'profiles'} folder
+ * @param {'isg'|'workorders'|'profiles'|'feedback'} folder
  * @returns {Set<string>}
  */
 function getReferencedPathsForFolder(folder) {

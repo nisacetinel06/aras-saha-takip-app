@@ -10,9 +10,9 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const PURGE_TEST_FOLDERS = ['isg', 'workorders', 'profiles'];
+const PURGE_TEST_FOLDERS = ['isg', 'workorders', 'profiles', 'feedback'];
 
-/** İzole bir geçici uploads kök dizini oluşturur (isg/workorders/profiles alt klasörleriyle). */
+/** İzole bir geçici uploads kök dizini oluşturur (isg/workorders/profiles/feedback alt klasörleriyle). */
 function makeScratchUploadsRoot() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'arassaha-purge-test-'));
   for (const folder of PURGE_TEST_FOLDERS) {

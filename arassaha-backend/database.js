@@ -188,6 +188,32 @@ db.exec(`
     FOREIGN KEY (reported_by_user_id) REFERENCES users (id)
   );
 
+  -- Öneri / Şikayet Kutusu (Modül 17) — bkz. routes/feedback.js. isg_reports
+  -- (Modül 5) ile AYNI temel desen (bkz. üstteki tablo yorumu — kişi bilgisi
+  -- her zaman users'a giden gerçek bir FK), tek gerçekten yeni tasarım kararı
+  -- is_anonymous: 1 olduğunda backend submitted_by_user_id'yi VERİTABANINDA
+  -- SAKLAMAYA DEVAM EDER (kötüye kullanım/hesap verebilirlik için — tamamen
+  -- izsiz DEĞİL), ama routes/feedback.js response'larında bu bilgiyi
+  -- yöneticiye GÖSTERMEZ (bkz. o dosyadaki mapFeedbackRow). photo_path NULL
+  -- olabilir: İSG'nin aksine fotoğraf zorunlu değil. reviewed_by_user_id,
+  -- isg_reports'ta OLMAYAN yeni bir alan — hangi dispeçer/yöneticinin
+  -- incelediğini kaydeder (isg_reports bunu hiç tutmuyordu, burada eklendi).
+  CREATE TABLE IF NOT EXISTS feedback_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    submitted_by_user_id INTEGER NOT NULL,
+    category TEXT NOT NULL,
+    description TEXT NOT NULL,
+    photo_path TEXT,
+    is_anonymous INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'bekliyor',
+    reviewer_note TEXT,
+    reviewed_by_user_id INTEGER,
+    created_at TEXT NOT NULL,
+    reviewed_at TEXT,
+    FOREIGN KEY (submitted_by_user_id) REFERENCES users (id),
+    FOREIGN KEY (reviewed_by_user_id) REFERENCES users (id)
+  );
+
   -- Kullanıcı Yönetimi işlem geçmişi (Modül 8 devamı — hesap verebilirlik).
   -- device_action_logs ile AYNI desen: "kim, ne zaman, hangi kullanıcıya ne
   -- yaptı" kaydı. Yönetimsel her aksiyonda (oluşturma, güncelleme,

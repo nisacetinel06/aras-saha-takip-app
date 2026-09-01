@@ -31,6 +31,7 @@ const TABLES_CHILD_TO_PARENT = [
   'chat_messages',
   'usage_logs',
   'isg_reports',
+  'feedback_items',
   'equipment_risk_scores',
   'meter_anomaly_scores',
   'meter_consumption',

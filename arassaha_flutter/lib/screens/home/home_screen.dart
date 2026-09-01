@@ -7,6 +7,7 @@ import '../../models/work_order.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/completed_work_orders_provider.dart';
 import '../../providers/dashboard_provider.dart';
+import '../../providers/feedback_provider.dart';
 import '../../providers/maintenance_provider.dart';
 import '../../providers/manager_message_provider.dart';
 import '../../providers/qr_generation_provider.dart';
@@ -28,6 +29,7 @@ import '../admin/user_edit_screen.dart';
 import '../dashboard_screen.dart';
 import '../equipment/qr_generation_screen.dart';
 import '../equipment/qr_scanner_screen.dart';
+import '../feedback/feedback_list_screen.dart';
 import '../isg/isg_report_form_screen.dart';
 import '../maintenance/maintenance_recommendations_screen.dart';
 import '../map/map_screen.dart';
@@ -154,6 +156,14 @@ class _HomeScreenState extends State<HomeScreen> {
       if (auth.isYonetici) {
         context.read<QrGenerationProvider>().fetchUnprintedCount();
       }
+      // "Öneri/Şikayet" Çabuk Erişim kartındaki bekleyen-sayısı rozeti için
+      // — yalnızca yönetici bu rozeti görür (bkz. build, GET /api/feedback
+      // teknisyen/dispeçer için zaten yalnızca KENDİ bildirimlerini
+      // döndürüyor, bu yüzden onlara ayrı bir "bekleyen" rozeti anlamlı
+      // değil — bkz. görev talimatı madde 7).
+      if (auth.isYonetici) {
+        context.read<FeedbackProvider>().fetchPendingCount();
+      }
     });
   }
 
@@ -167,6 +177,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final sosActiveCount = context.watch<SosProvider>().activeCount;
     final unprintedQrCount =
         context.watch<QrGenerationProvider>().unprintedCount ?? 0;
+    final pendingFeedbackCount =
+        context.watch<FeedbackProvider>().pendingCount ?? 0;
     final auth = context.watch<AuthProvider>();
     final myProfile = context.watch<UserProvider>().myProfile;
     final pendingMaintenanceCount = auth.isYonetici
@@ -232,6 +244,10 @@ class _HomeScreenState extends State<HomeScreen> {
     void goToMyPerformance() => Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const MyPerformanceScreen()));
+
+    void goToFeedbackList() => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const FeedbackListScreen()));
 
     // Hızlı İşlemler: kullanıcının doğrudan bir eylem BAŞLATACAĞI girişler
     // (bir şey oluşturma/gönderme) — role göre SABİT liste.
@@ -310,6 +326,17 @@ class _HomeScreenState extends State<HomeScreen> {
           badgeCount: unprintedQrCount,
           onTap: goToQrGeneration,
         ),
+        // Öneri / Şikayet Kutusu (Modül 17) — yönetici TÜM bildirimleri
+        // görür (bkz. routes/feedback.js GET /), bu yüzden burada TEK rol
+        // için anlamlı olan bekleyen-sayısı rozetini taşır (bkz. görev
+        // talimatı madde 7, initState'teki fetchPendingCount).
+        _AccessData(
+          icon: Icons.feedback_outlined,
+          title: 'Öneri / Şikayet',
+          subtitle: 'Çalışan bildirimlerini incele',
+          badgeCount: pendingFeedbackCount,
+          onTap: goToFeedbackList,
+        ),
         _AccessData(
           icon: Icons.smart_toy_outlined,
           title: 'ArasAI',
@@ -336,6 +363,15 @@ class _HomeScreenState extends State<HomeScreen> {
           title: 'Yöneticiden Mesajlar',
           badgeCount: unreadMessageCount,
           onTap: goToManagerMessages,
+        ),
+        // Dispeçer SADECE KENDİ gönderdiği öneri/şikayetleri görür (bkz.
+        // routes/feedback.js GET /) — bu yüzden rozet YOK, yalnızca yönetici
+        // versiyonunda (yukarısı) bekleyen sayısı anlamlıdır.
+        _AccessData(
+          icon: Icons.feedback_outlined,
+          title: 'Öneri / Şikayet',
+          subtitle: 'Öneri veya şikayet bildir',
+          onTap: goToFeedbackList,
         ),
         _AccessData(
           icon: Icons.smart_toy_outlined,
@@ -373,6 +409,15 @@ class _HomeScreenState extends State<HomeScreen> {
           title: 'Performansım',
           subtitle: 'Tamamlama özetin ve trendin',
           onTap: goToMyPerformance,
+        ),
+        // Öneri / Şikayet Kutusu (Modül 17) — teknisyen SADECE KENDİ
+        // gönderdiklerini görür (bkz. routes/feedback.js GET /), dispeçer
+        // versiyonuyla AYNI gerekçeyle rozet YOK.
+        _AccessData(
+          icon: Icons.feedback_outlined,
+          title: 'Öneri / Şikayet',
+          subtitle: 'Öneri veya şikayet bildir',
+          onTap: goToFeedbackList,
         ),
         _AccessData(
           icon: Icons.smart_toy_outlined,

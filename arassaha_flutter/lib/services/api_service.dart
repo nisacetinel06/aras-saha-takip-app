@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
@@ -11,6 +12,7 @@ import '../models/description_classification.dart';
 import '../models/equipment.dart';
 import '../models/equipment_risk.dart';
 import '../models/audit_log_entry.dart';
+import '../models/feedback_item.dart';
 import '../models/isg_report.dart';
 import '../models/kvkk_models.dart';
 import '../models/maintenance_recommendation.dart';
@@ -2018,6 +2020,147 @@ class ApiService {
       }
 
       return DamageModelPerformance.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
+  // --- Öneri / Şikayet Kutusu — Modül 17 ---
+  // İSG bildirimi (yukarısı) ile AYNI desen; tek fark, fotoğrafın OPSİYONEL
+  // olması (submitFeedback her koşulda multipart/form-data gönderir — dosya
+  // yoksa `files` boş kalır, backend'in multer'ı fotoğrafsız da metin
+  // alanlarını doğru ayrıştırır, bkz. routes/feedback.js).
+
+  Future<List<FeedbackItem>> getFeedbackItems({String? statusFilter}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/feedback').replace(
+        queryParameters: statusFilter != null ? {'status': statusFilter} : null,
+      );
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Öneri/şikayet bildirimleri alınamadı.'),
+        );
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((json) => FeedbackItem.fromJson(json)).toList();
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
+  Future<FeedbackItem> getFeedbackItemDetail(int id) async {
+    try {
+      final uri = Uri.parse('$baseUrl/feedback/$id');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Bildirim detayı alınamadı.'),
+        );
+      }
+
+      return FeedbackItem.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
+  /// Yeni bir öneri/şikayet gönderir. "Bildiren kişi" burada GÖNDERİLMEZ —
+  /// backend bunu giriş yapmış kullanıcının token'ından otomatik doldurur
+  /// (bkz. submitIsgReport'taki AYNI not). `photo` null olabilir — İSG'nin
+  /// aksine fotoğraf zorunlu değil.
+  Future<FeedbackItem> submitFeedback({
+    required String description,
+    required FeedbackCategory category,
+    required bool isAnonymous,
+    File? photo,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/feedback');
+
+      Uint8List? bytes;
+      String? mimeType;
+      String? filename;
+      if (photo != null) {
+        bytes = await photo.readAsBytes();
+        final detectedMime = lookupMimeType(photo.path, headerBytes: bytes);
+        mimeType = (detectedMime == 'image/jpeg' || detectedMime == 'image/png')
+            ? detectedMime!
+            : 'image/jpeg';
+        filename = photo.path.split(Platform.pathSeparator).last;
+      }
+
+      final response = await _sendMultipart(() {
+        final request = http.MultipartRequest('POST', uri)
+          ..headers.addAll(_headers())
+          ..fields['description'] = description
+          ..fields['category'] = category.toJson()
+          ..fields['is_anonymous'] = isAnonymous.toString();
+
+        if (bytes != null) {
+          request.files.add(
+            http.MultipartFile.fromBytes(
+              'photo',
+              bytes,
+              filename: filename,
+              contentType: MediaType.parse(mimeType!),
+            ),
+          );
+        }
+
+        return request;
+      });
+
+      if (response.statusCode != 201) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Bildirim gönderilemedi.'),
+        );
+      }
+
+      return FeedbackItem.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
+  Future<FeedbackItem> updateFeedbackStatus(
+    int id,
+    FeedbackStatus newStatus, {
+    String? reviewerNote,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/feedback/$id/status');
+      final response = await _patch(
+        uri,
+        body: jsonEncode({
+          'status': newStatus.toJson(),
+          if (reviewerNote != null && reviewerNote.trim().isNotEmpty)
+            'reviewer_note': reviewerNote.trim(),
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Bildirim durumu güncellenemedi.'),
+        );
+      }
+
+      return FeedbackItem.fromJson(jsonDecode(response.body));
     } on ApiException {
       rethrow;
     } on SessionExpiredException {

@@ -20,9 +20,9 @@ router.get('/:folder/:filename', (req, res) => {
   const { folder, filename } = req.params;
 
   // Sadece bilinen alt klasörlere izin ver (whitelist) — isg (Modül 5),
-  // workorders (Modül 1), profiles (Modül 8), bkz. server.js'teki mkdirSync
-  // çağrıları.
-  const allowedFolders = ['isg', 'workorders', 'profiles'];
+  // workorders (Modül 1), profiles (Modül 8), feedback (Modül 17), bkz.
+  // server.js'teki mkdirSync çağrıları.
+  const allowedFolders = ['isg', 'workorders', 'profiles', 'feedback'];
   if (!allowedFolders.includes(folder)) {
     return res.status(404).json({ error: 'Bulunamadı' });
   }

@@ -35,6 +35,7 @@ const equipmentRouter = require('./routes/equipment');
 const riskRouter = require('./routes/risk');
 const anomalyRouter = require('./routes/anomaly');
 const isgRouter = require('./routes/isg');
+const feedbackRouter = require('./routes/feedback');
 const managerMessagesRouter = require('./routes/managerMessages');
 const sosAlertsRouter = require('./routes/sosAlerts');
 const notificationsRouter = require('./routes/notifications');
@@ -85,6 +86,10 @@ fs.mkdirSync(path.join(UPLOADS_DIR, 'profiles'), { recursive: true });
 // 'workorders', 'profiles') üçünün de KENDİ alt klasörüne sahip olmasını
 // varsaydığı için bu tutarsızlık burada giderildi (bkz. routes/workOrders.js).
 fs.mkdirSync(path.join(UPLOADS_DIR, 'workorders'), { recursive: true });
+// Öneri / Şikayet Kutusu (Modül 17) fotoğrafları için ayrı bir alt klasör —
+// diğer üçüyle AYNI desen (bkz. routes/uploads.js whitelist'i ve
+// jobs/orphanFilePurge.js UPLOAD_FOLDERS'a da eklendi).
+fs.mkdirSync(path.join(UPLOADS_DIR, 'feedback'), { recursive: true });
 
 app.use(cors());
 app.use(express.json());
@@ -136,6 +141,8 @@ app.use('/api', verifyToken, riskRouter);
 // yollar tanımlar (bkz. routes/anomaly.js) — bu yüzden '/api' kökünde mount edilir.
 app.use('/api', verifyToken, anomalyRouter);
 app.use('/api/isg-reports', verifyToken, isgRouter);
+// Öneri / Şikayet Kutusu (Modül 17) — bkz. routes/feedback.js.
+app.use('/api/feedback', verifyToken, feedbackRouter);
 app.use('/api/manager-messages', verifyToken, managerMessagesRouter);
 // Acil Durum (SOS) Bildirimi — bkz. routes/sosAlerts.js.
 app.use('/api/sos-alerts', verifyToken, sosAlertsRouter);

@@ -95,10 +95,28 @@ describe('jobs/orphanFilePurge — findOrphanFiles', () => {
       assert.ok(!results.some((r) => r.folder === 'profiles' && r.filename === filename));
       assert.ok(fs.existsSync(fullPath));
     });
+
+    it('feedback_items.photo_path\'te referans edilen bir dosya silinmez', () => {
+      const filename = 'referenced-feedback.jpg';
+      const fullPath = writeFileWithAge(uploadsRoot, 'feedback', filename, OLD_AGE_HOURS);
+
+      db.prepare(
+        `INSERT INTO feedback_items (submitted_by_user_id, category, description, photo_path, status, created_at)
+         VALUES (?, 'sikayet', 'test bildirimi', ?, 'bekliyor', ?)`
+      ).run(seeded.users.teknisyenId, `/uploads/feedback/${filename}`, new Date().toISOString());
+
+      const results = findOrphanFiles({ dryRun: false, uploadsRoot });
+
+      assert.ok(
+        !results.some((r) => r.folder === 'feedback' && r.filename === filename),
+        'referanslı dosya sonuç listesinde GÖRÜNMEMELİ'
+      );
+      assert.ok(fs.existsSync(fullPath), 'referanslı dosya diskte GERÇEKTEN hâlâ var olmalı');
+    });
   });
 
   describe('orphan dosyalar gerçekten temizleniyor mu (her klasör için)', () => {
-    for (const folder of ['isg', 'workorders', 'profiles']) {
+    for (const folder of ['isg', 'workorders', 'profiles', 'feedback']) {
       it(`${folder} klasöründeki referanssız/eski bir dosya silinir VE file_purge_log'a kaydedilir`, () => {
         const filename = `orphan-${folder}.jpg`;
         const fullPath = writeFileWithAge(uploadsRoot, folder, filename, OLD_AGE_HOURS);
@@ -203,6 +221,19 @@ describe('jobs/orphanFilePurge — findOrphanFiles', () => {
       assert.ok(getReferencedPathsForFolder('profiles').has(filename));
       assert.ok(!getReferencedPathsForFolder('isg').has(filename));
       assert.ok(!getReferencedPathsForFolder('workorders').has(filename));
+    });
+
+    it('feedback_items.photo_path referansı yalnızca feedback klasörü için görülür', () => {
+      const filename = 'feedback-only.jpg';
+      db.prepare(
+        `INSERT INTO feedback_items (submitted_by_user_id, category, description, photo_path, status, created_at)
+         VALUES (?, 'oneri', 'x', ?, 'bekliyor', ?)`
+      ).run(seeded.users.teknisyenId, `/uploads/feedback/${filename}`, new Date().toISOString());
+
+      assert.ok(getReferencedPathsForFolder('feedback').has(filename));
+      assert.ok(!getReferencedPathsForFolder('isg').has(filename));
+      assert.ok(!getReferencedPathsForFolder('workorders').has(filename));
+      assert.ok(!getReferencedPathsForFolder('profiles').has(filename));
     });
 
     it('bilinmeyen bir klasör adı için hata fırlatır (savunmacı — sessizce boş dönüp her şeyi "orphan" saymamalı)', () => {
