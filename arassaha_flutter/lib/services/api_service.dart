@@ -19,6 +19,7 @@ import '../models/manager_message.dart';
 import '../models/material.dart';
 import '../models/usage_analytics.dart';
 import '../models/meter_anomaly.dart';
+import '../models/my_performance.dart';
 import '../models/report.dart';
 import '../models/sos_alert.dart';
 import '../models/work_order.dart';
@@ -1276,6 +1277,29 @@ class ApiService {
       // tetiklenmiş olur; burada yalnızca bu özel tipi OLDUĞU GİBİ yukarı
       // taşıyoruz — rethrow olmasaydı bu `on` bloğu istisnayı "yakalanmış"
       // sayıp yutar, çağıran taraf oturumun bittiğini asla öğrenemezdi.
+      rethrow;
+    }
+  }
+
+  /// Performansım (Modül 16) için giriş yapmış kullanıcının kendi özet
+  /// istatistiklerini getirir — getDashboardSummary ile AYNI desen, tek fark
+  /// backend'in bu sorguyu her zaman req.user.id'ye sabitlemesi.
+  Future<MyPerformanceSummary> getMyPerformance() async {
+    try {
+      final uri = Uri.parse('$baseUrl/dashboard/my-performance');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Performans özeti alınamadı.'),
+        );
+      }
+
+      return MyPerformanceSummary.fromJson(jsonDecode(response.body));
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
       rethrow;
     }
   }

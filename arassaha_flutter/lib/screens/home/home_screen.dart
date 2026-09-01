@@ -33,6 +33,7 @@ import '../maintenance/maintenance_recommendations_screen.dart';
 import '../map/map_screen.dart';
 import '../messages/manager_messages_screen.dart';
 import '../messages/send_manager_message_screen.dart';
+import '../profile/my_performance_screen.dart';
 import '../sos/sos_alerts_screen.dart';
 import '../work_orders/create_work_order_screen.dart';
 import 'completed_work_orders_section.dart';
@@ -228,6 +229,10 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
     ).push(MaterialPageRoute(builder: (_) => const QrGenerationScreen()));
 
+    void goToMyPerformance() => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const MyPerformanceScreen()));
+
     // Hızlı İşlemler: kullanıcının doğrudan bir eylem BAŞLATACAĞI girişler
     // (bir şey oluşturma/gönderme) — role göre SABİT liste.
     final List<_ActionData> quickActions;
@@ -358,6 +363,16 @@ class _HomeScreenState extends State<HomeScreen> {
           title: 'Yöneticiden Mesajlar',
           badgeCount: unreadMessageCount,
           onTap: goToManagerMessages,
+        ),
+        // Performansım (Modül 16) — yalnızca teknisyen görünümünde: dispeçer/
+        // yönetici iş emri ÇÖZMEZ (atar/izler), bu yüzden "tamamladığım iş"
+        // kavramı yalnızca teknisyen için anlamlı (bkz. build() altındaki
+        // CompletedWorkOrdersSection ile AYNI rol gerekçesi).
+        _AccessData(
+          icon: Icons.bar_chart_outlined,
+          title: 'Performansım',
+          subtitle: 'Tamamlama özetin ve trendin',
+          onTap: goToMyPerformance,
         ),
         _AccessData(
           icon: Icons.smart_toy_outlined,

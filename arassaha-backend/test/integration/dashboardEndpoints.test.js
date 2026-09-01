@@ -25,6 +25,7 @@ const app = require('../../server');
 const db = require('../../database');
 const { resetTestDatabase, seedMinimalTestData } = require('../helpers/testDb');
 const { getTestToken } = require('../helpers/authHelper');
+const { generateValidToken } = require('../helpers/tokenHelper');
 const { assertSchema, assertArraySchema } = require('../helpers/assertSchema');
 
 function insertEquipmentWithRisk({ qr_code, il, riskScore, riskLevel = 'orta' }) {
@@ -272,5 +273,117 @@ describe('GET /api/dashboard/low-stock-materials', () => {
     const response = await request(app).get('/api/dashboard/low-stock-materials').set('Authorization', `Bearer ${token}`);
     assert.strictEqual(response.status, 200);
     assert.deepStrictEqual(response.body, []);
+  });
+});
+
+// Modül 16 — "Performansım": GET /summary'nin AKSİNE rol bazlı görünürlük
+// (visibilityClause) DEĞİL, her zaman `req.user.id` ile sabitlenmiş bir
+// filtre kullanır — bu yüzden buradaki IDOR testi statü/öncelik değil,
+// İKİ FARKLI teknisyenin sayılarının birbirinden tamamen BAĞIMSIZ olduğunu
+// kanıtlar.
+describe('GET /api/dashboard/my-performance', () => {
+  let seeded;
+
+  beforeEach(() => {
+    resetTestDatabase();
+    seeded = seedMinimalTestData();
+  });
+
+  function markCompleted(workOrderId, { priority, updatedAt } = {}) {
+    const params = [];
+    let sql = `UPDATE work_orders SET status = 'cozuldu'`;
+    if (priority) {
+      sql += ', priority = ?';
+      params.push(priority);
+    }
+    if (updatedAt) {
+      sql += ', updated_at = ?';
+      params.push(updatedAt);
+    }
+    sql += ' WHERE id = ?';
+    params.push(workOrderId);
+    db.prepare(sql).run(...params);
+  }
+
+  it('token olmadan 401 döner', async () => {
+    const response = await request(app).get('/api/dashboard/my-performance');
+    assert.strictEqual(response.status, 401);
+  });
+
+  it('response schema doğru: completed_this_month/total_completed_all_time/avg_resolution_hours/priority_breakdown/isg_reports_count/monthly_trend', async () => {
+    const token = getTestToken('teknisyen');
+    const response = await request(app).get('/api/dashboard/my-performance').set('Authorization', `Bearer ${token}`);
+
+    assert.strictEqual(response.status, 200);
+    assertSchema(response.body, {
+      completed_this_month: 'number',
+      total_completed_all_time: 'number',
+      priority_breakdown: 'object',
+      isg_reports_count: 'number',
+      monthly_trend: 'array',
+    });
+    assert.strictEqual(response.body.monthly_trend.length, 6, 'son 6 ayın hepsi, veri olmayanlar 0 ile doldurularak dönmeli');
+  });
+
+  it('boş durum: hiç tamamlanmış iş yokken hata değil, sıfır/null değerli geçerli bir yapı döner', async () => {
+    const token = getTestToken('teknisyen');
+    const response = await request(app).get('/api/dashboard/my-performance').set('Authorization', `Bearer ${token}`);
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.total_completed_all_time, 0);
+    assert.strictEqual(response.body.completed_this_month, 0);
+    assert.strictEqual(response.body.avg_resolution_hours, null, 'AVG(NULL) durumunda sahte bir 0 DEĞİL, null dönmeli');
+    assert.deepStrictEqual(response.body.priority_breakdown, { acil: 0, normal: 0, dusuk: 0 });
+    assert.ok(
+      response.body.monthly_trend.every((m) => m.completed_count === 0),
+      'hiç tamamlanmış iş yokken her ay 0 olmalı'
+    );
+  });
+
+  it('IDOR yok: iki farklı teknisyenin performans sayıları birbirinden tamamen bağımsız', async () => {
+    // seedMinimalTestData: teknisyene 1 (acik), otherTeknisyen'e 1 (acik) iş
+    // emri veriyor. Teknisyenin işini 'acil' önceliğiyle tamamlanmış işaretle,
+    // otherTeknisyen'inkini AÇIK bırak — eğer endpoint req.user.id'ye göre
+    // filtrelemeseydi, iki kullanıcı da AYNI (yanlış) sayıları görürdü.
+    markCompleted(seeded.workOrders.ownWorkOrderId, { priority: 'acil' });
+
+    const technicianToken = getTestToken('teknisyen');
+    const otherToken = generateValidToken({ id: seeded.users.otherTeknisyenId, role: 'teknisyen' });
+
+    const techResponse = await request(app).get('/api/dashboard/my-performance').set('Authorization', `Bearer ${technicianToken}`);
+    const otherResponse = await request(app).get('/api/dashboard/my-performance').set('Authorization', `Bearer ${otherToken}`);
+
+    assert.strictEqual(techResponse.status, 200);
+    assert.strictEqual(otherResponse.status, 200);
+
+    assert.strictEqual(techResponse.body.total_completed_all_time, 1, 'teknisyen kendi tamamladığı 1 işi görmeli');
+    assert.strictEqual(techResponse.body.priority_breakdown.acil, 1);
+    assert.strictEqual(
+      otherResponse.body.total_completed_all_time,
+      0,
+      'diğer teknisyenin işi hâlâ açık — teknisyenin tamamlama sayısı ONA sızmamalı'
+    );
+    assert.notStrictEqual(
+      techResponse.body.total_completed_all_time,
+      otherResponse.body.total_completed_all_time,
+      'iki teknisyen FARKLI kapsamlı sayılar görmeli — aynı olması IDOR/filtre boşluğuna işaret eder'
+    );
+  });
+
+  it('isg_reports_count yalnızca bildiren kullanıcının kendi İSG bildirimlerini sayar', async () => {
+    const now = new Date().toISOString();
+    const insertIsg = db.prepare(
+      `INSERT INTO isg_reports (reported_by_user_id, description, category, lat, lng, status, created_at)
+       VALUES (?, 'test', 'diger', 39.9, 41.2, 'bekliyor', ?)`
+    );
+    insertIsg.run(seeded.users.teknisyenId, now);
+    insertIsg.run(seeded.users.teknisyenId, now);
+    insertIsg.run(seeded.users.otherTeknisyenId, now);
+
+    const token = getTestToken('teknisyen');
+    const response = await request(app).get('/api/dashboard/my-performance').set('Authorization', `Bearer ${token}`);
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.isg_reports_count, 2, 'yalnızca KENDİ bildirdiği 2 İSG bildirimi sayılmalı, diğer teknisyeninki değil');
   });
 });

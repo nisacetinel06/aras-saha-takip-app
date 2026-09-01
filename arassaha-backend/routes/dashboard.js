@@ -88,4 +88,106 @@ router.get('/summary', (req, res) => {
   }
 });
 
+// GET /api/dashboard/my-performance
+// Modül 16 — "Performansım": teknisyenin KENDİ tamamladığı iş emirleri
+// üzerinden hesaplanan özet. Rol kısıtlaması gerekmez — sorgu HER ZAMAN
+// req.user.id'ye göre filtrelenir (kimse başkasının performansını bu
+// endpoint'ten göremez, IDOR riski yok). Yeni bir tablo/veri kaynağı
+// EKLEMEZ — work_orders ve isg_reports üzerindeki var olan alanları
+// yeniden sorgular.
+router.get('/my-performance', (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const completedThisMonth = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM work_orders
+         WHERE assigned_user_id = ? AND status = 'cozuldu' AND updated_at >= ?`
+      )
+      .get(userId, startOfMonth.toISOString()).c;
+
+    const totalCompleted = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM work_orders WHERE assigned_user_id = ? AND status = 'cozuldu'`
+      )
+      .get(userId).c;
+
+    // Modül 9'daki calculateMonthsSinceMaintenance'ta öğrenilen tarih hassasiyeti
+    // dersi: julianday() SQLite'ta güvenilir bir tarih farkı hesaplama yöntemi —
+    // yukarıdaki GET /summary'deki avgResolutionHours ile AYNI hesap.
+    const avgRow = db
+      .prepare(
+        `SELECT AVG((julianday(updated_at) - julianday(created_at)) * 24) AS avg_hours
+         FROM work_orders WHERE assigned_user_id = ? AND status = 'cozuldu'`
+      )
+      .get(userId);
+    const avgResolutionHours =
+      avgRow.avg_hours != null ? Math.round(avgRow.avg_hours * 10) / 10 : null;
+
+    // Sabit anahtarlarla başlat, GROUP BY sonucunu üzerine yaz — yukarıdaki
+    // GET /summary'nin priorityBreakdown deseniyle AYNI: aksi halde hiç
+    // tamamlanmamış bir öncelik sessizce pasta grafikten düşer.
+    const priorityBreakdown = { acil: 0, normal: 0, dusuk: 0 };
+    db.prepare(
+      `SELECT priority, COUNT(*) AS c FROM work_orders
+       WHERE assigned_user_id = ? AND status = 'cozuldu'
+       GROUP BY priority`
+    )
+      .all(userId)
+      .forEach((row) => {
+        priorityBreakdown[row.priority] = row.c;
+      });
+
+    const isgReportsCount = db
+      .prepare('SELECT COUNT(*) AS c FROM isg_reports WHERE reported_by_user_id = ?')
+      .get(userId).c;
+
+    // Son 6 ayın aylık tamamlama trendi — routes/reports.js GET /fault-trend
+    // ile AYNI "veri OLMAYAN ayları da 0 ile doldur" mantığı ve alan
+    // adlandırması (year_month), Raporlar sekmesiyle tutarlılık için korundu.
+    const months = 6;
+    const now = new Date();
+    const monthKeys = [];
+    for (let i = months - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      monthKeys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+
+    const trendRows = db
+      .prepare(
+        `SELECT strftime('%Y-%m', updated_at) AS year_month, COUNT(*) AS completed_count
+         FROM work_orders
+         WHERE assigned_user_id = ? AND status = 'cozuldu' AND updated_at >= ?
+         GROUP BY year_month`
+      )
+      .all(
+        userId,
+        new Date(now.getFullYear(), now.getMonth() - (months - 1), 1).toISOString()
+      );
+    const countByMonth = Object.fromEntries(
+      trendRows.map((r) => [r.year_month, r.completed_count])
+    );
+    const monthlyTrend = monthKeys.map((year_month) => ({
+      year_month,
+      completed_count: countByMonth[year_month] ?? 0,
+    }));
+
+    res.json({
+      completed_this_month: completedThisMonth,
+      total_completed_all_time: totalCompleted,
+      avg_resolution_hours: avgResolutionHours,
+      priority_breakdown: priorityBreakdown,
+      isg_reports_count: isgReportsCount,
+      monthly_trend: monthlyTrend,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Performans özeti alınırken bir hata oluştu.' });
+  }
+});
+
 module.exports = router;
