@@ -59,7 +59,7 @@ describe('GET /api/dashboard/summary', () => {
     assert.strictEqual(response.status, 401);
   });
 
-  it('response schema doğru: open_count/resolved_today_count/avg_resolution_hours/status_breakdown/priority_breakdown/recent_activity', async () => {
+  it('response schema doğru: open_count/resolved_today_count/avg_resolution_hours/status_breakdown/priority_breakdown/recent_activity/suspicious_meters_count', async () => {
     const token = getTestToken('yonetici');
     const response = await request(app).get('/api/dashboard/summary').set('Authorization', `Bearer ${token}`);
 
@@ -71,7 +71,45 @@ describe('GET /api/dashboard/summary', () => {
       status_breakdown: 'object',
       priority_breakdown: 'object',
       recent_activity: 'array',
+      suspicious_meters_count: 'number',
     });
+  });
+
+  it('suspicious_meters_count: yalnızca is_suspicious=1 olan sayaçları sayar, teknisyen/yönetici AYNI sayıyı görür', async () => {
+    // Ana Sayfa'daki uyarı kartı ekipman-bazlı bir sayı taşır (iş emri DEĞİL),
+    // bu yüzden BİLİNÇLİ olarak visibilityClause'a tabi değildir — görünürlük
+    // kısıtı yalnızca Flutter tarafında (rol == yönetici) uygulanır. Burada iki
+    // sayaç (biri şüpheli, biri değil) seedleyip hem teknisyen hem yöneticinin
+    // AYNI toplamı gördüğünü kanıtlıyoruz.
+    const now = new Date().toISOString();
+    const suspiciousId = db
+      .prepare(
+        `INSERT INTO equipment (qr_code, equipment_type, il, location_name, status, created_at)
+         VALUES ('METER-SUS-1', 'sayac', 'Erzurum', 'x', 'aktif', ?)`
+      )
+      .run(now).lastInsertRowid;
+    const normalId = db
+      .prepare(
+        `INSERT INTO equipment (qr_code, equipment_type, il, location_name, status, created_at)
+         VALUES ('METER-OK-1', 'sayac', 'Erzurum', 'x', 'aktif', ?)`
+      )
+      .run(now).lastInsertRowid;
+    db.prepare(
+      `INSERT INTO meter_anomaly_scores (equipment_id, anomaly_score, is_suspicious, detected_reason, computed_at)
+       VALUES (?, 90, 1, 'test', ?)`
+    ).run(suspiciousId, now);
+    db.prepare(
+      `INSERT INTO meter_anomaly_scores (equipment_id, anomaly_score, is_suspicious, detected_reason, computed_at)
+       VALUES (?, 5, 0, NULL, ?)`
+    ).run(normalId, now);
+
+    const technicianToken = getTestToken('teknisyen');
+    const managerToken = getTestToken('yonetici');
+    const techResponse = await request(app).get('/api/dashboard/summary').set('Authorization', `Bearer ${technicianToken}`);
+    const managerResponse = await request(app).get('/api/dashboard/summary').set('Authorization', `Bearer ${managerToken}`);
+
+    assert.strictEqual(techResponse.body.suspicious_meters_count, 1, 'yalnızca is_suspicious=1 olan sayaç sayılmalı');
+    assert.strictEqual(managerResponse.body.suspicious_meters_count, 1);
   });
 
   it('RBAC × Dashboard: teknisyen SADECE kendi işlerinin sayısını görür, tüm şirketinkini DEĞİL', async () => {

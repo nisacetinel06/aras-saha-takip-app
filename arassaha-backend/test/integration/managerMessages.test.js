@@ -342,6 +342,60 @@ describe('GET /api/manager-messages/sent (yönetici görünümü)', () => {
   });
 });
 
+describe('GET /api/manager-messages/unread-count', () => {
+  let seeded;
+
+  beforeEach(() => {
+    resetTestDatabase();
+    seeded = seedMinimalTestData();
+  });
+
+  function sendMessage(recipientIds, content = 'Test mesajı') {
+    const managerToken = getTestToken('yonetici');
+    return request(app)
+      .post('/api/manager-messages')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ content, recipient_user_ids: recipientIds });
+  }
+
+  it('token olmadan 401 döner', async () => {
+    const response = await request(app).get('/api/manager-messages/unread-count');
+    assert.strictEqual(response.status, 401);
+  });
+
+  it('Mesajlar sekmesi rozeti: alıcının okunmamış mesaj sayısını döner, okunanı SAYMAZ', async () => {
+    await sendMessage([seeded.users.teknisyenId], 'Mesaj 1');
+    await sendMessage([seeded.users.teknisyenId], 'Mesaj 2');
+    const readOne = await sendMessage([seeded.users.teknisyenId], 'Mesaj 3 (okunacak)');
+
+    const token = getTestToken('teknisyen');
+    await request(app).patch(`/api/manager-messages/${readOne.body.id}/read`).set('Authorization', `Bearer ${token}`);
+
+    const response = await request(app).get('/api/manager-messages/unread-count').set('Authorization', `Bearer ${token}`);
+    assert.strictEqual(response.status, 200);
+    assertSchema(response.body, { count: 'number' });
+    assert.strictEqual(response.body.count, 2, 'okunan mesaj sayılmamalı, yalnızca 2 okunmamış kalmalı');
+  });
+
+  it('CROSS-USER SIZINTI KONTROLÜ: başka bir kullanıcıya gönderilen okunmamış mesaj bu kullanıcının sayısına sızmaz', async () => {
+    await sendMessage([seeded.users.otherTeknisyenId], 'B için mesaj');
+
+    const tokenA = getTestToken('teknisyen');
+    const response = await request(app).get('/api/manager-messages/unread-count').set('Authorization', `Bearer ${tokenA}`);
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.count, 0);
+  });
+
+  it('yönetici hiçbir zaman bir mesajın alıcısı olmadığı için her zaman 0 döner', async () => {
+    await sendMessage([seeded.users.teknisyenId], 'Herhangi bir mesaj');
+
+    const managerToken = getTestToken('yonetici');
+    const response = await request(app).get('/api/manager-messages/unread-count').set('Authorization', `Bearer ${managerToken}`);
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.count, 0);
+  });
+});
+
 describe('GET /api/manager-messages/:id/read-status', () => {
   let seeded;
   let messageId;

@@ -2310,6 +2310,33 @@ class ApiService {
     }
   }
 
+  /// GET /api/manager-messages/unread-count — alt navigasyondaki "Mesajlar"
+  /// sekmesinin kırmızı nokta rozeti için hafif bir çağrı (bkz.
+  /// getUnreadNotificationCount ile AYNI desen, NotificationProvider polling'i
+  /// tarafından çağrılır). Yönetici için backend her zaman 0 döner (bkz.
+  /// routes/managerMessages.js — TEK YÖNLÜ model, yönetici hiçbir mesajın
+  /// alıcısı olamaz).
+  Future<int> getUnreadManagerMessageCount() async {
+    try {
+      final uri = Uri.parse('$baseUrl/manager-messages/unread-count');
+      final response = await _get(uri);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          response.statusCode,
+          _extractError(response, 'Okunmamış mesaj sayısı alınamadı.'),
+        );
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['count'] as int;
+    } on ApiException {
+      rethrow;
+    } on SessionExpiredException {
+      rethrow;
+    }
+  }
+
   /// PATCH /api/manager-messages/:id/read — mesajın alıcısı kendi okundu
   /// zamanını işaretler. Bu kullanıcı bu mesajın alıcısı DEĞİLSE backend 404
   /// döner (bkz. routes/managerMessages.js — SEC-02 tarzı sahiplik kontrolü).

@@ -34,6 +34,13 @@ class NotificationProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
+  // Alt navigasyondaki "Mesajlar" sekmesi rozeti (Yöneticiden Çalışana Duyuru
+  // Sistemi) — genel bildirim sayacından (yukarısı) BAĞIMSIZ, AYNI 30 saniyelik
+  // polling döngüsüne eklendi (bkz. startPolling/_pollOnce), ayrı bir Timer
+  // AÇILMADI. Yönetici için backend her zaman 0 döner (bkz. api_service.dart
+  // getUnreadManagerMessageCount notu) — bu yüzden rozet yöneticide hiç görünmez.
+  int _unreadMessageCount = 0;
+
   Timer? _pollTimer;
   bool _isPolling = false;
 
@@ -44,6 +51,7 @@ class NotificationProvider extends ChangeNotifier {
 
   List<AppNotification> get notifications => _notifications;
   int get unreadCount => _unreadCount;
+  int get unreadMessageCount => _unreadMessageCount;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isFromCache => _isFromCache;
@@ -97,6 +105,15 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> fetchUnreadMessageCount() async {
+    try {
+      _unreadMessageCount = await _apiService.getUnreadManagerMessageCount();
+      notifyListeners();
+    } catch (_) {
+      // Sessizce yutulur — bkz. fetchUnreadCount üstündeki AYNI gerekçe.
+    }
+  }
+
   Future<void> markAsRead(int id) async {
     try {
       final updated = await _apiService.markNotificationRead(id);
@@ -135,6 +152,7 @@ class NotificationProvider extends ChangeNotifier {
     // İlk kontrol hemen yapılır — 30 saniye beklemeden mevcut sayı bilinir,
     // böylece bir sonraki tick'te yalnızca GERÇEK bir artış bildirim üretir.
     fetchUnreadCount();
+    fetchUnreadMessageCount();
 
     _pollTimer = Timer.periodic(_pollInterval, (_) => _pollOnce());
   }
@@ -148,11 +166,13 @@ class NotificationProvider extends ChangeNotifier {
     _isPolling = false;
     _notifications = [];
     _unreadCount = 0;
+    _unreadMessageCount = 0;
   }
 
   Future<void> _pollOnce() async {
     final previousCount = _unreadCount;
     await fetchUnreadCount();
+    await fetchUnreadMessageCount();
 
     if (_unreadCount > previousCount) {
       // Acil Durum (SOS) Modülü: normalde artışın kaynağı burada tekrar

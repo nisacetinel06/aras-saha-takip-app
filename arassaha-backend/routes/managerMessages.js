@@ -40,6 +40,29 @@ router.get('/', (req, res) => {
   }
 });
 
+// GET /api/manager-messages/unread-count — Ana Sayfa alt navigasyonundaki
+// "Mesajlar" sekmesinin kırmızı nokta rozeti için hafif bir endpoint (bkz.
+// routes/notifications.js GET /unread-count ile AYNI desen) — tam listeyi
+// çekmeye gerek yok. NOT: bu, `notifications` tablosundaki genel bildirim
+// sayacından (Modül 6) BAĞIMSIZ bir sayı — bir mesaj `manager_message_recipients`
+// üzerinden okunmuş sayılır, aynı mesajın tetiklediği `notifications` satırının
+// okunmuş olması bunu ETKİLEMEZ (iki ayrı okunma durumu, bkz. dosya başı
+// TEK YÖNLÜ model notu). Yönetici hiçbir zaman bir mesajın ALICISI olmadığı
+// için (bkz. aynı not) bu sorgu yönetici için her zaman 0 döner.
+router.get('/unread-count', (req, res) => {
+  try {
+    const row = db
+      .prepare(
+        'SELECT COUNT(*) AS count FROM manager_message_recipients WHERE recipient_user_id = ? AND read_at IS NULL'
+      )
+      .get(req.user.id);
+    res.json({ count: row.count });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Okunmamış mesaj sayısı alınırken bir hata oluştu.' });
+  }
+});
+
 // GET /api/manager-messages/sent — yalnızca yönetici, KENDİ gönderdiği
 // mesajları, her biri için toplam/okunmuş alıcı sayısıyla listeler. Başka bir
 // yöneticinin gönderdiği mesajlar burada GÖRÜNMEZ (sender_user_id = ? filtresi).

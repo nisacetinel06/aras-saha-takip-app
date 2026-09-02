@@ -33,6 +33,11 @@ class DashboardSummary {
   final Map<WorkOrderPriority, int> priorityBreakdown;
   final List<RecentActivityItem> recentActivity;
 
+  /// Ana Sayfa'daki yönetici-özel uyarı kartı için (bkz. home_screen.dart) —
+  /// Modül 11'deki GET /api/meters/suspicious ile aynı sayı, ayrı bir istek
+  /// açmadan buradan gelir.
+  final int suspiciousMetersCount;
+
   DashboardSummary({
     required this.openCount,
     required this.resolvedTodayCount,
@@ -40,6 +45,7 @@ class DashboardSummary {
     required this.statusBreakdown,
     required this.priorityBreakdown,
     required this.recentActivity,
+    required this.suspiciousMetersCount,
   });
 
   factory DashboardSummary.fromJson(Map<String, dynamic> json) {
@@ -63,6 +69,7 @@ class DashboardSummary {
       recentActivity: (json['recent_activity'] as List<dynamic>? ?? [])
           .map((e) => RecentActivityItem.fromJson(e as Map<String, dynamic>))
           .toList(),
+      suspiciousMetersCount: json['suspicious_meters_count'] as int? ?? 0,
     );
   }
 }

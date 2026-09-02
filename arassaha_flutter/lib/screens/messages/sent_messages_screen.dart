@@ -11,13 +11,21 @@ import '../../widgets/app_card.dart';
 import '../../widgets/app_top_bar.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
+import 'send_manager_message_screen.dart';
 import 'sent_message_read_status_screen.dart';
 
 /// Yöneticiden Çalışana Duyuru/Mesaj Sistemi — yönetici görünümü,
 /// gönderilen mesajlar listesi. Yalnızca YÖNETİCİNİN KENDİ gönderdiği
 /// mesajlar (bkz. GET /api/manager-messages/sent — sender_user_id filtresi).
 class SentMessagesScreen extends StatefulWidget {
-  const SentMessagesScreen({super.key});
+  /// true ise alt navigasyondaki "Mesajlar" sekmesi içinde gösterilir (bkz.
+  /// main_shell.dart) — [ManagerMessagesScreen.embedded] ile AYNI gerekçe:
+  /// kendi [AppTopBar]'ını çizmez, MainShell'in ortak üst çubuğuyla çakışmasın
+  /// diye. Varsayılan false: SendManagerMessageScreen'in üst çubuğundaki
+  /// "Gönderilen Mesajlar" ikonundan PUSH edilen mevcut kullanım DEĞİŞMEDEN kalır.
+  final bool embedded;
+
+  const SentMessagesScreen({super.key, this.embedded = false});
 
   @override
   State<SentMessagesScreen> createState() => _SentMessagesScreenState();
@@ -38,13 +46,28 @@ class _SentMessagesScreenState extends State<SentMessagesScreen> {
     final provider = context.watch<ManagerMessageProvider>();
 
     return Scaffold(
-      appBar: const AppTopBar(title: 'Gönderilen Mesajlar'),
+      appBar: widget.embedded
+          ? null
+          : const AppTopBar(title: 'Gönderilen Mesajlar'),
       body: SafeArea(
         top: false,
         child: RefreshIndicator(
           onRefresh: provider.fetchSentMessages,
           child: _buildBody(provider),
         ),
+      ),
+      // Yönetici için "Yeni Mesaj Gönder" — bkz. görev talimatı: Mesajlar
+      // sekmesinde yöneticinin gönderilenler listesinden doğrudan gönderme
+      // ekranına geçişi. SendManagerMessageScreen'in kendi üst çubuğundaki
+      // "Gönderilen Mesajlar" ikonuyla AYNI hedefe TERS yönden ulaşan bir
+      // kısayol — bilinçli olarak hem PUSH edilmiş hem embedded kullanımda
+      // gösterilir, iki giriş noktası birbirini DIŞLAMAZ.
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const SendManagerMessageScreen()),
+        ),
+        icon: const Icon(Icons.add),
+        label: const Text('Yeni Mesaj Gönder'),
       ),
     );
   }

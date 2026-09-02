@@ -29,6 +29,7 @@ import '../admin/user_edit_screen.dart';
 import '../dashboard_screen.dart';
 import '../equipment/qr_generation_screen.dart';
 import '../equipment/qr_scanner_screen.dart';
+import '../equipment/suspicious_meters_screen.dart';
 import '../feedback/feedback_list_screen.dart';
 import '../isg/isg_report_form_screen.dart';
 import '../maintenance/maintenance_recommendations_screen.dart';
@@ -248,6 +249,10 @@ class _HomeScreenState extends State<HomeScreen> {
     void goToFeedbackList() => Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const FeedbackListScreen()));
+
+    void goToSuspiciousMeters() => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SuspiciousMetersScreen()));
 
     // Hızlı İşlemler: kullanıcının doğrudan bir eylem BAŞLATACAĞI girişler
     // (bir şey oluşturma/gönderme) — role göre SABİT liste.
@@ -474,7 +479,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       (auth.currentUser?.name.isNotEmpty == true
                           ? auth.currentUser!.name[0].toUpperCase()
                           : '?'),
-                  onAvatarTap: () => widget.onNavigate(3),
+                  // Profil artık sekme 4 (Mesajlar sekme 3'e eklendi, bkz.
+                  // main_shell.dart sekme sırası notu).
+                  onAvatarTap: () => widget.onNavigate(4),
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -486,6 +493,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 isTeknisyen: auth.isTeknisyen,
                 isYonetici: auth.isYonetici,
               ),
+              // Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) — yönetici-özel
+              // uyarı kartı. Yalnızca YÖNETİCİ görür (diğer roller için "şüpheli
+              // sayaç" kavramı bir aksiyon gerektirmez, bkz. görev talimatı) VE
+              // yalnızca sayı > 0 iken görünür — hiç şüpheli sayaç yokken sayfada
+              // gereksiz yer kaplamaz. _StatsRow ile AYNI veri kaynağından
+              // (DashboardSummary, bkz. summary?.suspiciousMetersCount) beslenir,
+              // ayrı bir istek AÇMAZ.
+              if (auth.isYonetici && (summary?.suspiciousMetersCount ?? 0) > 0) ...[
+                const SizedBox(height: AppSpacing.sm),
+                _SuspiciousMetersWarningCard(
+                  count: summary!.suspiciousMetersCount,
+                  onTap: goToSuspiciousMeters,
+                ),
+              ],
               const SizedBox(height: AppSpacing.lg),
 
               Text(
@@ -533,6 +554,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
+
+              // Acil Durum (SOS) Modülü — teknisyen görünümünde BİLİNÇLİ olarak
+              // sayfanın en altı YERİNE doğrudan Hızlı İşlemler'in hemen altına
+              // taşındı: teknisyen sahada tek başına çalışırken bu, aşağı
+              // kaydırmadan HER ZAMAN görünür ilk aksiyonlardan biri olmalı.
+              // Diğer roller (dispeçer/yönetici — bildirimi ALAN taraf, kendileri
+              // TETİKLEYEN değil) için sayfanın en altındaki mevcut konum
+              // DEĞİŞMEDİ (bkz. build() sonu).
+              if (auth.isTeknisyen) ...[
+                const SosButton(),
+                const SizedBox(height: AppSpacing.lg),
+              ],
 
               Text(
                 'Çabuk Erişim',
@@ -612,13 +645,15 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
 
               // Acil Durum (SOS) Modülü — sayfanın EN ALTINDA, kendi başına
-              // duran bir şerit (bkz. widgets/sos_button.dart). BİLİNÇLİ
-              // olarak TÜM rollere gösterilir: backend POST /api/sos-alerts
-              // hiçbir rol kısıtlaması UYGULAMAZ ("her rol acil durum
-              // bildirebilmeli", bkz. routes/sosAlerts.js) — bu UI kararı
-              // backend'in izin modeliyle tutarlı tutuldu.
-              const SizedBox(height: AppSpacing.lg),
-              const SosButton(),
+              // duran bir şerit (bkz. widgets/sos_button.dart). Dispeçer/
+              // yönetici için BURADA kalır; teknisyen için YUKARIYA (Hızlı
+              // İşlemler'in hemen altına, bkz. yukarısı) taşındığı için burada
+              // TEKRAR gösterilmez — backend POST /api/sos-alerts hâlâ hiçbir
+              // rol kısıtlaması UYGULAMAZ, bu yalnızca bir YERLEŞİM kararı.
+              if (!auth.isTeknisyen) ...[
+                const SizedBox(height: AppSpacing.lg),
+                const SosButton(),
+              ],
             ],
           ),
         ),
@@ -853,6 +888,61 @@ class _ActionData {
     required this.label,
     required this.onTap,
   });
+}
+
+/// Kayıp-Kaçak / Anormal Tüketim Tespiti (Modül 11) — Ana Sayfa uyarı kartı.
+///
+/// AppColors'ta ayrı `bgWarning`/`borderWarning`/`textWarning` sabitleri YOK —
+/// bu kart, OfflineBanner ve AppCard'ın zaten var olan "durum şeridi" desenini
+/// (bkz. app_card.dart `backgroundTint`/`statusStripeColor`, warning.withValues
+/// ile üretilen zemin/kenarlık) yeniden kullanır, YENİ bir renk icat etmez.
+class _SuspiciousMetersWarningCard extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+
+  const _SuspiciousMetersWarningCard({required this.count, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final warning = AppColors.warning(context);
+
+    return AppCard(
+      onTap: onTap,
+      statusStripeColor: warning,
+      backgroundTint: warning,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm + 4,
+        vertical: AppSpacing.sm + 4,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: warning, size: 20),
+          const SizedBox(width: AppSpacing.sm + 2),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$count şüpheli sayaç tespit edildi',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: warning,
+                  ),
+                ),
+                Text(
+                  'Kayıp-kaçak analizi inceleme bekliyor',
+                  style: TextStyle(fontSize: 11, color: warning),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, color: warning, size: 18),
+        ],
+      ),
+    );
+  }
 }
 
 /// Acil Durum (SOS) Modülü — bkz. yukarısı build() içindeki kullanım notu.

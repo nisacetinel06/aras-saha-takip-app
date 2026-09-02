@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:showcaseview/showcaseview.dart';
 import '../models/app_user.dart';
 import '../models/work_order.dart';
+import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/user_provider.dart';
@@ -12,6 +13,7 @@ import '../providers/work_order_list_provider.dart';
 import '../services/local_notification_service.dart';
 import '../services/onboarding_prefs_service.dart';
 import '../services/push_notification_service.dart';
+import '../theme/app_colors.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/app_navigation_drawer.dart';
 import '../widgets/app_top_bar.dart';
@@ -21,6 +23,8 @@ import '../widgets/onboarding/home_tour_controller.dart';
 import '../widgets/user_avatar.dart';
 import 'assistant/assistant_chat_screen.dart';
 import 'home/home_screen.dart';
+import 'messages/manager_messages_screen.dart';
+import 'messages/sent_messages_screen.dart';
 import 'profile/profile_screen.dart';
 import 'work_order_list_screen.dart';
 
@@ -68,13 +72,22 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-/// Sekme sırası SABİTTİR (0 Ana Sayfa, 1 İş Emirleri, 2 ArasAI, 3 Profil) —
-/// diğer ekranlardan sekme geçişi yapan TÜM kod (HomeScreen,
-/// AssistantChatScreen, DashboardScreen) AYNI indeksleri varsayar.
+/// Sekme sırası SABİTTİR (0 Ana Sayfa, 1 İş Emirleri, 2 ArasAI, 3 Mesajlar,
+/// 4 Profil) — diğer ekranlardan sekme geçişi yapan TÜM kod (HomeScreen,
+/// AssistantChatScreen, DashboardScreen) AYNI indeksleri varsayar. Mesajlar
+/// (Modül — Yöneticiden Çalışana Duyuru Sistemi) Profil'in HEMEN ÖNÜNE
+/// eklendi — HomeScreen'deki `onNavigate(3)` çağrıları bu değişiklikle
+/// BİRLİKTE `onNavigate(4)`'e taşındı (bkz. home_screen.dart avatar tıklaması).
 class _MainShellState extends State<MainShell> {
   int _index = 0;
 
-  static const _titles = ['Ana Sayfa', 'İş Emirleri', 'ArasAI', 'Profil'];
+  static const _titles = [
+    'Ana Sayfa',
+    'İş Emirleri',
+    'ArasAI',
+    'Mesajlar',
+    'Profil',
+  ];
 
   // dispose() içinde context.read(...) çağırmak güvensizdir: tüm widget
   // ağacı TEK SEFERDE (örn. runApp'in yeni bir kökle tekrar çağrılması)
@@ -241,6 +254,24 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _buildScaffold(BuildContext context, AppUser? myProfile) {
+    // Mesajlar sekmesi (Yöneticiden Çalışana Duyuru Sistemi) — rol bazlı
+    // yönlendirme: teknisyen/dispeçer KENDİ aldığı mesajları (salt okunur,
+    // bkz. ManagerMessagesScreen), yönetici KENDİ gönderdiklerini + "Yeni
+    // Mesaj Gönder" FAB'ını (bkz. SentMessagesScreen) görür. `embedded: true`
+    // her ikisinin de kendi AppTopBar'ını ÇİZMEMESİNİ sağlar — bu sekmenin
+    // başlığı zaten aşağıdaki ortak AppBar'dan ("Mesajlar", bkz. _titles) gelir.
+    final isYonetici = context.watch<AuthProvider>().isYonetici;
+    final messagesTab = isYonetici
+        ? const SentMessagesScreen(embedded: true)
+        : const ManagerMessagesScreen(embedded: true);
+    // Sekme ikonundaki kırmızı nokta (bkz. NavigationBar destinations aşağısı)
+    // — NotificationProvider'ın AYNI 30 sn'lik polling'ine eklendi (bkz.
+    // notification_provider.dart), ayrı bir istek/timer AÇILMADI. Yönetici
+    // hiçbir mesajın alıcısı olamayacağı için bu sayı onda her zaman 0'dır.
+    final unreadMessageCount = context
+        .watch<NotificationProvider>()
+        .unreadMessageCount;
+
     final tabs = <Widget>[
       HomeScreen(
         onNavigate: _navigateToTab,
@@ -250,6 +281,7 @@ class _MainShellState extends State<MainShell> {
       ),
       const WorkOrderListScreen(),
       AssistantChatScreen(onNavigateToTab: _navigateToTab),
+      messagesTab,
       const ProfileScreen(),
     ];
     // UI denetimi bulgusu: Ana Sayfa artık kendi karşılama bölümünde büyük,
@@ -376,6 +408,50 @@ class _MainShellState extends State<MainShell> {
                   icon: Icon(Icons.smart_toy_outlined),
                   selectedIcon: Icon(Icons.smart_toy),
                   label: 'ArasAI',
+                ),
+                NavigationDestination(
+                  // Sayısal bir rozet yerine BİLİNÇLİ olarak küçük bir nokta —
+                  // bu sekme "kaç mesaj var"ı değil, "okunmamış bir şey var mı"yı
+                  // göstermek için yeterli (bkz. görev talimatı örnek kod).
+                  icon: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(Icons.chat_bubble_outline_rounded),
+                      if (unreadMessageCount > 0)
+                        Positioned(
+                          top: -3,
+                          right: -6,
+                          child: Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: AppColors.danger(context),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  selectedIcon: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(Icons.chat_bubble_rounded),
+                      if (unreadMessageCount > 0)
+                        Positioned(
+                          top: -3,
+                          right: -6,
+                          child: Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: AppColors.danger(context),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  label: 'Mesajlar',
                 ),
                 NavigationDestination(
                   // Turun son adımı: unselected `icon` sarmalanır (bkz. Showcase'e

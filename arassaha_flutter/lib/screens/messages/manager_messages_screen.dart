@@ -22,7 +22,15 @@ import 'manager_message_detail_screen.dart';
 /// "cevap yaz"/"gönder" bileşeni YOK — çalışanlar birbirine de yöneticiye de
 /// mesaj gönderemez, bu modülün kavramsal modeli BİLİNÇLİ olarak tek yönlü.
 class ManagerMessagesScreen extends StatefulWidget {
-  const ManagerMessagesScreen({super.key});
+  /// true ise alt navigasyondaki "Mesajlar" sekmesi içinde gösterilir (bkz.
+  /// main_shell.dart) — kendi [AppTopBar]'ını ÇİZMEZ, çünkü MainShell zaten
+  /// ortak bir üst çubuk taşıyor; ikisi aynı anda görünseydi ekranda iki üst
+  /// çubuk üst üste binerdi. Varsayılan false: Ana Sayfa'nın "Yöneticiden
+  /// Mesajlar" Çabuk Erişim kartından PUSH edilen mevcut kullanım (kendi geri
+  /// tuşu/başlığıyla) DEĞİŞMEDEN kalır.
+  final bool embedded;
+
+  const ManagerMessagesScreen({super.key, this.embedded = false});
 
   @override
   State<ManagerMessagesScreen> createState() => _ManagerMessagesScreenState();
@@ -43,7 +51,9 @@ class _ManagerMessagesScreenState extends State<ManagerMessagesScreen> {
     final provider = context.watch<ManagerMessageProvider>();
 
     return Scaffold(
-      appBar: const AppTopBar(title: 'Yöneticiden Mesajlar'),
+      appBar: widget.embedded
+          ? null
+          : const AppTopBar(title: 'Yöneticiden Mesajlar'),
       body: SafeArea(
         top: false,
         child: RefreshIndicator(

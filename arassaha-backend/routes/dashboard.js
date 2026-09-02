@@ -74,6 +74,16 @@ router.get('/summary', (req, res) => {
       )
       .all(...visibility.params);
 
+    // Ana Sayfa'daki yönetici-özel uyarı kartı (Modül 11 — bkz. routes/anomaly.js
+    // GET /meters/suspicious) için: ayrı bir istek açmak yerine zaten çekilen
+    // özete tek bir sayı eklenir. Ekipman-bazlı bir sayı olduğu için (iş emri
+    // DEĞİL) yukarıdaki visibilityClause'a tabi değil — teknisyen/dispeçer
+    // yanıtında da gelir, görünürlük Flutter tarafında role göre kısıtlanır
+    // (bkz. home_screen.dart, meters/suspicious endpoint'i zaten herkese açık).
+    const suspiciousMetersCount = db
+      .prepare('SELECT COUNT(*) AS c FROM meter_anomaly_scores WHERE is_suspicious = 1')
+      .get().c;
+
     res.json({
       open_count: openCount,
       resolved_today_count: resolvedTodayCount,
@@ -81,6 +91,7 @@ router.get('/summary', (req, res) => {
       status_breakdown: statusBreakdown,
       priority_breakdown: priorityBreakdown,
       recent_activity: recentActivity,
+      suspicious_meters_count: suspiciousMetersCount,
     });
   } catch (err) {
     console.error(err);
