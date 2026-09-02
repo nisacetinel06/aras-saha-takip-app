@@ -79,18 +79,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case NotificationRelatedType.managerMessage:
         await _openManagerMessage(notification.relatedId);
       case NotificationRelatedType.sosAlert:
-        // Bu bildirim yalnızca dispeçer/yönetici'ye gider (bkz.
-        // routes/sosAlerts.js POST /) — SOS Uyarıları ekranı zaten TÜM
-        // bildirimleri listeler, tek bir kayda özel bir detay ekranı yok.
         Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => const SosAlertsScreen()));
       case NotificationRelatedType.passwordResetRequest:
-        // Bu bildirim yalnızca yönetici'ye gider (bkz. routes/auth.js POST
-        // /forgot-password) — relatedId burada bir bildirim kaydı değil,
-        // şifresini unutan KULLANICININ id'sidir; doğrudan o kullanıcının
-        // Kullanıcı Düzenle ekranına gidilir, yönetici oradaki mevcut "Şifreyi
-        // Sıfırla" butonuyla (bkz. user_edit_screen.dart) işlemi tamamlar.
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => UserEditScreen(userId: notification.relatedId),
