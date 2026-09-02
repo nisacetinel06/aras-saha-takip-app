@@ -13,7 +13,6 @@
 [![Express](https://img.shields.io/badge/Express-4.19-000000?logo=express&logoColor=white)](arassaha-backend)
 [![FastAPI](https://img.shields.io/badge/FastAPI-ML%20Servisi-009688?logo=fastapi&logoColor=white)](arassaha-ml)
 [![SQLite](https://img.shields.io/badge/SQLite-better--sqlite3-003B57?logo=sqlite&logoColor=white)](arassaha-backend)
-[![Deploy](https://img.shields.io/badge/Deploy-Railway-0B0D0E?logo=railway&logoColor=white)](https://railway.app)
 [![Lisans](https://img.shields.io/badge/Lisans-Staj%20Prototipi-orange)](#-lisans--sorumluluk-reddi)
 
 **[📱 Flutter Uygulaması](arassaha_flutter)** · **[🔧 Backend API](arassaha-backend)** · **[🤖 ML Servisi](arassaha-ml)** · **[🏗️ Mimari Doküman](ARCHITECTURE.md)**
@@ -128,11 +127,14 @@ flutter pub get
 flutter run
 ```
 
-> ⚠️ **Önemli:** Uygulama varsayılan olarak **canlı Railway backend'ine** (`https://arassaha-backend-production.up.railway.app`) bağlanır — lokal backend'ini test etmek istiyorsan `--dart-define=API_HOST=http://10.0.2.2:3000` (Android emülatör) gibi bir override vermen gerekir; aksi halde uygulama doğrudan canlı sunucuyla konuşur ve ekstra kurulum yapmana gerek kalmaz.
+> ℹ️ **Not:** Uygulama varsayılan olarak **lokal backend'e** (`http://localhost:3000`) bağlanır. Android emülatörde çalıştırıyorsan `10.0.2.2` kullanman gerekir — `localhost` emülatörün kendi içini işaret eder, geliştirme makinenin değil:
 
 ```bash
-# Örnek: lokal backend ile test
+# Android emülatör için
 flutter run --dart-define=API_HOST=http://10.0.2.2:3000
+
+# Gerçek cihaz + aynı WiFi ağı
+flutter run --dart-define=API_HOST=http://<bilgisayarının-yerel-IP'si>:3000
 ```
 
 ### 🔑 Demo Giriş Bilgileri
@@ -149,8 +151,8 @@ flutter run --dart-define=API_HOST=http://10.0.2.2:3000
 | **Backend** | Node.js, Express, better-sqlite3 (`node:sqlite`), JWT + refresh token, bcrypt, TOTP (2FA), Multer, node-cron |
 | **Veritabanı** | SQLite — dosya tabanlı, kurulumsuz, tek dosya yedekleme |
 | **ML Servisi** | Python, FastAPI, scikit-learn (RandomForest, IsolationForest, TF-IDF+LogisticRegression), TensorFlow/Keras (MobileNetV2 transfer learning) |
-| **CI/CD** | GitHub Actions — test + `npm audit` / `pip-audit` / OSV-Scanner gate'leri kırmızıysa deploy durur |
-| **Deploy** | Railway (backend) |
+| **CI/CD** | GitHub Actions — test + `npm audit` / `pip-audit` / OSV-Scanner gate'leri kırmızıysa build kırmızı yanar |
+| **Çalışma Ortamı** | Lokal (backend + ML servisi + Flutter, tümü kendi makinende) |
 
 ---
 

@@ -25,9 +25,10 @@ import 'package:arassaha_flutter/widgets/work_order_card.dart';
 //        --dart-define=API_HOST=http://10.0.2.2:3000 -d <device-id>
 //    Gerçek cihaz + USB kullanıyorsan: `adb reverse tcp:3000 tcp:3000` çalıştırıp
 //    --dart-define=API_HOST=http://localhost:3000 kullan.
-//    --dart-define VERİLMEZSE varsayılan HER ZAMAN canlı Railway'dir (bkz.
-//    ApiService.host) — bu testi yanlışlıkla prod'a karşı ÇALIŞTIRMAK
-//    İMKANSIZDIR, bilinçli bir override gerekir.
+//    --dart-define VERİLMEZSE varsayılan zaten localhost:3000'dir (bkz.
+//    ApiService.host, backend artık yalnızca lokal çalışır) — Android
+//    emülatörde `10.0.2.2:3000` gerekir, localhost emülatörün kendi içini
+//    işaret eder.
 // 3) seed.js her çalıştığında users/work_orders dahil TÜM tabloyu sıfırdan
 //    yazdığı için (bkz. seed.js), teknisyen 1001 (Ahmet Yılmaz, şifre
 //    "sifre123") HER SEED'DE garantili 3 'acik' iş emrine sahiptir. Bu test

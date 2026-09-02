@@ -144,38 +144,29 @@ eğitilmesi için yazılmış ama henüz devreye alınmamış bir altyapı.
 > artık değişti: testler artık production deploy'unu gerçekten kapılıyor
 > (gate) — bu bir çelişki değil, planlı bir evrim.
 
-**Testler kırmızıysa production'a hiçbir şey deploy edilmez.** Ayrıca,
-backend/ML servisi/Flutter bağımlılıklarında yüksek/kritik önemde bilinen
-bir güvenlik açığı bulunursa CI/CD pipeline'ı da durur (bkz. aşağıdaki
-"Bağımlılık Güvenlik Taraması (Dependency Audit) Gate'i" bölümü).
+**Testler kırmızıysa merge/build kırmızı yanar.** Ayrıca, backend/ML
+servisi/Flutter bağımlılıklarında yüksek/kritik önemde bilinen bir güvenlik
+açığı bulunursa CI pipeline'ı da durur (bkz. aşağıdaki "Bağımlılık Güvenlik
+Taraması (Dependency Audit) Gate'i" bölümü).
 
-İki ayrı, birbirini tamamlayan mekanizma var:
+**GitHub Actions** (`.github/workflows/backend-tests.yml`) — her
+`push`/`pull_request`'te (main/master) `npm ci`, `npm test`,
+`npm run test:coverage` VE `npm audit --audit-level=high` çalışır. Bu dört
+adımdan HERHANGİ biri başarısız olursa (non-zero exit code) workflow
+kırmızı yanar.
 
-1. **GitHub Actions** (`.github/workflows/backend-tests.yml`) — her
-   `push`/`pull_request`'te (main/master) `npm ci`, `npm test`,
-   `npm run test:coverage` VE `npm audit --audit-level=high` çalışır. Bu
-   dört adımdan HERHANGİ biri başarısız olursa (non-zero exit code)
-   workflow kırmızı yanar.
-2. **Railway build zinciri** (`railway.json`) — `buildCommand`,
-   `"npm ci && npm audit --audit-level=high && npm test"` olarak
-   zincirlenmiştir; `startCommand` ise `"npm start"`dir. Zincirdeki
-   HERHANGİ bir adım (test YA DA bağımlılık güvenlik taraması) başarısız
-   olursa `&&` zinciri durur, Railway'in build fazı başarısız sayılır ve
-   `npm start`'a — dolayısıyla yeni sürümün canlıya alınmasına — ASLA
-   geçilmez. Bu, GitHub branch protection gibi ekstra bir yapılandırmaya
-   ihtiyaç duymadan en doğrudan deploy-engelleme yoludur.
+> **Not:** Proje daha önce Railway'e canlı olarak dağıtılıyordu ve
+> `railway.json`'daki build zinciri aynı gate'i (test + audit başarısız
+> olursa deploy durur) Railway tarafında da uyguluyordu. Canlı Railway
+> dağıtımı artık kullanılmıyor (proje yalnızca lokal çalışacak şekilde
+> yapılandırıldı) — bu yüzden `railway.json` kaldırıldı; GitHub Actions
+> gate'i tek başına geçerli.
 
 Yerel olarak aynı zinciri simüle edip doğrulamak için:
 
 ```bash
 npm ci && npm audit --audit-level=high && npm test && npm start
 ```
-
-Bir test kasıtlı olarak bozulduğunda YA DA bağımlılıklarda yüksek/kritik
-önemde bilinen bir açık varken bu komut `npm start`'a hiç ulaşmaz (sunucu
-hiç dinlemeye başlamaz) — bu, gerçek Railway ortamında da aynı davranışın
-(build fazının başarısız sayılıp deploy'un durmasının) güvenilir bir yerel
-kanıtıdır.
 
 ### Bağımlılık Güvenlik Taraması (Dependency Audit) Gate'i
 
@@ -199,7 +190,7 @@ ol" davranışı farklıdır; bu BİLİNÇLİ bir tutarsızlık, keyfi değil:
 
 | Araç | Nerede | Eşik | Not |
 |---|---|---|---|
-| `npm audit` | Backend (`backend-tests.yml`, `railway.json`) | `--audit-level=high` | Yalnızca yüksek/kritik önem build'i kırar; düşük/orta önem raporlanır ama build'i durdurmaz |
+| `npm audit` | Backend (`backend-tests.yml`) | `--audit-level=high` | Yalnızca yüksek/kritik önem build'i kırar; düşük/orta önem raporlanır ama build'i durdurmaz |
 | `pip-audit` | ML servisi (`ml-service-tests.yml`) | Herhangi bir bilinen açık | Varsayılan davranış; gerekirse `pip-audit --ignore-vuln <VULN_ID>` ile istisna tanımlanabilir |
 | OSV-Scanner | Flutter (`flutter-tests.yml`) | Herhangi bir bilinen açık | Benzer şekilde; istisnalar `.osv-scanner.toml` ile tanımlanabilir |
 

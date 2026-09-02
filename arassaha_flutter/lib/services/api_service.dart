@@ -67,23 +67,15 @@ class SessionExpiredException implements Exception {
 }
 
 class ApiService {
-  // Backend Railway'de canlı: https://arassaha-backend-production.up.railway.app
-  // Lokal test için geçici olarak değiştirmek istersen (yerelde test bitince
-  // MUTLAKA Railway URL'sine geri al, aksi halde bilgisayar kapalıyken veya
-  // farklı bir ağdayken uygulama sunucuya ulaşamaz):
+  // Backend artık yalnızca LOKAL çalışıyor (canlı Railway dağıtımı
+  // kaldırıldı). Varsayılan `http://localhost:3000`'dır; farklı bir hedefe
+  // ihtiyaç duyarsan `API_HOST` derleme-zamanı ortam değişkeniyle override et:
   // - Android emulator:      http://10.0.2.2:3000
   // - Gerçek cihaz + USB kablo: http://localhost:3000 (+ adb reverse tcp:3000 tcp:3000)
   // - Gerçek cihaz + aynı WiFi ağı: http://<bilgisayarın-yerel-IP'si>:3000
-  // E2E entegrasyon testi (integration_test/) LOKAL bir backend'e karşı
-  // çalışmak zorunda (gerçek Railway prod verisine yazmamak için) — bu yüzden
-  // `API_HOST` derleme-zamanı ortam değişkeniyle override edilebilir hale
-  // getirildi. VARSAYILAN DEĞER HER ZAMAN Railway'dir; override yalnızca
-  // `flutter test integration_test/... --dart-define=API_HOST=...` gibi
-  // AÇIKÇA belirtildiğinde devreye girer — normal `flutter run`/release build
-  // davranışı DEĞİŞMEZ, uygulama her zaman Railway'e bağlanmaya devam eder.
   static const String host = String.fromEnvironment(
     'API_HOST',
-    defaultValue: 'https://arassaha-backend-production.up.railway.app',
+    defaultValue: 'http://localhost:3000',
   );
   static const String baseUrl = '$host/api';
 

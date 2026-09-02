@@ -27,9 +27,10 @@ import 'package:arassaha_flutter/services/api_service.dart';
 // 2) Gerçek cihaz + USB: `adb reverse tcp:3000 tcp:3000` çalıştırıp:
 //      flutter test integration_test/refresh_token_flow_test.dart \
 //        --dart-define=API_HOST=http://localhost:3000 -d <device-id>
-//    --dart-define VERİLMEZSE varsayılan HER ZAMAN canlı Railway'dir (bkz.
-//    ApiService.host) — bu testi yanlışlıkla prod'a karşı ÇALIŞTIRMAK
-//    İMKANSIZDIR, bilinçli bir override gerekir.
+//    --dart-define VERİLMEZSE varsayılan zaten localhost:3000'dir (bkz.
+//    ApiService.host, backend artık yalnızca lokal çalışır) — Android
+//    emülatörde `10.0.2.2:3000` gerekir, localhost emülatörün kendi içini
+//    işaret eder.
 const _sicilNo = '1001';
 const _password = 'sifre123';
 

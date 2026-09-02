@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase config — API key kendi başına gizli sayılmasa da, kişiye özel
+# proje bilgisi taşıdığı için repoya commit edilmiyor. Push bildirimlerini
+# lokalde denemek için kendi Firebase projenden indirip buraya koy:
+# android/app/google-services.json
+android/app/google-services.json
