@@ -15,6 +15,7 @@ const {
   revokeRefreshToken,
   revokeAllRefreshTokensForUser,
 } = require('../utils/refreshToken');
+const { createNotification } = require('../utils/notify');
 
 const router = express.Router();
 
@@ -109,6 +110,79 @@ router.post('/login', loginIpLimiter, checkLoginRateLimit, (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Giriş yapılırken bir hata oluştu.' });
+  }
+});
+
+// "Şifremi Unuttum" IP bazlı sınırlama — bu uç nokta HERKESE AÇIK olduğu
+// (kimlik doğrulaması gerektirmediği) için loginIpLimiter'daki AYNI savunma
+// gerekçesiyle, ama daha sıkı bir üst sınırla: her başarılı çağrı en az bir
+// yöneticiye push bildirimi tetikleyebilir, bu yüzden art arda tıklamanın
+// yöneticileri spam'lememesi burada da (aşağıdaki 15 dakikalık tekilleştirme
+// ile birlikte) ikinci bir savunma katmanıdır.
+const forgotPasswordIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { error: 'Çok fazla istek, lütfen daha sonra tekrar deneyin.' },
+});
+
+// POST /api/auth/forgot-password — herkese açık (Giriş ekranındaki "Şifremi
+// Unuttum"). Body: { sicil_no }
+//
+// Bu bir GERÇEK self-service şifre sıfırlama (e-posta/SMS ile tek kullanımlık
+// link/kod) DEĞİLDİR — projede bunun için bir e-posta/SMS gönderim altyapısı
+// (SMTP/Twilio vb.) YOK, ve `email`/`phone` alanları her kullanıcı için
+// dolu olmak ZORUNDA değil (bkz. database.js users tablo yorumu). Bunun
+// yerine mevcut Bildirim Sistemi (bkz. utils/notify.js) yeniden kullanılır:
+// sicil_no'ya karşılık gelen aktif bir kullanıcı varsa TÜM yöneticilere
+// ("yonetici" rolü) bir bildirim + push gider; yönetici Kullanıcı Yönetimi
+// panelinden (PATCH /api/users/:id/reset-password, requireRole('yonetici'))
+// şifreyi sıfırlayıp kullanıcıya iletir. Teknisyen/dispeçer zaten şifresini
+// KENDİSİ değiştiremediği (bkz. routes/users.js dosya başı notu) için bu,
+// "unuttum" durumunda da AYNI yönetici-onaylı akışın bir uzantısıdır.
+//
+// Kullanıcı sicil_no'nun sistemde KAYITLI OLUP OLMADIĞINI bu yanıttan asla
+// anlayamaz — sicil_no bulunamasa/pasif olsa bile AYNI genel mesaj döner
+// (login'deki "hangi alan hatalı belli etme" ilkesiyle aynı gerekçe).
+router.post('/forgot-password', forgotPasswordIpLimiter, (req, res) => {
+  try {
+    const { sicil_no } = req.body;
+    if (!sicil_no) {
+      return res.status(400).json({ error: 'Sicil no zorunludur.' });
+    }
+
+    const GENERIC_MESSAGE =
+      'İsteğiniz alındı. Yöneticiniz sizinle iletişime geçip yeni bir şifre belirleyecektir.';
+
+    const user = db.prepare('SELECT * FROM users WHERE sicil_no = ?').get(sicil_no);
+    if (user && user.is_active) {
+      // Tekilleştirme: aynı kullanıcı için son 15 dakikada zaten bir talep
+      // bildirimi gittiyse tekrar göndermeyiz.
+      const fifteenMinutesAgoIso = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const recent = db
+        .prepare(
+          `SELECT COUNT(*) AS count FROM notifications
+           WHERE related_type = 'password_reset_request' AND related_id = ? AND created_at > ?`
+        )
+        .get(user.id, fifteenMinutesAgoIso);
+
+      if (recent.count === 0) {
+        const managers = db
+          .prepare(`SELECT id FROM users WHERE role = 'yonetici' AND is_active = 1`)
+          .all();
+        const message = `${user.name} (Sicil No: ${user.sicil_no}) şifresini unuttu ve sıfırlama talep etti.`;
+        for (const manager of managers) {
+          createNotification(manager.id, message, 'password_reset_request', user.id);
+        }
+      }
+    }
+
+    res.json({ message: GENERIC_MESSAGE });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'İsteğiniz gönderilirken bir hata oluştu.' });
   }
 });
 

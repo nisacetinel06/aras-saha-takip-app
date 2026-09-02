@@ -15,6 +15,7 @@ import '../../widgets/cache_age_note.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/staggered_fade_in.dart';
 import '../../widgets/work_order_card.dart' show formatRelativeTime;
+import '../admin/user_edit_screen.dart';
 import '../equipment/equipment_detail_screen.dart';
 import '../isg/isg_report_detail_screen.dart';
 import '../messages/manager_message_detail_screen.dart';
@@ -84,6 +85,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => const SosAlertsScreen()));
+      case NotificationRelatedType.passwordResetRequest:
+        // Bu bildirim yalnızca yönetici'ye gider (bkz. routes/auth.js POST
+        // /forgot-password) — relatedId burada bir bildirim kaydı değil,
+        // şifresini unutan KULLANICININ id'sidir; doğrudan o kullanıcının
+        // Kullanıcı Düzenle ekranına gidilir, yönetici oradaki mevcut "Şifreyi
+        // Sıfırla" butonuyla (bkz. user_edit_screen.dart) işlemi tamamlar.
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => UserEditScreen(userId: notification.relatedId),
+          ),
+        );
     }
   }
 

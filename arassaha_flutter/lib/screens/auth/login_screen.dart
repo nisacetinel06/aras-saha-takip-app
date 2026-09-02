@@ -36,6 +36,77 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  /// "Şifremi Unuttum" — bkz. AuthProvider.requestPasswordReset. Backend'de
+  /// bir e-posta/SMS gönderim altyapısı olmadığı için burada bir kod/link
+  /// beklenmez — yalnızca sicil no istenir, yönetici(ler)e bildirim gider ve
+  /// backend'in HER durumda (sicil no kayıtlı olsun olmasın) döndürdüğü AYNI
+  /// genel mesaj kullanıcıya gösterilir (bkz. routes/auth.js dosya başı
+  /// dokümantasyonu — user enumeration önleme).
+  Future<void> _showForgotPasswordDialog() async {
+    final dialogSicilNoController = TextEditingController(
+      text: _sicilNoController.text.trim(),
+    );
+
+    final sicilNo = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Şifremi Unuttum'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Sicil numaranızı girin, yöneticinize bir bildirim gönderelim; '
+              'sizin için yeni bir şifre belirleyip iletecektir.',
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: dialogSicilNoController,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Sicil No',
+                prefixIcon: Icon(Icons.badge_outlined),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () {
+              final value = dialogSicilNoController.text.trim();
+              if (value.isNotEmpty) {
+                Navigator.of(dialogContext).pop(value);
+              }
+            },
+            child: const Text('Talep Gönder'),
+          ),
+        ],
+      ),
+    );
+
+    if (sicilNo == null || !mounted) return;
+
+    final auth = context.read<AuthProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final message = await auth.requestPasswordReset(sicilNo);
+
+    if (!mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          message ??
+              auth.passwordResetRequestError ??
+              'İsteğiniz gönderilemedi.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _submit() async {
     final sicilNo = _sicilNoController.text.trim();
     final password = _passwordController.text;
@@ -119,6 +190,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           () => _obscurePassword = !_obscurePassword,
                         ),
                       ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      key: const Key('login_forgot_password_button'),
+                      onPressed: _showForgotPasswordDialog,
+                      child: const Text('Şifremi Unuttum?'),
                     ),
                   ),
                   if (auth.errorMessage != null) ...[

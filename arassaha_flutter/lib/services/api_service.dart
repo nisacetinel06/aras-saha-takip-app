@@ -320,6 +320,35 @@ class ApiService {
     }
   }
 
+  /// POST /api/auth/forgot-password — herkese açık (Giriş ekranındaki
+  /// "Şifremi Unuttum"). Kimlik doğrulaması gerektirmez (kullanıcı henüz
+  /// giriş yapamıyor). Bu GERÇEK bir e-posta/SMS ile self-service şifre
+  /// sıfırlama DEĞİLDİR — backend'de böyle bir gönderim altyapısı yok (bkz.
+  /// routes/auth.js dosya başı dokümantasyonu). Bunun yerine [sicilNo]'ya
+  /// karşılık gelen aktif bir kullanıcı varsa TÜM yöneticilere push bildirim
+  /// gönderilir; yönetici Kullanıcı Yönetimi panelinden şifreyi sıfırlayıp
+  /// kullanıcıya iletir. sicil_no'nun sistemde kayıtlı olup olmadığını
+  /// gizlemek için (login'deki AYNI ilke) backend HER durumda AYNI genel
+  /// mesajı döner — bu metot da o mesajı OLDUĞU GİBİ çağırana taşır.
+  Future<String> requestPasswordReset(String sicilNo) async {
+    final uri = Uri.parse('$baseUrl/auth/forgot-password');
+    final response = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'sicil_no': sicilNo}),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        response.statusCode,
+        _extractError(response, 'İsteğiniz gönderilemedi.'),
+      );
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return data['message'] as String;
+  }
+
   /// POST /api/auth/2fa/verify — login akışının 2. adımı. [pendingToken],
   /// `login()`'ın `requiresTwoFactor: true` döndüğü çağrıdan gelir. [code]
   /// authenticator uygulamasındaki 6 haneli TOTP kodu YA DA (authenticator'a

@@ -35,6 +35,13 @@ class AuthProvider extends ChangeNotifier {
   String? _changePasswordErrorMessage;
   bool _changePasswordErrorIsCurrentPasswordWrong = false;
 
+  // "Şifremi Unuttum" (Giriş ekranı) — bkz. requestPasswordReset. Login/
+  // değiştir akışlarının kendi _isLoading/_errorMessage'ından BİLİNÇLİ olarak
+  // AYRI alanlar (changePassword'deki AYNI gerekçe): bu istek Giriş ekranından,
+  // henüz kimlik doğrulaması TAMAMLANMAMIŞKEN yapılır.
+  bool _isRequestingPasswordReset = false;
+  String? _passwordResetRequestError;
+
   // İki Faktörlü Doğrulama (2FA) — bkz. routes/twoFactor.js. `login()`
   // 2FA etkin bir yönetici için TAM token çifti yerine bu kısa ömürlü (5 dk)
   // ara token'ı döndürdüğünde burada saklanır; giriş `verifyTwoFactor()`
@@ -67,6 +74,9 @@ class AuthProvider extends ChangeNotifier {
 
   bool get isChangingPassword => _isChangingPassword;
   String? get changePasswordErrorMessage => _changePasswordErrorMessage;
+
+  bool get isRequestingPasswordReset => _isRequestingPasswordReset;
+  String? get passwordResetRequestError => _passwordResetRequestError;
 
   /// true ise hata backend'in 401 (mevcut şifre hatalı) yanıtından geliyor
   /// demektir — çağıran ekran (ChangePasswordScreen) bu durumda hatayı genel
@@ -223,6 +233,28 @@ class AuthProvider extends ChangeNotifier {
       return false;
     } finally {
       _isChangingPassword = false;
+      notifyListeners();
+    }
+  }
+
+  /// "Şifremi Unuttum" — bkz. ApiService.requestPasswordReset, routes/auth.js
+  /// POST /forgot-password. Giriş ekranından, kimlik doğrulaması OLMADAN
+  /// çağrılır. Dönen [String] her zaman backend'in genel (sicil_no'nun kayıtlı
+  /// olup olmadığını gizleyen) onay mesajıdır — çağıran ekran bunu doğrudan
+  /// gösterebilir. Hata YALNIZCA ağ/sunucu sorunu (rate limit, 500 vb.)
+  /// durumunda [passwordResetRequestError]'a yazılır.
+  Future<String?> requestPasswordReset(String sicilNo) async {
+    _isRequestingPasswordReset = true;
+    _passwordResetRequestError = null;
+    notifyListeners();
+
+    try {
+      return await _api.requestPasswordReset(sicilNo);
+    } catch (e) {
+      _passwordResetRequestError = mapExceptionToUserMessage(e);
+      return null;
+    } finally {
+      _isRequestingPasswordReset = false;
       notifyListeners();
     }
   }
